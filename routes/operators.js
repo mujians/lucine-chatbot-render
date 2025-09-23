@@ -351,6 +351,70 @@ router.get('/pending-sessions', async (req, res) => {
   }
 });
 
+// Send message from operator to user
+router.post('/send-message', async (req, res) => {
+  try {
+    const { sessionId, operatorId, message } = req.body;
+    
+    if (!sessionId || !operatorId || !message) {
+      return res.status(400).json({ error: 'SessionId, operatorId and message required' });
+    }
+
+    // Verify operator is assigned to this session
+    const operatorChat = await prisma.operatorChat.findFirst({
+      where: {
+        sessionId,
+        operatorId,
+        endedAt: null
+      },
+      include: {
+        operator: true
+      }
+    });
+
+    if (!operatorChat) {
+      return res.status(403).json({ error: 'Operator not assigned to this session' });
+    }
+
+    // Save operator message
+    const savedMessage = await prisma.message.create({
+      data: {
+        sessionId,
+        sender: 'OPERATOR',
+        message,
+        metadata: {
+          operatorId,
+          operatorName: operatorChat.operator.name
+        }
+      }
+    });
+
+    // Update session last activity
+    await prisma.chatSession.update({
+      where: { sessionId },
+      data: { lastActivity: new Date() }
+    });
+
+    res.json({
+      success: true,
+      message: {
+        id: savedMessage.id,
+        sender: 'OPERATOR',
+        message: savedMessage.message,
+        timestamp: savedMessage.timestamp,
+        operator: {
+          id: operatorChat.operator.id,
+          name: operatorChat.operator.name
+        }
+      }
+    });
+
+  } catch (error) {
+    console.error('Send message error:', error);
+    res.status(500).json({ error: 'Failed to send message' });
+  }
+});
+
 // Get chat history for dashboard
 router.get('/chat-history', async (req, res) => {
   try {

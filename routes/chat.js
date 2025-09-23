@@ -239,6 +239,58 @@ ${JSON.stringify(knowledgeBase, null, 2)}
   }
 });
 
+// Poll for new messages (for live chat)
+router.get('/poll/:sessionId', async (req, res) => {
+  try {
+    const { sessionId } = req.params;
+    const { lastMessageTime } = req.query;
+
+    const whereClause = {
+      sessionId,
+      sender: 'OPERATOR'
+    };
+
+    // If lastMessageTime provided, get only newer messages
+    if (lastMessageTime) {
+      whereClause.timestamp = {
+        gt: new Date(lastMessageTime)
+      };
+    }
+
+    const newMessages = await prisma.message.findMany({
+      where: whereClause,
+      orderBy: { timestamp: 'asc' }
+    });
+
+    // Get current session status
+    const session = await prisma.chatSession.findUnique({
+      where: { sessionId },
+      include: {
+        operatorChats: {
+          where: { endedAt: null },
+          include: {
+            operator: {
+              select: { id: true, name: true }
+            }
+          }
+        }
+      }
+    });
+
+    res.json({
+      messages: newMessages,
+      hasNewMessages: newMessages.length > 0,
+      sessionStatus: session?.status || 'ACTIVE',
+      operator: session?.operatorChats[0]?.operator || null,
+      timestamp: new Date().toISOString()
+    });
+
+  } catch (error) {
+    console.error('Poll error:', error);
+    res.status(500).json({ error: 'Failed to poll messages' });
+  }
+});
+
 // Get chat history
 router.get('/history/:sessionId', async (req, res) => {
   try {
