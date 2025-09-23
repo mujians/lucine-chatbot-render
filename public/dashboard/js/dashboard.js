@@ -71,6 +71,17 @@ class DashboardApp {
         if (refreshBtn) {
             refreshBtn.addEventListener('click', () => this.refreshChats());
         }
+        
+        const refreshAllChatsBtn = document.getElementById('refresh-all-chats');
+        if (refreshAllChatsBtn) {
+            refreshAllChatsBtn.addEventListener('click', () => this.loadAllChatsData());
+        }
+        
+        // Status Filter
+        const statusFilter = document.getElementById('status-filter');
+        if (statusFilter) {
+            statusFilter.addEventListener('change', () => this.loadAllChatsData());
+        }
     }
 
     /**
@@ -301,6 +312,9 @@ class DashboardApp {
             case 'chats':
                 this.loadChatsData();
                 break;
+            case 'all-chats':
+                this.loadAllChatsData();
+                break;
             case 'tickets':
                 this.loadTicketsData();
                 break;
@@ -320,6 +334,9 @@ class DashboardApp {
                 break;
             case 'chats':
                 await this.loadChatsData();
+                break;
+            case 'all-chats':
+                await this.loadAllChatsData();
                 break;
             case 'tickets':
                 await this.loadTicketsData();
@@ -646,6 +663,129 @@ class DashboardApp {
             }
         } catch (error) {
             console.error('Error viewing session details:', error);
+        }
+    }
+
+    /**
+     * 📋 Carica tutte le chat per la sezione dedicata
+     */
+    async loadAllChatsData() {
+        try {
+            const statusFilter = document.getElementById('status-filter')?.value || '';
+            const response = await fetch(`${this.apiBase}/operators/chat-history?limit=50${statusFilter ? `&status=${statusFilter}` : ''}`);
+            
+            if (response.ok) {
+                const data = await response.json();
+                const allChatsContainer = document.getElementById('all-chats-container');
+                const totalSessionsBadge = document.getElementById('total-sessions');
+                
+                if (totalSessionsBadge) {
+                    totalSessionsBadge.textContent = data.pagination.total;
+                }
+                
+                if (data.sessions && data.sessions.length > 0) {
+                    allChatsContainer.innerHTML = `
+                        <div class="section-stats">
+                            <div class="stats-row">
+                                <div class="stat-item">
+                                    <span class="stat-number">${data.pagination.total}</span>
+                                    <span class="stat-label">Sessioni Totali</span>
+                                </div>
+                                <div class="stat-item">
+                                    <span class="stat-number">${data.sessions.filter(s => s.status === 'ACTIVE').length}</span>
+                                    <span class="stat-label">Attive</span>
+                                </div>
+                                <div class="stat-item">
+                                    <span class="stat-number">${data.sessions.filter(s => s.status === 'WITH_OPERATOR').length}</span>
+                                    <span class="stat-label">Con Operatore</span>
+                                </div>
+                                <div class="stat-item">
+                                    <span class="stat-number">${data.sessions.filter(s => s.status === 'ENDED').length}</span>
+                                    <span class="stat-label">Terminate</span>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="chat-history-list">
+                            ${data.sessions.map(session => `
+                                <div class="session-item ${session.status.toLowerCase()}" data-session-id="${session.sessionId}">
+                                    <div class="session-header">
+                                        <div class="session-info">
+                                            <strong>ID: ${session.sessionId.slice(0, 15)}...</strong>
+                                            <div class="session-badges">
+                                                <span class="session-status status-${session.status.toLowerCase()}">${session.status}</span>
+                                                <span class="message-count">${session.messageCount} msg</span>
+                                                ${session.operator ? `<span class="operator-badge">👤 ${session.operator.name}</span>` : ''}
+                                            </div>
+                                        </div>
+                                        <div class="session-time">
+                                            <div class="time-info">
+                                                <small>Iniziata: ${this.formatTime(session.startedAt)}</small>
+                                                <small>Ultima: ${this.formatTime(session.lastActivity)}</small>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    
+                                    ${session.lastMessage ? `
+                                        <div class="session-last-message">
+                                            <div class="message-preview">
+                                                <strong>${session.lastMessage.sender}:</strong> 
+                                                ${this.escapeHtml(session.lastMessage.message.slice(0, 120))}${session.lastMessage.message.length > 120 ? '...' : ''}
+                                            </div>
+                                            <div class="message-time">${this.formatTime(session.lastMessage.timestamp)}</div>
+                                        </div>
+                                    ` : ''}
+                                    
+                                    <div class="session-actions">
+                                        <button class="btn-view-session" onclick="dashboardApp.viewSessionDetails('${session.sessionId}')">
+                                            <i class="fas fa-eye"></i> Visualizza Conversazione
+                                        </button>
+                                        ${session.status === 'ACTIVE' && !session.operator ? `
+                                            <button class="btn-take-chat" onclick="dashboardApp.takeChat('${session.sessionId}')">
+                                                <i class="fas fa-headset"></i> Prendi in Carico
+                                            </button>
+                                        ` : ''}
+                                    </div>
+                                </div>
+                            `).join('')}
+                        </div>
+                        
+                        <div class="pagination-info">
+                            <p>Visualizzate ${data.sessions.length} di ${data.pagination.total} sessioni totali</p>
+                            ${data.pagination.pages > 1 ? `
+                                <div class="pagination-controls">
+                                    <button ${data.pagination.page === 1 ? 'disabled' : ''} onclick="dashboardApp.loadAllChatsData(${data.pagination.page - 1})">
+                                        <i class="fas fa-chevron-left"></i> Precedente
+                                    </button>
+                                    <span>Pagina ${data.pagination.page} di ${data.pagination.pages}</span>
+                                    <button ${data.pagination.page === data.pagination.pages ? 'disabled' : ''} onclick="dashboardApp.loadAllChatsData(${data.pagination.page + 1})">
+                                        Successiva <i class="fas fa-chevron-right"></i>
+                                    </button>
+                                </div>
+                            ` : ''}
+                        </div>
+                    `;
+                } else {
+                    allChatsContainer.innerHTML = `
+                        <div class="no-data-message">
+                            <i class="fas fa-comments" style="font-size: 3rem; color: var(--text-light); margin-bottom: 1rem;"></i>
+                            <h3>Nessuna chat trovata</h3>
+                            <p>Non ci sono conversazioni nel sistema al momento.</p>
+                        </div>
+                    `;
+                }
+            }
+        } catch (error) {
+            console.error('Error loading all chats data:', error);
+            const allChatsContainer = document.getElementById('all-chats-container');
+            if (allChatsContainer) {
+                allChatsContainer.innerHTML = `
+                    <div class="error-message">
+                        <i class="fas fa-exclamation-triangle"></i>
+                        <p>Errore nel caricamento delle chat. Riprova più tardi.</p>
+                    </div>
+                `;
+            }
         }
     }
 

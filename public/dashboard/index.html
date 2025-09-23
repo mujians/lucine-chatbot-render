@@ -75,6 +75,11 @@
                     <span>Chat Live</span>
                     <span class="badge" id="pending-chats">0</span>
                 </button>
+                <button class="nav-item" data-section="all-chats">
+                    <i class="fas fa-comment-dots"></i>
+                    <span>Tutte le Chat</span>
+                    <span class="badge" id="total-sessions">0</span>
+                </button>
                 <button class="nav-item" data-section="tickets">
                     <i class="fas fa-ticket-alt"></i>
                     <span>Ticket</span>
@@ -232,6 +237,29 @@
                     <!-- Storico Chat Completo -->
                     <div id="analytics-chat-history" class="chat-history-section">
                         <p class="loading-placeholder">Caricamento storico chat...</p>
+                    </div>
+                </section>
+
+                <!-- All Chats Section -->
+                <section id="all-chats-section" class="content-section">
+                    <div class="section-header">
+                        <h2>Tutte le Chat</h2>
+                        <div class="chat-filters">
+                            <select id="status-filter">
+                                <option value="">Tutti gli stati</option>
+                                <option value="ACTIVE">Attive</option>
+                                <option value="WITH_OPERATOR">Con Operatore</option>
+                                <option value="ENDED">Terminate</option>
+                            </select>
+                            <button id="refresh-all-chats" class="btn-refresh">
+                                <i class="fas fa-sync-alt"></i>
+                                Aggiorna
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <div id="all-chats-container" class="chat-history-section">
+                        <p class="loading-placeholder">Caricamento chat...</p>
                     </div>
                 </section>
             </main>
