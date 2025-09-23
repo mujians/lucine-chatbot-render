@@ -41,7 +41,7 @@ body {
     display: block;
 }
 
-#login-screen {
+#login-screen.active {
     min-height: 100vh;
     background: linear-gradient(135deg, var(--primary-color) 0%, var(--secondary-color) 100%);
     display: flex;
@@ -160,7 +160,7 @@ body {
 /* 📊 DASHBOARD LAYOUT */
 #dashboard-screen.active {
     min-height: 100vh;
-    display: grid;
+    display: grid !important;
     grid-template-rows: auto auto 1fr;
     grid-template-areas: 
         "header"
