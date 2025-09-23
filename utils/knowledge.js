@@ -1,4 +1,6 @@
-import { prisma } from '../server.js';
+import { PrismaClient } from '@prisma/client';
+
+const prisma = new PrismaClient();
 
 // Default knowledge base from original system
 const defaultKnowledgeBase = {
