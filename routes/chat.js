@@ -220,6 +220,7 @@ ${JSON.stringify(knowledgeBase, null, 2)}
     console.error('Chat error:', error);
     res.status(500).json({
       error: 'Errore temporaneo del servizio',
+      debug: process.env.NODE_ENV === 'development' ? error.message : undefined,
       timestamp: new Date().toISOString()
     });
   }
@@ -240,6 +241,34 @@ router.get('/history/:sessionId', async (req, res) => {
     });
   } catch (error) {
     res.status(500).json({ error: 'Failed to fetch history' });
+  }
+});
+
+// Debug endpoint per testare il database
+router.get('/debug', async (req, res) => {
+  try {
+    // Test database connection
+    await prisma.$connect();
+    
+    // Try to count sessions
+    const sessionCount = await prisma.chatSession.count();
+    
+    res.json({
+      status: 'ok',
+      database: 'connected',
+      sessionCount,
+      env: {
+        NODE_ENV: process.env.NODE_ENV,
+        hasOpenAI: !!process.env.OPENAI_API_KEY,
+        hasDatabaseUrl: !!process.env.DATABASE_URL
+      }
+    });
+  } catch (error) {
+    res.status(500).json({
+      status: 'error',
+      error: error.message,
+      code: error.code
+    });
   }
 });
 
