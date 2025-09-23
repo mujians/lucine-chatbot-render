@@ -21,6 +21,9 @@ class DashboardApp {
      * 🚀 Inizializzazione applicazione
      */
     init() {
+        console.log('🚀 Dashboard App inizializzato');
+        console.log('📡 API Base:', this.apiBase);
+        
         this.setupEventListeners();
         this.checkAuthStatus();
         
@@ -94,10 +97,14 @@ class DashboardApp {
      */
     async handleLogin(e) {
         e.preventDefault();
+        console.log('🔑 Login form submitted');
         
         const username = document.getElementById('username').value;
         const password = document.getElementById('password').value;
         const loginError = document.getElementById('login-error');
+        
+        console.log('👤 Username:', username);
+        console.log('🔒 Password length:', password.length);
         
         if (!username || !password) {
             this.showError(loginError, 'Username e password richiesti');
@@ -105,6 +112,8 @@ class DashboardApp {
         }
 
         try {
+            console.log('📡 Sending login request to:', `${this.apiBase}/operators/login`);
+            
             // Login request
             const response = await fetch(`${this.apiBase}/operators/login`, {
                 method: 'POST',
@@ -114,9 +123,12 @@ class DashboardApp {
                 body: JSON.stringify({ username, password })
             });
 
+            console.log('📬 Response status:', response.status);
             const data = await response.json();
+            console.log('📦 Response data:', data);
 
             if (response.ok && data.success) {
+                console.log('✅ Login successful');
                 this.currentOperator = data.operator;
                 localStorage.setItem('operator_session', JSON.stringify(this.currentOperator));
                 
@@ -127,10 +139,11 @@ class DashboardApp {
                 await this.setOperatorStatus(true);
                 
             } else {
+                console.error('❌ Login failed:', data.message);
                 this.showError(loginError, data.message || 'Credenziali non valide');
             }
         } catch (error) {
-            console.error('Login error:', error);
+            console.error('💥 Login error:', error);
             this.showError(loginError, 'Errore di connessione. Riprova.');
         }
     }
