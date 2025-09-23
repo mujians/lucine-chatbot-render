@@ -28,41 +28,66 @@ router.get('/status', async (req, res) => {
   }
 });
 
-// Operator login
+// Operator login (semplificato per demo)
 router.post('/login', async (req, res) => {
   try {
     const { username, password } = req.body;
     
-    // TODO: Implement proper authentication
-    const operator = await prisma.operator.findUnique({
-      where: { username }
-    });
+    // Login semplificato: admin/admin123
+    if (username === 'admin' && password === 'admin123') {
+      // Trova o crea operatore admin
+      let operator = await prisma.operator.findUnique({
+        where: { username: 'admin' }
+      });
 
-    if (!operator) {
-      return res.status(401).json({ error: 'Invalid credentials' });
+      if (!operator) {
+        operator = await prisma.operator.create({
+          data: {
+            username: 'admin',
+            email: 'admin@lucinedinatale.it',
+            name: 'Amministratore',
+            passwordHash: 'demo', // In produzione usare bcrypt
+            isActive: true,
+            isOnline: true
+          }
+        });
+      } else {
+        // Update online status
+        await prisma.operator.update({
+          where: { id: operator.id },
+          data: { 
+            isOnline: true,
+            lastSeen: new Date()
+          }
+        });
+      }
+
+      res.json({
+        success: true,
+        operator: {
+          id: operator.id,
+          username: operator.username,
+          name: operator.name,
+          email: operator.email,
+          isOnline: true,
+          isActive: true
+        },
+        message: 'Login successful'
+      });
+
+    } else {
+      res.status(401).json({ 
+        success: false,
+        message: 'Credenziali non valide. Usa admin/admin123' 
+      });
     }
 
-    // Update online status
-    await prisma.operator.update({
-      where: { id: operator.id },
-      data: { 
-        isOnline: true,
-        lastSeen: new Date()
-      }
-    });
-
-    res.json({
-      success: true,
-      operator: {
-        id: operator.id,
-        name: operator.name,
-        email: operator.email
-      },
-      token: 'TODO-implement-JWT'
-    });
-
   } catch (error) {
-    res.status(500).json({ error: 'Login failed' });
+    console.error('Login error:', error);
+    res.status(500).json({ 
+      success: false,
+      message: 'Errore del server durante il login' 
+    });
   }
 });
 
@@ -256,6 +281,73 @@ router.post('/logout', async (req, res) => {
 
   } catch (error) {
     res.status(500).json({ error: 'Logout failed' });
+  }
+});
+
+// Update operator status (online/offline)
+router.put('/status', async (req, res) => {
+  try {
+    const { operatorId, isOnline } = req.body;
+
+    await prisma.operator.update({
+      where: { id: operatorId },
+      data: {
+        isOnline,
+        lastSeen: new Date()
+      }
+    });
+
+    res.json({ success: true });
+
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to update status' });
+  }
+});
+
+// Get pending sessions for dashboard (solo database PostgreSQL)
+router.get('/pending-sessions', async (req, res) => {
+  try {
+    // Sessioni che aspettano operatore (status WITH_OPERATOR ma senza operatorChat attivo)
+    const pendingChats = await prisma.chatSession.findMany({
+      where: {
+        status: 'WITH_OPERATOR',
+        operatorChats: {
+          none: {
+            endedAt: null
+          }
+        }
+      },
+      include: {
+        messages: {
+          where: { sender: 'USER' },
+          orderBy: { timestamp: 'desc' },
+          take: 1
+        }
+      },
+      orderBy: { lastActivity: 'desc' }
+    });
+
+    const pending_sessions = pendingChats.map(chat => ({
+      sessionId: chat.sessionId,
+      originalQuestion: chat.messages[0]?.message || 'Richiesta supporto',
+      handover_time: chat.lastActivity.getTime(),
+      timestamp: chat.lastActivity.toISOString()
+    }));
+
+    res.json({
+      success: true,
+      pending_sessions,
+      total_pending: pending_sessions.length
+    });
+
+  } catch (error) {
+    console.error('Error getting pending sessions:', error);
+    res.status(500).json({ 
+      success: false,
+      error: 'Failed to get pending sessions',
+      pending_sessions: [],
+      total_pending: 0
+    });
   }
 });
 

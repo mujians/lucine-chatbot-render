@@ -1,0 +1,284 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard Operatori - Lucine di Natale</title>
+    <link rel="stylesheet" href="css/dashboard.css">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+</head>
+<body>
+    <div id="app">
+        <!-- Login Screen -->
+        <div id="login-screen" class="screen active">
+            <div class="login-container">
+                <div class="login-card">
+                    <div class="login-header">
+                        <i class="fas fa-snowflake"></i>
+                        <h1>Dashboard Operatori</h1>
+                        <p>Lucine di Natale - Sistema Support</p>
+                    </div>
+                    <form id="login-form">
+                        <div class="form-group">
+                            <i class="fas fa-user"></i>
+                            <input type="text" id="username" placeholder="Username operatore" required>
+                        </div>
+                        <div class="form-group">
+                            <i class="fas fa-lock"></i>
+                            <input type="password" id="password" placeholder="Password" required>
+                        </div>
+                        <button type="submit" class="btn-login">
+                            <i class="fas fa-sign-in-alt"></i>
+                            Accedi alla Dashboard
+                        </button>
+                    </form>
+                    <div id="login-error" class="error-message"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Main Dashboard -->
+        <div id="dashboard-screen" class="screen">
+            <!-- Header -->
+            <header class="dashboard-header">
+                <div class="header-left">
+                    <i class="fas fa-snowflake"></i>
+                    <h1>Lucine di Natale</h1>
+                    <span class="subtitle">Dashboard Operatori</span>
+                </div>
+                <div class="header-center">
+                    <div class="status-indicator">
+                        <div class="status-dot online" id="status-dot"></div>
+                        <span id="operator-status">Online</span>
+                        <button id="toggle-status" class="btn-toggle">
+                            <i class="fas fa-power-off"></i>
+                        </button>
+                    </div>
+                </div>
+                <div class="header-right">
+                    <span id="operator-name">Operatore</span>
+                    <button id="logout-btn" class="btn-logout">
+                        <i class="fas fa-sign-out-alt"></i>
+                        Logout
+                    </button>
+                </div>
+            </header>
+
+            <!-- Navigation -->
+            <nav class="dashboard-nav">
+                <button class="nav-item active" data-section="overview">
+                    <i class="fas fa-tachometer-alt"></i>
+                    <span>Overview</span>
+                </button>
+                <button class="nav-item" data-section="chats">
+                    <i class="fas fa-comments"></i>
+                    <span>Chat Live</span>
+                    <span class="badge" id="pending-chats">0</span>
+                </button>
+                <button class="nav-item" data-section="tickets">
+                    <i class="fas fa-ticket-alt"></i>
+                    <span>Ticket</span>
+                    <span class="badge" id="open-tickets">0</span>
+                </button>
+                <button class="nav-item" data-section="analytics">
+                    <i class="fas fa-chart-bar"></i>
+                    <span>Analytics</span>
+                </button>
+            </nav>
+
+            <!-- Main Content -->
+            <main class="dashboard-main">
+                <!-- Overview Section -->
+                <section id="overview-section" class="content-section active">
+                    <div class="overview-grid">
+                        <div class="metric-card">
+                            <div class="metric-icon">
+                                <i class="fas fa-comments"></i>
+                            </div>
+                            <div class="metric-content">
+                                <h3 id="total-chats">0</h3>
+                                <p>Chat Pendenti</p>
+                            </div>
+                        </div>
+                        <div class="metric-card">
+                            <div class="metric-icon">
+                                <i class="fas fa-ticket-alt"></i>
+                            </div>
+                            <div class="metric-content">
+                                <h3 id="total-tickets">0</h3>
+                                <p>Ticket Aperti</p>
+                            </div>
+                        </div>
+                        <div class="metric-card">
+                            <div class="metric-icon">
+                                <i class="fas fa-clock"></i>
+                            </div>
+                            <div class="metric-content">
+                                <h3 id="avg-response">--</h3>
+                                <p>Tempo Medio Risposta</p>
+                            </div>
+                        </div>
+                        <div class="metric-card">
+                            <div class="metric-icon">
+                                <i class="fas fa-star"></i>
+                            </div>
+                            <div class="metric-content">
+                                <h3 id="satisfaction">--</h3>
+                                <p>Soddisfazione</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="recent-activity">
+                        <h2>Attività Recente</h2>
+                        <div id="activity-list" class="activity-list">
+                            <!-- Activity items will be populated by JS -->
+                        </div>
+                    </div>
+                </section>
+
+                <!-- Chat Live Section -->
+                <section id="chats-section" class="content-section">
+                    <div class="section-header">
+                        <h2>Chat Live</h2>
+                        <button id="refresh-chats" class="btn-refresh">
+                            <i class="fas fa-sync-alt"></i>
+                            Aggiorna
+                        </button>
+                    </div>
+                    
+                    <div class="chat-container">
+                        <div class="chat-list">
+                            <h3>Chat Pendenti</h3>
+                            <div id="pending-chat-list" class="pending-list">
+                                <!-- Pending chats will be populated by JS -->
+                            </div>
+                        </div>
+                        
+                        <div class="chat-window" id="chat-window">
+                            <div class="chat-placeholder">
+                                <i class="fas fa-comments"></i>
+                                <p>Seleziona una chat per iniziare</p>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- Tickets Section -->
+                <section id="tickets-section" class="content-section">
+                    <div class="section-header">
+                        <h2>Gestione Ticket</h2>
+                        <div class="ticket-filters">
+                            <select id="ticket-status-filter">
+                                <option value="all">Tutti</option>
+                                <option value="open">Aperti</option>
+                                <option value="assigned">Assegnati</option>
+                                <option value="pending">In attesa</option>
+                                <option value="closed">Chiusi</option>
+                            </select>
+                            <select id="ticket-priority-filter">
+                                <option value="all">Tutte le priorità</option>
+                                <option value="urgent">Urgente</option>
+                                <option value="high">Alta</option>
+                                <option value="medium">Media</option>
+                                <option value="low">Bassa</option>
+                            </select>
+                        </div>
+                    </div>
+                    
+                    <div id="tickets-list" class="tickets-list">
+                        <!-- Tickets will be populated by JS -->
+                    </div>
+                </section>
+
+                <!-- Analytics Section -->
+                <section id="analytics-section" class="content-section">
+                    <div class="section-header">
+                        <h2>Analytics Personali</h2>
+                        <select id="analytics-period">
+                            <option value="today">Oggi</option>
+                            <option value="week">Questa settimana</option>
+                            <option value="month">Questo mese</option>
+                        </select>
+                    </div>
+                    
+                    <div class="analytics-grid">
+                        <div class="analytics-card">
+                            <h3>Chat Gestite</h3>
+                            <div class="chart-placeholder">
+                                <canvas id="chats-chart"></canvas>
+                            </div>
+                        </div>
+                        <div class="analytics-card">
+                            <h3>Ticket Risolti</h3>
+                            <div class="chart-placeholder">
+                                <canvas id="tickets-chart"></canvas>
+                            </div>
+                        </div>
+                        <div class="analytics-card">
+                            <h3>Tempi di Risposta</h3>
+                            <div class="chart-placeholder">
+                                <canvas id="response-chart"></canvas>
+                            </div>
+                        </div>
+                        <div class="analytics-card">
+                            <h3>Valutazioni</h3>
+                            <div class="chart-placeholder">
+                                <canvas id="ratings-chart"></canvas>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+            </main>
+        </div>
+    </div>
+
+    <!-- Chat Window Template -->
+    <template id="chat-window-template">
+        <div class="chat-header">
+            <div class="chat-user-info">
+                <div class="user-avatar">
+                    <i class="fas fa-user"></i>
+                </div>
+                <div class="user-details">
+                    <h4 class="user-name">Utente</h4>
+                    <p class="user-session">Sessione: <span class="session-id"></span></p>
+                    <p class="chat-started">Iniziata: <span class="start-time"></span></p>
+                </div>
+            </div>
+            <div class="chat-actions">
+                <button class="btn-chat-info" title="Info sessione">
+                    <i class="fas fa-info-circle"></i>
+                </button>
+                <button class="btn-end-chat" title="Termina chat">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+        </div>
+        
+        <div class="chat-messages" id="chat-messages">
+            <!-- Messages will be populated by JS -->
+        </div>
+        
+        <div class="chat-input">
+            <div class="input-container">
+                <input type="text" id="message-input" placeholder="Scrivi una risposta..." maxlength="500">
+                <button id="send-message" class="btn-send">
+                    <i class="fas fa-paper-plane"></i>
+                </button>
+            </div>
+            <div class="input-info">
+                <span class="char-count">0/500</span>
+                <span class="typing-indicator" style="display: none;">
+                    <i class="fas fa-circle"></i>
+                    <i class="fas fa-circle"></i>
+                    <i class="fas fa-circle"></i>
+                    L'utente sta scrivendo...
+                </span>
+            </div>
+        </div>
+    </template>
+
+    <script src="js/dashboard.js"></script>
+</body>
+</html>
