@@ -35,6 +35,15 @@ router.post('/', async (req, res) => {
           sessionId: sessionId || `session-${Date.now()}`,
           userIp: req.ip,
           userAgent: req.headers['user-agent']
+        },
+        include: {
+          messages: {
+            orderBy: { timestamp: 'desc' },
+            take: 10
+          },
+          operatorChats: {
+            where: { endedAt: null }
+          }
         }
       });
     }
