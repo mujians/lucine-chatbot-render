@@ -1,0 +1,192 @@
+{
+  "event": {
+    "name": "Lucine di Natale di Leggiuno",
+    "dates": {
+      "start": "2025-12-06",
+      "end": "2026-01-06",
+      "closed": ["2025-12-24", "2025-12-31"]
+    },
+    "hours": {
+      "open": "17:30",
+      "close": "23:00",
+      "lastEntry": "22:30"
+    },
+    "location": {
+      "city": "Leggiuno",
+      "province": "Varese",
+      "region": "Lombardia",
+      "area": "Lago Maggiore",
+      "coordinates": {
+        "lat": 45.8776751,
+        "lng": 8.62088
+      }
+    }
+  },
+  "tickets": {
+    "prices": {
+      "intero": 9,
+      "ridotto": 7,
+      "saltafila": 13,
+      "open": 25,
+      "under3": 0
+    },
+    "types": {
+      "intero": {
+        "name": "Biglietto Intero",
+        "description": "Ingresso standard nella fascia oraria scelta",
+        "price": 9
+      },
+      "ridotto": {
+        "name": "Biglietto Ridotto", 
+        "description": "Per bambini 3-12 anni e disabili",
+        "price": 7
+      },
+      "saltafila": {
+        "name": "Biglietto SALTAFILA", 
+        "description": "Accesso prioritario nella fascia oraria scelta",
+        "price": 13
+      },
+      "open": {
+        "name": "Biglietto OPEN",
+        "description": "Massima flessibilità senza vincoli data/ora",
+        "price": 25
+      }
+    },
+    "discounts": {
+      "online": "Prezzo agevolato acquistando online",
+      "disability": "Riduzione per portatori di handicap + 1 accompagnatore"
+    }
+  },
+  "parking": {
+    "lots": {
+      "P1": {
+        "name": "Campo Sportivo",
+        "features": ["auto", "camper"],
+        "walkTime": "10 min a piedi",
+        "shuttle": false
+      },
+      "P2": {
+        "name": "Manifattura", 
+        "features": ["auto"],
+        "shuttle": true,
+        "walkTime": null
+      },
+      "P3": {
+        "name": "Chiesa S.Stefano",
+        "features": ["auto", "disabili"],
+        "walkTime": "2 min a piedi",
+        "shuttle": false
+      },
+      "P4": {
+        "name": "Scuole medie",
+        "features": ["auto", "camper"],
+        "shuttle": true,
+        "walkTime": null
+      },
+      "P5": {
+        "name": "S.Caterina",
+        "features": ["auto", "camper", "bus turistici"],
+        "shuttle": true,
+        "walkTime": null
+      }
+    },
+    "shuttle": {
+      "hours": "16:30-22:30",
+      "frequency": "ogni 15 minuti",
+      "cost": "gratuita",
+      "serves": ["P2", "P4", "P5"]
+    }
+  },
+  "services": {
+    "accessibility": {
+      "wheelchairs": true,
+      "strollers": true,
+      "description": "Percorso accessibile per carrozzine e passeggini"
+    },
+    "pets": {
+      "allowed": true,
+      "requirements": ["guinzaglio", "museruola per taglie grandi"],
+      "description": "Animali ammessi con guinzaglio, museruola per taglie grandi"
+    },
+    "food": {
+      "available": true,
+      "types": ["mercatini", "stand gastronomici"],
+      "alcohol": "Vietata vendita a minori di 18 anni"
+    },
+    "freeAreas": {
+      "house": "Casa illuminata ad accesso libero",
+      "oratory": "Zona oratorio con mercatini e stand gastronomico"
+    }
+  },
+  "faq": {
+    "common": [
+      {
+        "q": "È necessario prenotare?",
+        "a": "Ingressi contingentati su base oraria. Prenotazione online caldamente consigliata per certezza posto e risparmio."
+      },
+      {
+        "q": "Quanto dura la visita?",
+        "a": "Puoi permanere il tempo necessario per completare il percorso. L'orario sul biglietto è per l'accesso, non per la permanenza."
+      },
+      {
+        "q": "Cosa succede se piove?",
+        "a": "In caso di annullamento riceverai un codice per prenotare gratuitamente una nuova data."
+      },
+      {
+        "q": "I biglietti Saltafila e Open danno accesso prioritario?",
+        "a": "Solo i biglietti Saltafila e Open permettono di saltare la fila all'ingresso per accesso prioritario."
+      },
+      {
+        "q": "Posso modificare il mio biglietto?",
+        "a": "I biglietti possono essere modificati contattando info@lucinedinatale.it."
+      },
+      {
+        "q": "Ci sono attrazioni nelle vicinanze?",
+        "a": "Sì, durante il giorno sono disponibili attrazioni partner nelle vicinanze e ristoranti convenzionati."
+      }
+    ]
+  },
+  "products": {
+    "main_ticket": {
+      "url": "https://lucinedinatale.it/products/biglietto-parco-lucine-di-natale-2025",
+      "name": "Biglietto Parco Lucine di Natale 2025",
+      "variants": {
+        "intero": "Biglietto standard per accesso nella fascia oraria scelta",
+        "ridotto": "Per bambini 3-12 anni e disabili (under 2 gratis, disabili con accompagnatore gratis)",
+        "saltafila": "Accesso prioritario saltando la fila all'ingresso, ideale per weekend",
+        "open": "Massima flessibilità senza prenotazione data/ora specifica"
+      }
+    },
+    "purchase_info": {
+      "online_advantage": "Prezzo agevolato e posto garantito",
+      "requirements": {
+        "ridotto": "Documento età bambini, certificazione per disabili",
+        "saltafila": "Valido per giorno e fascia oraria selezionata"
+      }
+    }
+  },
+  "contact": {
+    "email": "info@lucinedinatale.it",
+    "whatsapp": "+393123456789",
+    "website": "https://lucinedinatale.it",
+    "socialMedia": {
+      "facebook": "LucineDiNataleLeggiuno",
+      "instagram": "@lucinedinatale"
+    }
+  },
+  "escape_routes": {
+    "no_answer": [
+      "Mi dispiace, non ho informazioni specifiche su questo argomento.",
+      "Per questa domanda è meglio contattare direttamente:",
+      "📧 Email: info@lucinedinatale.it",
+      "📱 WhatsApp: https://wa.me/393123456789",
+      "Ti risponderanno nel minor tempo possibile!"
+    ],
+    "error": [
+      "Si è verificato un problema tecnico.",
+      "Puoi contattare l'assistenza:",
+      "📧 info@lucinedinatale.it",
+      "📱 https://wa.me/393123456789"
+    ]
+  }
+}
