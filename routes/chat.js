@@ -87,7 +87,7 @@ Usa SOLO le informazioni dalla knowledge base per rispondere.
 **REGOLE FONDAMENTALI:**
 
 1. RICHIESTA DIRETTA OPERATORE - Se l'utente chiede esplicitamente un operatore umano:
-   - Frasi come: "operatore", "assistenza umana", "parlare con persona", "voglio un operatore", "help", "assistenza", "supporto umano"
+   - Frasi come: "operatore", "assistenza umana", "parlare con persona", "voglio un operatore", "help", "assistenza", "supporto umano", "request_operator"
    - Risposta: actions: ["richiesta_operatore"], escalation: "operator"
 
 2. INFORMAZIONE MANCANTE - Se non hai l'informazione nella knowledge base:
