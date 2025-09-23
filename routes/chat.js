@@ -164,7 +164,7 @@ ${JSON.stringify(knowledgeBase, null, 2)}
     if (parsedResponse.escalation === 'operator') {
       // Check operator availability
       const availableOperator = await prisma.operator.findFirst({
-        where: { isOnline: true, isActive: true }
+        where: { isOnline: true }
       });
 
       if (availableOperator) {
