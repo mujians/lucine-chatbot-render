@@ -351,4 +351,58 @@ router.get('/pending-sessions', async (req, res) => {
   }
 });
 
+// Get chat history for dashboard
+router.get('/chat-history', async (req, res) => {
+  try {
+    const { page = 1, limit = 20, status } = req.query;
+    const offset = (page - 1) * limit;
+
+    const where = status ? { status } : {};
+
+    const chatSessions = await prisma.chatSession.findMany({
+      where,
+      include: {
+        messages: {
+          orderBy: { timestamp: 'asc' }
+        },
+        operatorChats: {
+          include: {
+            operator: {
+              select: { id: true, name: true, username: true }
+            }
+          }
+        }
+      },
+      orderBy: { lastActivity: 'desc' },
+      take: parseInt(limit),
+      skip: offset
+    });
+
+    const total = await prisma.chatSession.count({ where });
+
+    res.json({
+      sessions: chatSessions.map(session => ({
+        sessionId: session.sessionId,
+        status: session.status,
+        startedAt: session.startedAt,
+        lastActivity: session.lastActivity,
+        messageCount: session.messages.length,
+        lastMessage: session.messages[session.messages.length - 1],
+        operator: session.operatorChats[0]?.operator || null,
+        messages: session.messages
+      })),
+      pagination: {
+        page: parseInt(page),
+        limit: parseInt(limit),
+        total,
+        pages: Math.ceil(total / limit)
+      }
+    });
+
+  } catch (error) {
+    console.error('Chat history error:', error);
+    res.status(500).json({ error: 'Failed to fetch chat history' });
+  }
+});
+
 export default router;

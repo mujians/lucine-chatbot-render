@@ -505,6 +505,160 @@ class DashboardApp {
     }
 
     /**
+     * 💬 Carica storico chat per sessione specifica
+     */
+    async loadChatHistory(sessionId) {
+        try {
+            const response = await fetch(`${this.apiBase}/chat/history/${sessionId}`);
+            
+            if (response.ok) {
+                const data = await response.json();
+                const chatMessages = document.getElementById('chat-messages');
+                
+                if (data.messages && data.messages.length > 0) {
+                    chatMessages.innerHTML = data.messages.map(msg => `
+                        <div class="chat-message ${msg.sender.toLowerCase()}" data-timestamp="${msg.timestamp}">
+                            <div class="message-info">
+                                <span class="sender">${msg.sender === 'USER' ? 'Utente' : 'Bot/Operatore'}</span>
+                                <span class="time">${this.formatTime(msg.timestamp)}</span>
+                            </div>
+                            <div class="message-bubble">
+                                ${this.escapeHtml(msg.message)}
+                            </div>
+                        </div>
+                    `).join('');
+                } else {
+                    chatMessages.innerHTML = '<p class="no-messages">Nessun messaggio ancora</p>';
+                }
+                
+                // Scroll to bottom
+                chatMessages.scrollTop = chatMessages.scrollHeight;
+            }
+        } catch (error) {
+            console.error('Error loading chat history:', error);
+        }
+    }
+
+    /**
+     * 📚 Carica storico completo di tutte le chat per analytics
+     */
+    async loadAllChatHistory() {
+        try {
+            const response = await fetch(`${this.apiBase}/operators/chat-history?limit=50`);
+            
+            if (response.ok) {
+                const data = await response.json();
+                const analyticsHistory = document.getElementById('analytics-chat-history');
+                
+                if (data.sessions && data.sessions.length > 0) {
+                    analyticsHistory.innerHTML = `
+                        <h3>Storico Chat Recenti (${data.sessions.length})</h3>
+                        <div class="chat-history-list">
+                            ${data.sessions.map(session => `
+                                <div class="session-item" data-session-id="${session.sessionId}">
+                                    <div class="session-header">
+                                        <div class="session-info">
+                                            <strong>Sessione: ${session.sessionId.slice(0, 12)}...</strong>
+                                            <span class="session-status status-${session.status.toLowerCase()}">${session.status}</span>
+                                            <span class="message-count">${session.messageCount} messaggi</span>
+                                        </div>
+                                        <div class="session-time">
+                                            ${this.formatTime(session.startedAt)}
+                                        </div>
+                                    </div>
+                                    ${session.operator ? `
+                                        <div class="session-operator">
+                                            👤 Operatore: ${session.operator.name}
+                                        </div>
+                                    ` : ''}
+                                    ${session.lastMessage ? `
+                                        <div class="session-last-message">
+                                            <strong>${session.lastMessage.sender}:</strong> 
+                                            ${this.escapeHtml(session.lastMessage.message.slice(0, 100))}${session.lastMessage.message.length > 100 ? '...' : ''}
+                                        </div>
+                                    ` : ''}
+                                    <button class="btn-view-session" onclick="dashboardApp.viewSessionDetails('${session.sessionId}')">
+                                        <i class="fas fa-eye"></i> Visualizza
+                                    </button>
+                                </div>
+                            `).join('')}
+                        </div>
+                        <div class="pagination-info">
+                            Pagina ${data.pagination.page} di ${data.pagination.pages} - ${data.pagination.total} sessioni totali
+                        </div>
+                    `;
+                } else {
+                    analyticsHistory.innerHTML = '<p class="no-data">Nessuna sessione chat trovata</p>';
+                }
+            }
+        } catch (error) {
+            console.error('Error loading all chat history:', error);
+        }
+    }
+
+    /**
+     * 🔍 Visualizza dettagli sessione in modal
+     */
+    async viewSessionDetails(sessionId) {
+        try {
+            const response = await fetch(`${this.apiBase}/operators/chat-history?sessionId=${sessionId}`);
+            
+            if (response.ok) {
+                const data = await response.json();
+                const session = data.sessions[0];
+                
+                if (session) {
+                    // Create modal with session details
+                    const modal = document.createElement('div');
+                    modal.className = 'session-modal';
+                    modal.innerHTML = `
+                        <div class="modal-content">
+                            <div class="modal-header">
+                                <h3>Dettagli Sessione: ${session.sessionId}</h3>
+                                <button class="modal-close" onclick="this.closest('.session-modal').remove()">×</button>
+                            </div>
+                            <div class="modal-body">
+                                <div class="session-meta">
+                                    <p><strong>Status:</strong> ${session.status}</p>
+                                    <p><strong>Iniziata:</strong> ${this.formatTime(session.startedAt)}</p>
+                                    <p><strong>Ultima attività:</strong> ${this.formatTime(session.lastActivity)}</p>
+                                    ${session.operator ? `<p><strong>Operatore:</strong> ${session.operator.name}</p>` : ''}
+                                </div>
+                                <div class="session-messages">
+                                    <h4>Conversazione (${session.messageCount} messaggi):</h4>
+                                    <div class="messages-container">
+                                        ${session.messages.map(msg => `
+                                            <div class="message-item ${msg.sender.toLowerCase()}">
+                                                <div class="message-header">
+                                                    <span class="sender">${msg.sender}</span>
+                                                    <span class="time">${this.formatTime(msg.timestamp)}</span>
+                                                </div>
+                                                <div class="message-content">${this.escapeHtml(msg.message)}</div>
+                                            </div>
+                                        `).join('')}
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                    document.body.appendChild(modal);
+                }
+            }
+        } catch (error) {
+            console.error('Error viewing session details:', error);
+        }
+    }
+
+    /**
+     * 🔒 HTML escape per sicurezza
+     */
+    escapeHtml(text) {
+        const div = document.createElement('div');
+        div.textContent = text;
+        return div.innerHTML;
+    }
+
+    /**
      * 🎫 Carica dati ticket
      */
     async loadTicketsData() {
@@ -568,6 +722,10 @@ class DashboardApp {
                 // For now, show placeholder data
                 console.log('Analytics data:', data);
             }
+            
+            // Load chat history for analytics section
+            await this.loadAllChatHistory();
+            
         } catch (error) {
             console.error('Error loading analytics data:', error);
         }
