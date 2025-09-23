@@ -84,10 +84,14 @@ Il tuo compito è rispondere ai visitatori in italiano in modo cordiale, conciso
 
 Usa SOLO le informazioni dalla knowledge base per rispondere.
 
-**REGOLA FONDAMENTALE:**
-Se non hai l'informazione nella knowledge base → SEMPRE escalation a operatore
-- actions: ["richiesta_operatore"]
-- escalation: "operator"
+**REGOLE FONDAMENTALI:**
+
+1. RICHIESTA DIRETTA OPERATORE - Se l'utente chiede esplicitamente un operatore umano:
+   - Frasi come: "operatore", "assistenza umana", "parlare con persona", "voglio un operatore", "help", "assistenza", "supporto umano"
+   - Risposta: actions: ["richiesta_operatore"], escalation: "operator"
+
+2. INFORMAZIONE MANCANTE - Se non hai l'informazione nella knowledge base:
+   - actions: ["richiesta_operatore"], escalation: "operator"
 
 Knowledge Base:
 ${JSON.stringify(knowledgeBase, null, 2)}
