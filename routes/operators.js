@@ -354,8 +354,44 @@ router.get('/pending-sessions', async (req, res) => {
 // Get chat history for dashboard
 router.get('/chat-history', async (req, res) => {
   try {
-    const { page = 1, limit = 20, status } = req.query;
+    const { page = 1, limit = 20, status, sessionId } = req.query;
     const offset = (page - 1) * limit;
+
+    // Se è richiesta una singola sessione
+    if (sessionId) {
+      const session = await prisma.chatSession.findUnique({
+        where: { sessionId },
+        include: {
+          messages: {
+            orderBy: { timestamp: 'asc' }
+          },
+          operatorChats: {
+            include: {
+              operator: {
+                select: { id: true, name: true, username: true }
+              }
+            }
+          }
+        }
+      });
+
+      if (!session) {
+        return res.status(404).json({ error: 'Session not found' });
+      }
+
+      return res.json({
+        sessions: [{
+          sessionId: session.sessionId,
+          status: session.status,
+          startedAt: session.startedAt,
+          lastActivity: session.lastActivity,
+          messageCount: session.messages.length,
+          lastMessage: session.messages[session.messages.length - 1],
+          operator: session.operatorChats[0]?.operator || null,
+          messages: session.messages
+        }]
+      });
+    }
 
     const where = status ? { status } : {};
 
