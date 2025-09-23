@@ -13,6 +13,9 @@ import ticketRouter from './routes/tickets.js';
 import analyticsRouter from './routes/analytics.js';
 import adminRouter from './routes/admin.js';
 
+// Utils
+import { initializeDatabase } from './utils/db-init.js';
+
 // Load environment variables
 dotenv.config();
 
@@ -90,6 +93,9 @@ async function startServer() {
     // Test database connection
     await prisma.$connect();
     console.log('✅ Database connected');
+    
+    // Initialize database tables if needed
+    await initializeDatabase();
     
     app.listen(PORT, '0.0.0.0', () => {
       console.log(`🚀 Server running on port ${PORT}`);
