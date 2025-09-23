@@ -244,13 +244,31 @@ class DashboardApp {
      * 📊 Mostra dashboard
      */
     showDashboard() {
-        document.getElementById('login-screen').classList.remove('active');
-        document.getElementById('dashboard-screen').classList.add('active');
+        console.log('📊 showDashboard() called');
+        
+        const loginScreen = document.getElementById('login-screen');
+        const dashboardScreen = document.getElementById('dashboard-screen');
+        
+        console.log('🔍 login-screen element:', loginScreen);
+        console.log('🔍 dashboard-screen element:', dashboardScreen);
+        
+        if (loginScreen) {
+            loginScreen.classList.remove('active');
+            console.log('✅ Removed active from login-screen');
+        }
+        
+        if (dashboardScreen) {
+            dashboardScreen.classList.add('active');
+            console.log('✅ Added active to dashboard-screen');
+        }
         
         // Update operator name
         const operatorName = document.getElementById('operator-name');
+        console.log('🔍 operator-name element:', operatorName);
+        
         if (operatorName && this.currentOperator) {
             operatorName.textContent = this.currentOperator.name || this.currentOperator.username;
+            console.log('✅ Updated operator name');
         }
         
         this.updateStatusUI();
