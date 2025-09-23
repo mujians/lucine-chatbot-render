@@ -57,13 +57,13 @@ app.use(cors({
   allowedHeaders: ['Content-Type', 'Authorization', 'X-Session-ID']
 }));
 
-// Rate limiting
-const limiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 100, // limit each IP to 100 requests per windowMs
-  message: 'Troppi tentativi, riprova più tardi'
-});
-app.use('/api/', limiter);
+// Rate limiting (disabled for testing)
+// const limiter = rateLimit({
+//   windowMs: 15 * 60 * 1000, // 15 minutes
+//   max: 100, // limit each IP to 100 requests per windowMs
+//   message: 'Troppi tentativi, riprova più tardi'
+// });
+// app.use('/api/', limiter);
 
 // Health check
 app.get('/health', (req, res) => {
