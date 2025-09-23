@@ -1,0 +1,199 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// Sessioni chat
+model ChatSession {
+  id            String    @id @default(uuid())
+  sessionId     String    @unique
+  userIp        String?
+  userAgent     String?
+  startedAt     DateTime  @default(now())
+  lastActivity  DateTime  @updatedAt
+  status        SessionStatus @default(ACTIVE)
+  
+  // Relations
+  messages      Message[]
+  tickets       Ticket[]
+  operatorChats OperatorChat[]
+  
+  @@index([status, lastActivity])
+  @@index([sessionId])
+}
+
+// Messaggi chat
+model Message {
+  id          String    @id @default(uuid())
+  sessionId   String
+  sender      SenderType
+  message     String    @db.Text
+  metadata    Json?     // Per salvare actions, escalation, etc
+  timestamp   DateTime  @default(now())
+  
+  // Relations
+  session     ChatSession @relation(fields: [sessionId], references: [sessionId])
+  
+  @@index([sessionId, timestamp])
+  @@index([sender])
+}
+
+// Sistema ticket
+model Ticket {
+  id            String    @id @default(uuid())
+  ticketNumber  String    @unique @default(cuid())
+  sessionId     String?
+  status        TicketStatus @default(OPEN)
+  priority      Priority     @default(MEDIUM)
+  
+  // Contact info
+  userEmail     String?
+  userPhone     String?
+  contactMethod ContactMethod
+  
+  // Content
+  subject       String
+  description   String    @db.Text
+  
+  // Timestamps
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  resolvedAt    DateTime?
+  
+  // Relations
+  session       ChatSession? @relation(fields: [sessionId], references: [sessionId])
+  assignedTo    Operator?    @relation(fields: [operatorId], references: [id])
+  operatorId    String?
+  notes         TicketNote[]
+  
+  @@index([status, priority])
+  @@index([ticketNumber])
+  @@index([createdAt])
+}
+
+// Note sui ticket
+model TicketNote {
+  id        String   @id @default(uuid())
+  ticketId  String
+  note      String   @db.Text
+  isPublic  Boolean  @default(false)
+  createdBy String?
+  createdAt DateTime @default(now())
+  
+  ticket    Ticket   @relation(fields: [ticketId], references: [id])
+  
+  @@index([ticketId])
+}
+
+// Operatori
+model Operator {
+  id            String    @id @default(uuid())
+  username      String    @unique
+  email         String    @unique
+  name          String
+  passwordHash  String
+  isActive      Boolean   @default(true)
+  isOnline      Boolean   @default(false)
+  lastSeen      DateTime?
+  createdAt     DateTime  @default(now())
+  
+  // Relations
+  tickets       Ticket[]
+  chats         OperatorChat[]
+  
+  @@index([isOnline, isActive])
+}
+
+// Chat live operatore
+model OperatorChat {
+  id          String    @id @default(uuid())
+  sessionId   String
+  operatorId  String
+  startedAt   DateTime  @default(now())
+  endedAt     DateTime?
+  rating      Int?      // 1-5 stelle
+  notes       String?   @db.Text
+  
+  // Relations
+  session     ChatSession @relation(fields: [sessionId], references: [sessionId])
+  operator    Operator    @relation(fields: [operatorId], references: [id])
+  
+  @@index([sessionId, operatorId])
+  @@index([startedAt])
+}
+
+// Analytics
+model Analytics {
+  id              String   @id @default(uuid())
+  eventType       String
+  eventData       Json
+  sessionId       String?
+  timestamp       DateTime @default(now())
+  
+  // Metriche comuni
+  responseTime    Int?     // in ms
+  intentDetected  String?
+  successful      Boolean?
+  
+  @@index([eventType, timestamp])
+  @@index([sessionId])
+}
+
+// Knowledge Base (FAQ)
+model KnowledgeItem {
+  id          String    @id @default(uuid())
+  category    String
+  question    String    @db.Text
+  answer      String    @db.Text
+  keywords    String[]
+  isActive    Boolean   @default(true)
+  views       Int       @default(0)
+  helpful     Int       @default(0)
+  notHelpful  Int       @default(0)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  
+  @@index([category, isActive])
+  @@index([keywords])
+}
+
+// Enums
+enum SessionStatus {
+  ACTIVE
+  IDLE
+  ENDED
+  WITH_OPERATOR
+}
+
+enum SenderType {
+  USER
+  BOT
+  OPERATOR
+  SYSTEM
+}
+
+enum TicketStatus {
+  OPEN
+  IN_PROGRESS
+  WAITING_USER
+  RESOLVED
+  CLOSED
+}
+
+enum Priority {
+  LOW
+  MEDIUM
+  HIGH
+  URGENT
+}
+
+enum ContactMethod {
+  EMAIL
+  PHONE
+  WHATSAPP
+  CHAT
+}

@@ -1,0 +1,31 @@
+services:
+  # Web service
+  - type: web
+    name: lucine-chatbot
+    runtime: node
+    region: frankfurt # EU region for Italian users
+    plan: free # or 'starter' for $7/month
+    buildCommand: npm install && npx prisma generate
+    startCommand: npm start
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: DATABASE_URL
+        fromDatabase:
+          name: lucine-db
+          property: connectionString
+      - key: OPENAI_API_KEY
+        sync: false # Add manually in Render dashboard
+      - key: SESSION_SECRET
+        generateValue: true
+      - key: CORS_ORIGIN
+        value: https://lucinedinatale.it
+      - key: ADMIN_PASSWORD
+        sync: false # Add manually
+
+databases:
+  # PostgreSQL database
+  - name: lucine-db
+    region: frankfurt
+    plan: free # 1GB storage, 100 connections
+    ipAllowList: [] # Allow connections from anywhere
