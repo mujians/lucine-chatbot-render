@@ -128,6 +128,7 @@ ${JSON.stringify(knowledgeBase, null, 2)}
 
     try {
       parsedResponse = JSON.parse(aiResponse);
+      console.log('🤖 AI Response parsed:', parsedResponse);
     } catch (error) {
       console.error('Failed to parse AI response:', aiResponse);
       parsedResponse = {
@@ -166,10 +167,14 @@ ${JSON.stringify(knowledgeBase, null, 2)}
 
     // Handle escalation
     if (parsedResponse.escalation === 'operator') {
+      console.log('🔍 ESCALATION REQUEST - Checking for operators...');
+      
       // Check operator availability
       const availableOperator = await prisma.operator.findFirst({
         where: { isOnline: true }
       });
+
+      console.log('🎯 Available operator found:', availableOperator);
 
       if (availableOperator) {
         // Update session status
@@ -196,6 +201,7 @@ ${JSON.stringify(knowledgeBase, null, 2)}
           }
         });
       } else {
+        console.log('❌ NO OPERATORS AVAILABLE - Offering ticket');
         // No operators available - offer ticket
         return res.json({
           reply: `⏰ Al momento non ci sono operatori disponibili.\n\n📝 Vuoi aprire un ticket di supporto?`,
