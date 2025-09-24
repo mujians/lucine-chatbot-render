@@ -12,6 +12,7 @@ router.get('/status', async (req, res) => {
         id: true,
         name: true,
         isOnline: true,
+        isActive: true,
         lastSeen: true
       }
     });
@@ -52,11 +53,12 @@ router.post('/login', async (req, res) => {
           }
         });
       } else {
-        // Update online status
+        // Update online status and activate
         await prisma.operator.update({
           where: { id: operator.id },
           data: { 
             isOnline: true,
+            isActive: true,
             lastSeen: new Date()
           }
         });

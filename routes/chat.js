@@ -11,13 +11,18 @@ router.post('/', async (req, res) => {
   try {
     const { message, sessionId } = req.body;
     
+    console.log('📨 NEW CHAT REQUEST:', { message, sessionId, timestamp: new Date().toISOString() });
+    
     if (!message || typeof message !== 'string') {
       return res.status(400).json({ error: 'Messaggio richiesto' });
     }
+    
+    // Generate sessionId if not provided
+    const finalSessionId = sessionId || `session-${Date.now()}`;
 
     // Get or create session in database
     let session = await prisma.chatSession.findUnique({
-      where: { sessionId: sessionId || `session-${Date.now()}` },
+      where: { sessionId: finalSessionId },
       include: {
         messages: {
           orderBy: { timestamp: 'desc' },
@@ -32,7 +37,7 @@ router.post('/', async (req, res) => {
     if (!session) {
       session = await prisma.chatSession.create({
         data: {
-          sessionId: sessionId || `session-${Date.now()}`,
+          sessionId: finalSessionId,
           userIp: req.ip,
           userAgent: req.headers['user-agent']
         },
@@ -48,14 +53,24 @@ router.post('/', async (req, res) => {
       });
     }
 
-    // Save user message
-    await prisma.message.create({
-      data: {
-        sessionId: session.sessionId,
-        sender: 'USER',
-        message: message
-      }
-    });
+    // Save user message and update session activity
+    console.log('💾 Saving user message for session:', session.sessionId);
+    
+    await Promise.all([
+      // Save message
+      prisma.message.create({
+        data: {
+          sessionId: session.sessionId,
+          sender: 'USER',
+          message: message
+        }
+      }),
+      // Update session last activity
+      prisma.chatSession.update({
+        where: { id: session.id },
+        data: { lastActivity: new Date() }
+      })
+    ]);
 
     // Check if in live chat with operator
     if (session.status === 'WITH_OPERATOR' && session.operatorChats.length > 0) {
@@ -139,6 +154,7 @@ ${JSON.stringify(knowledgeBase, null, 2)}
     }
 
     // Save bot response
+    console.log('🤖 Saving bot response for session:', session.sessionId, 'Response:', parsedResponse);
     await prisma.message.create({
       data: {
         sessionId: session.sessionId,
@@ -168,6 +184,18 @@ ${JSON.stringify(knowledgeBase, null, 2)}
     // Handle escalation
     if (parsedResponse.escalation === 'operator') {
       console.log('🔍 ESCALATION REQUEST - Checking for operators...');
+      
+      // Debug: Show ALL operators first
+      const allOperators = await prisma.operator.findMany({
+        select: { 
+          id: true, 
+          name: true, 
+          isOnline: true, 
+          isActive: true, 
+          lastSeen: true 
+        }
+      });
+      console.log('📊 ALL operators in database:', allOperators);
       
       // Check operator availability
       const availableOperator = await prisma.operator.findFirst({
