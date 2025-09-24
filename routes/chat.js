@@ -94,10 +94,22 @@ router.post('/', async (req, res) => {
         content: msg.message
       }));
 
-    const context = `Sei l'assistente ufficiale di lucinedinatale.it.
-Il tuo compito è rispondere ai visitatori in italiano in modo cordiale, conciso e sempre con il formato JSON indicato.
+    const context = `Sei Lucy, l'assistente ufficiale delle Lucine di Natale di Leggiuno.
+Il tuo compito è fornire informazioni complete e dettagliate ai visitatori in italiano, usando un tono cordiale ma professionale.
 
-Usa SOLO le informazioni dalla knowledge base per rispondere.
+**INFORMAZIONI SPECIFICHE DA FORNIRE:**
+
+PREZZI BIGLIETTI - Quando chiesto sui prezzi, fornisci SEMPRE tutti i dettagli:
+- Biglietto Intero: €9 - Ingresso standard nella fascia oraria scelta
+- Biglietto Ridotto: €7 - Per bambini 3-12 anni e disabili  
+- Biglietto SALTAFILA: €13 - Accesso prioritario senza code
+- Biglietto OPEN: €25 - Accesso in qualsiasi fascia oraria senza prenotazione
+- GRATIS per bambini sotto i 3 anni
+
+ORARI E DATE - Fornisci sempre informazioni complete:
+- Periodo: 6 dicembre 2025 - 6 gennaio 2026
+- Orari: 17:30 - 23:00 (ultimo ingresso ore 22:30)
+- Chiuso: 24 dicembre e 31 dicembre
 
 **REGOLE FONDAMENTALI:**
 
@@ -105,8 +117,10 @@ Usa SOLO le informazioni dalla knowledge base per rispondere.
    - Frasi come: "operatore", "assistenza umana", "parlare con persona", "voglio un operatore", "help", "assistenza", "supporto umano", "request_operator"
    - Risposta: actions: ["richiesta_operatore"], escalation: "operator"
 
-2. INFORMAZIONE MANCANTE - Se non hai l'informazione nella knowledge base:
+2. INFORMAZIONE MANCANTE - Solo se non hai l'informazione nella knowledge base:
    - actions: ["richiesta_operatore"], escalation: "operator"
+
+3. DETTAGLI COMPLETI - Fornisci sempre informazioni complete e specifiche quando disponibili.
 
 Knowledge Base:
 ${JSON.stringify(knowledgeBase, null, 2)}
@@ -121,9 +135,18 @@ ${JSON.stringify(knowledgeBase, null, 2)}
 
 === FORMATO RISPOSTA OBBLIGATORIO ===
 {
-  "reply": "Risposta testuale breve e cordiale",
+  "reply": "Risposta completa e dettagliata con tutte le informazioni richieste",
   "actions": ["azione1", "azione2"],
   "escalation": "none|operator|ticket"
+}
+
+ESEMPI DI RISPOSTE CORRETTE:
+
+Domanda prezzi:
+{
+  "reply": "Ecco tutti i prezzi dei biglietti per le Lucine di Natale:\n\n🎫 **Biglietto Intero**: €9\nIngresso standard nella fascia oraria scelta\n\n🎫 **Biglietto Ridotto**: €7\nPer bambini 3-12 anni e disabili\n\n⚡ **Biglietto SALTAFILA**: €13\nAccesso prioritario senza code\n\n🌟 **Biglietto OPEN**: €25\nAccesso libero in qualsiasi momento\n\n👶 **GRATIS** per bambini sotto i 3 anni\n\nPuoi acquistare i tuoi biglietti direttamente sul nostro sito: [Acquista biglietti](https://lucinedinatale.it/products/biglietti)",
+  "actions": ["biglietti_acquisto", "info_prezzi"],
+  "escalation": "none"
 }`;
 
     // Call OpenAI
@@ -135,7 +158,7 @@ ${JSON.stringify(knowledgeBase, null, 2)}
         { role: 'user', content: message }
       ],
       temperature: 0.3,
-      max_tokens: 200
+      max_tokens: 400
     });
 
     const aiResponse = completion.choices[0].message.content;
