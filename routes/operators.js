@@ -183,42 +183,47 @@ router.post('/take-chat', async (req, res) => {
   }
 });
 
-// Send operator message
-router.post('/send-message', async (req, res) => {
+// Get messages for user polling (frontend → backend)
+router.get('/messages/:sessionId', async (req, res) => {
   try {
-    const { sessionId, operatorId, message } = req.body;
-
-    // Verify operator owns the chat
-    const operatorChat = await prisma.operatorChat.findFirst({
+    const { sessionId } = req.params;
+    const { since } = req.query; // Timestamp per messaggi più recenti
+    
+    const sinceDate = since ? new Date(since) : new Date(Date.now() - 10000); // Ultimi 10 secondi se non specificato
+    
+    const messages = await prisma.message.findMany({
       where: {
         sessionId,
-        operatorId,
-        endedAt: null
-      }
-    });
-
-    if (!operatorChat) {
-      return res.status(403).json({ error: 'Not authorized for this chat' });
-    }
-
-    // Save message
-    const savedMessage = await prisma.message.create({
-      data: {
-        sessionId,
         sender: 'OPERATOR',
-        message,
-        metadata: { operatorId }
-      }
+        timestamp: {
+          gt: sinceDate
+        }
+      },
+      include: {
+        _count: true
+      },
+      orderBy: { timestamp: 'asc' }
     });
+
+    // Aggiungi operatorName dal metadata
+    const messagesWithOperator = messages.map(msg => ({
+      id: msg.id,
+      sender: msg.sender,
+      content: msg.message,
+      timestamp: msg.timestamp,
+      operatorId: msg.metadata?.operatorId || null,
+      operatorName: msg.metadata?.operatorName || 'Operatore'
+    }));
 
     res.json({
       success: true,
-      messageId: savedMessage.id,
-      timestamp: savedMessage.timestamp
+      messages: messagesWithOperator,
+      count: messages.length
     });
 
   } catch (error) {
-    res.status(500).json({ error: 'Failed to send message' });
+    console.error('Messages polling error:', error);
+    res.status(500).json({ error: 'Failed to get messages' });
   }
 });
 
@@ -309,13 +314,13 @@ router.put('/status', async (req, res) => {
 // Get pending sessions for dashboard (solo database PostgreSQL)
 router.get('/pending-sessions', async (req, res) => {
   try {
-    // Sessioni che aspettano operatore (status WITH_OPERATOR ma senza operatorChat attivo)
+    // Sessioni che aspettano risposta operatore (status WITH_OPERATOR con operatorChat attivo)
     const pendingChats = await prisma.chatSession.findMany({
       where: {
         status: 'WITH_OPERATOR',
         operatorChats: {
-          none: {
-            endedAt: null
+          some: {
+            endedAt: null // Deve avere un operatorChat attivo
           }
         }
       },
@@ -324,6 +329,14 @@ router.get('/pending-sessions', async (req, res) => {
           where: { sender: 'USER' },
           orderBy: { timestamp: 'desc' },
           take: 1
+        },
+        operatorChats: {
+          where: { endedAt: null },
+          include: {
+            operator: {
+              select: { id: true, name: true }
+            }
+          }
         }
       },
       orderBy: { lastActivity: 'desc' }
@@ -333,8 +346,11 @@ router.get('/pending-sessions', async (req, res) => {
       sessionId: chat.sessionId,
       originalQuestion: chat.messages[0]?.message || 'Richiesta supporto',
       handover_time: chat.lastActivity.getTime(),
-      timestamp: chat.lastActivity.toISOString()
+      timestamp: chat.lastActivity.toISOString(),
+      operator: chat.operatorChats[0]?.operator || null
     }));
+
+    console.log('📋 Pending sessions found:', pending_sessions.length);
 
     res.json({
       success: true,
@@ -353,7 +369,43 @@ router.get('/pending-sessions', async (req, res) => {
   }
 });
 
-// Send message from operator to user
+// Send message from user to operator (frontend → backend)
+router.post('/send', async (req, res) => {
+  try {
+    const { sessionId, message, sender } = req.body;
+    
+    if (!sessionId || !message) {
+      return res.status(400).json({ error: 'SessionId and message required' });
+    }
+
+    // Save user message directly
+    const savedMessage = await prisma.message.create({
+      data: {
+        sessionId,
+        sender: 'USER',
+        message
+      }
+    });
+
+    // Update session last activity
+    await prisma.chatSession.update({
+      where: { sessionId },
+      data: { lastActivity: new Date() }
+    });
+
+    res.json({
+      success: true,
+      messageId: savedMessage.id,
+      timestamp: savedMessage.timestamp
+    });
+
+  } catch (error) {
+    console.error('Send user message error:', error);
+    res.status(500).json({ error: 'Failed to send message' });
+  }
+});
+
+// Send message from operator to user (dashboard → backend)
 router.post('/send-message', async (req, res) => {
   try {
     const { sessionId, operatorId, message } = req.body;
@@ -412,7 +464,7 @@ router.post('/send-message', async (req, res) => {
     });
 
   } catch (error) {
-    console.error('Send message error:', error);
+    console.error('Send operator message error:', error);
     res.status(500).json({ error: 'Failed to send message' });
   }
 });
