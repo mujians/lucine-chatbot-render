@@ -420,7 +420,7 @@ class DashboardApp {
     }
 
     /**
-     * 💬 Carica dati chat
+     * 💬 Carica dati chat (Chat Attive Assegnate)
      */
     async loadChatsData() {
         try {
@@ -430,27 +430,49 @@ class DashboardApp {
                 const data = await response.json();
                 const pendingList = document.getElementById('pending-chat-list');
                 
+                console.log('📋 Chat attive caricate:', data.pending_sessions);
+                
                 if (data.pending_sessions && data.pending_sessions.length > 0) {
-                    pendingList.innerHTML = data.pending_sessions.map(session => `
-                        <div class="pending-chat-item" data-session-id="${session.sessionId}">
+                    pendingList.innerHTML = data.pending_sessions.map(session => {
+                        // Controlla se l'operatore corrente è assegnato a questa chat
+                        const isMyChat = session.operator && session.operator.id === this.currentOperator?.id;
+                        const operatorName = session.operator?.name || 'Non assegnato';
+                        
+                        return `
+                        <div class="pending-chat-item ${isMyChat ? 'my-chat' : ''}" data-session-id="${session.sessionId}">
                             <div class="chat-preview">
                                 <div class="user-info">
                                     <i class="fas fa-user"></i>
                                     <span class="session-id">${session.sessionId.slice(0, 8)}...</span>
+                                    ${!isMyChat ? `<span class="operator-assigned">👤 ${operatorName}</span>` : '<span class="my-chat-badge">🟢 Tua Chat</span>'}
                                 </div>
                                 <p class="original-question">${session.originalQuestion || 'Richiesta supporto'}</p>
                                 <div class="chat-meta">
                                     <span class="waiting-time">${this.formatWaitingTime(session.handover_time)}</span>
-                                    <button class="btn-take-chat" onclick="dashboardApp.takeChat('${session.sessionId}')">
-                                        <i class="fas fa-headset"></i>
-                                        Prendi Chat
-                                    </button>
+                                    ${isMyChat ? 
+                                        `<button class="btn-respond-chat" onclick="dashboardApp.openChat('${session.sessionId}')">
+                                            <i class="fas fa-comments"></i>
+                                            Rispondi
+                                        </button>` :
+                                        `<button class="btn-view-chat" onclick="dashboardApp.viewChat('${session.sessionId}')" disabled>
+                                            <i class="fas fa-eye"></i>
+                                            ${operatorName}
+                                        </button>`
+                                    }
                                 </div>
                             </div>
                         </div>
-                    `).join('');
+                    `}).join('');
+                    
+                    // Update badge con solo le mie chat
+                    const myChatsCount = data.pending_sessions.filter(s => 
+                        s.operator && s.operator.id === this.currentOperator?.id
+                    ).length;
+                    document.getElementById('pending-chats').textContent = myChatsCount;
+                    
                 } else {
-                    pendingList.innerHTML = '<p class="no-data">Nessuna chat in attesa</p>';
+                    pendingList.innerHTML = '<p class="no-data">🎉 Nessuna chat attiva al momento</p>';
+                    document.getElementById('pending-chats').textContent = '0';
                 }
             }
         } catch (error) {
@@ -484,6 +506,70 @@ class DashboardApp {
         } catch (error) {
             console.error('Error taking chat:', error);
             this.showNotification('Errore nel prendere la chat', 'error');
+        }
+    }
+
+    /**
+     * 📬 Apri chat attiva (già assegnata)
+     */
+    async openChat(sessionId) {
+        try {
+            console.log('📬 Aprendo chat attiva:', sessionId);
+            this.activeChat = sessionId;
+            
+            // Carica la finestra chat con conversazione
+            await this.loadChatWindow(sessionId);
+            
+            // Avvia polling per nuovi messaggi
+            this.startChatPolling(sessionId);
+            
+            // Show success message
+            this.showNotification('Chat aperta - Puoi rispondere al cliente', 'success');
+            
+        } catch (error) {
+            console.error('Error opening chat:', error);
+            this.showNotification('Errore nell\'aprire la chat', 'error');
+        }
+    }
+    
+    /**
+     * 👁️ Visualizza chat (non assegnata)
+     */
+    async viewChat(sessionId) {
+        this.showNotification('Questa chat è gestita da un altro operatore', 'info');
+    }
+    
+    /**
+     * 🔄 Start polling per nuovi messaggi
+     */
+    startChatPolling(sessionId) {
+        // Stop existing polling
+        if (this.chatPollingInterval) {
+            clearInterval(this.chatPollingInterval);
+        }
+        
+        // Poll ogni 2 secondi
+        this.chatPollingInterval = setInterval(async () => {
+            if (this.activeChat === sessionId) {
+                await this.refreshChatMessages(sessionId);
+            }
+        }, 2000);
+    }
+    
+    /**
+     * 📥 Refresh messaggi chat
+     */
+    async refreshChatMessages(sessionId) {
+        try {
+            const response = await fetch(`${this.apiBase}/operators/chat-history?sessionId=${sessionId}`);
+            if (response.ok) {
+                const data = await response.json();
+                if (data.sessions && data.sessions[0]) {
+                    this.updateChatMessages(data.sessions[0].messages);
+                }
+            }
+        } catch (error) {
+            console.error('Error refreshing messages:', error);
         }
     }
 
