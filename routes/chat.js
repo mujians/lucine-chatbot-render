@@ -328,19 +328,20 @@ Domanda prezzi:
 
     // Handle escalation
     if (parsedResponse.escalation === 'operator') {
-      console.log('🔍 ESCALATION REQUEST - Checking for operators...');
-      
-      // Debug: Show ALL operators first
-      const allOperators = await prisma.operator.findMany({
-        select: { 
-          id: true, 
-          name: true, 
-          isOnline: true, 
-          isActive: true, 
-          lastSeen: true 
-        }
-      });
-      console.log('📊 ALL operators in database:', allOperators);
+      try {
+        console.log('🔍 ESCALATION REQUEST - Checking for operators...');
+        
+        // Debug: Show ALL operators first
+        const allOperators = await prisma.operator.findMany({
+          select: { 
+            id: true, 
+            name: true, 
+            isOnline: true, 
+            isActive: true, 
+            lastSeen: true 
+          }
+        });
+        console.log('📊 ALL operators in database:', allOperators);
       
       // Check operator availability (più specifico e sicuro)
       const availableOperator = await prisma.operator.findFirst({
@@ -356,8 +357,7 @@ Domanda prezzi:
           avatar: true, 
           specialization: true,
           isOnline: true,
-          isActive: true,
-          lastSeen: true
+          isActive: true
         }
       });
 
@@ -419,6 +419,16 @@ Domanda prezzi:
               description: 'Continua con Lucy (AI)'
             }
           ]
+        });
+      }
+      } catch (escalationError) {
+        console.error('❌ ESCALATION ERROR:', escalationError);
+        // In caso di errore nell'escalation, restituisci comunque una risposta
+        return res.json({
+          reply: `Mi dispiace, c'è stato un problema nel contattare un operatore. Per assistenza immediata:\n📧 Email: info@lucinedinatale.it\n📱 WhatsApp: +39 312 345 6789`,
+          sessionId: session.sessionId,
+          status: 'escalation_error',
+          error: escalationError.message
         });
       }
     }
