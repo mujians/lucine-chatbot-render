@@ -47,12 +47,9 @@ router.post('/login', async (req, res) => {
             username: 'admin',
             email: 'supporto@lucinedinatale.it',
             name: 'Lucy Support',
-            displayName: 'Lucy - Assistente Specializzato',
-            avatar: '👩‍💼',
             passwordHash: 'demo', // In produzione usare bcrypt
             isActive: true,
-            isOnline: true,
-            specialization: 'Biglietti e Informazioni Generali'
+            isOnline: true
           }
         });
       } else {
@@ -73,10 +70,9 @@ router.post('/login', async (req, res) => {
           id: operator.id,
           username: operator.username,
           name: operator.name,
-          displayName: operator.displayName || operator.name,
-          avatar: operator.avatar || '👤',
+          displayName: operator.name,
+          avatar: '👤',
           email: operator.email,
-          specialization: operator.specialization,
           isOnline: true,
           isActive: true
         },
@@ -176,7 +172,7 @@ router.post('/take-chat', async (req, res) => {
     // Get operator info
     const operator = await prisma.operator.findUnique({
       where: { id: operatorId },
-      select: { name: true, displayName: true, avatar: true, specialization: true }
+      select: { name: true }
     });
 
     // Add system message
@@ -184,7 +180,7 @@ router.post('/take-chat', async (req, res) => {
       data: {
         sessionId,
         sender: 'SYSTEM',
-        message: `${operator.avatar || '👤'} ${operator.displayName || operator.name} si è unito alla chat\n✨ ${operator.specialization || 'Pronto ad aiutarti!'}`
+        message: `👤 ${operator.name} si è unito alla chat\n✨ Pronto ad aiutarti!`
       }
     });
 
@@ -195,7 +191,33 @@ router.post('/take-chat', async (req, res) => {
     });
 
   } catch (error) {
-    res.status(500).json({ error: 'Failed to take chat' });
+    console.error('❌ Take-chat error:', {
+      message: error.message,
+      code: error.code,
+      meta: error.meta,
+      sessionId,
+      operatorId
+    });
+    
+    // Errori più specifici
+    if (error.code === 'P2025') {
+      return res.status(404).json({ 
+        error: 'Session or operator not found',
+        details: error.message 
+      });
+    }
+    
+    if (error.code === 'P2002') {
+      return res.status(400).json({ 
+        error: 'Chat already assigned',
+        details: error.message 
+      });
+    }
+    
+    res.status(500).json({ 
+      error: 'Failed to take chat',
+      details: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
   }
 });
 
