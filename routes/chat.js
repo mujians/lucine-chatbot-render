@@ -353,9 +353,6 @@ Domanda prezzi:
         select: { 
           id: true, 
           name: true, 
-          displayName: true, 
-          avatar: true, 
-          specialization: true,
           isOnline: true,
           isActive: true
         }
@@ -379,15 +376,14 @@ Domanda prezzi:
         });
 
         return res.json({
-          reply: `🟢 Ti sto connettendo con ${availableOperator.displayName || availableOperator.name}...\n\n${availableOperator.avatar || '👤'} Ti risponderò personalmente per aiutarti!`,
+          reply: `🟢 Ti sto connettendo con ${availableOperator.name}...\n\n👤 Ti risponderò personalmente per aiutarti!`,
           sessionId: session.sessionId,
           status: 'connecting_operator',
           operator: {
             id: availableOperator.id,
             name: availableOperator.name,
-            displayName: availableOperator.displayName || availableOperator.name,
-            avatar: availableOperator.avatar || '👤',
-            specialization: availableOperator.specialization
+            displayName: availableOperator.name,
+            avatar: '👤'
           }
         });
       } else {
