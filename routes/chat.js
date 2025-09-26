@@ -6,6 +6,123 @@ import { loadKnowledgeBase } from '../utils/knowledge.js';
 const router = express.Router();
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
+/**
+ * 🎫 Gestisce la raccolta dati per ticket quando operatori offline
+ */
+async function handleTicketCollection(message, session, res) {
+  try {
+    // Analizza il messaggio per estrarre contatti
+    const emailPattern = /[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/;
+    const phonePattern = /(?:\+39)?[\s]?([0-9]{10}|[0-9]{3}[\s]?[0-9]{3}[\s]?[0-9]{4})/;
+    
+    const emailMatch = message.match(emailPattern);
+    const phoneMatch = message.match(phonePattern);
+    
+    if (emailMatch || phoneMatch) {
+      // Contatto trovato - crea ticket
+      const contactInfo = {
+        email: emailMatch ? emailMatch[0] : null,
+        phone: phoneMatch ? phoneMatch[1]?.replace(/\s/g, '') : null,
+        method: emailMatch ? 'EMAIL' : 'WHATSAPP'
+      };
+
+      try {
+        // Crea ticket direttamente con Prisma
+        const ticket = await prisma.ticket.create({
+          data: {
+            sessionId: session.sessionId,
+            subject: `Supporto Chat - ${session.sessionId.substring(0, 8)}`,
+            description: `Richiesta dall'utente: ${message}`,
+            userEmail: contactInfo.email,
+            userPhone: contactInfo.phone,
+            contactMethod: contactInfo.method,
+            priority: 'MEDIUM',
+            status: 'OPEN'
+          }
+        });
+
+        // Log analytics
+        await prisma.analytics.create({
+          data: {
+            eventType: 'ticket_from_offline_chat',
+            sessionId: session.sessionId,
+            eventData: {
+              ticketId: ticket.id,
+              ticketNumber: ticket.ticketNumber,
+              contactMethod: contactInfo.method
+            }
+          }
+        });
+
+        // Reset session status
+        await prisma.chatSession.update({
+          where: { id: session.id },
+          data: { status: 'ACTIVE' }
+        });
+
+        return res.json({
+          reply: `✅ **Ticket #${ticket.ticketNumber} creato!**\n\n📧 Ti contatteremo a: ${contactInfo.email || contactInfo.phone}\n⏱️ **Tempo di risposta**: 2-4 ore\n\nGrazie per aver contattato le Lucine di Natale! 🎄`,
+          sessionId: session.sessionId,
+          status: 'ticket_created',
+          ticketNumber: ticket.ticketNumber,
+          smartActions: [
+            {
+              type: 'success',
+              icon: '✅',
+              text: `Ticket #${ticket.ticketNumber}`,
+              description: 'Creato con successo'
+            },
+            {
+              type: 'secondary',
+              icon: '💬',
+              text: 'Nuova Conversazione',
+              description: 'Continua a chattare con Lucy'
+            }
+          ]
+        });
+      } catch (error) {
+        console.error('Error creating ticket:', error);
+      }
+    }
+
+    // Contatto non valido o errore - chiedi di nuovo
+    if (message.toLowerCase().includes('torna') || message.toLowerCase().includes('annulla')) {
+      // User wants to go back to AI chat
+      await prisma.chatSession.update({
+        where: { id: session.id },
+        data: { status: 'ACTIVE' }
+      });
+
+      return res.json({
+        reply: `🔙 Perfetto! Sono tornato in modalità chat normale.\n\nCome posso aiutarti con le **Lucine di Natale**? 🎄`,
+        sessionId: session.sessionId,
+        status: 'back_to_ai'
+      });
+    }
+
+    return res.json({
+      reply: `❌ **Contatto non valido**\n\nInserisci un contatto valido:\n📧 **Email**: esempio@gmail.com\n📱 **WhatsApp**: +39 123 456 7890\n\n🔙 Oppure scrivi "torna" per continuare con la chat AI`,
+      sessionId: session.sessionId,
+      status: 'ticket_collection_retry',
+      smartActions: [
+        {
+          type: 'info',
+          icon: '💡',
+          text: 'Suggerimento',
+          description: 'Copia e incolla il tuo contatto'
+        }
+      ]
+    });
+
+  } catch (error) {
+    console.error('Ticket collection error:', error);
+    return res.status(500).json({
+      error: 'Errore nella raccolta dati ticket',
+      sessionId: session.sessionId
+    });
+  }
+}
+
 // Main chat endpoint
 router.post('/', async (req, res) => {
   try {
@@ -225,15 +342,12 @@ Domanda prezzi:
       });
       console.log('📊 ALL operators in database:', allOperators);
       
-      // Check operator availability (più specifico)
+      // Check operator availability (più specifico e sicuro)
       const availableOperator = await prisma.operator.findFirst({
         where: { 
           isOnline: true,
-          isActive: true,
-          // Operatore visto nelle ultime 10 minuti (per evitare operatori "zombie")
-          lastSeen: {
-            gte: new Date(Date.now() - 10 * 60 * 1000)
-          }
+          isActive: true
+          // Rimuoviamo il check lastSeen che causa problemi
         },
         select: { 
           id: true, 
@@ -426,129 +540,5 @@ router.get('/debug', async (req, res) => {
     });
   }
 });
-
-/**
- * 🎫 Gestisce la raccolta dati per ticket quando operatori offline
- */
-async function handleTicketCollection(message, session, res) {
-  try {
-    // Analizza il messaggio per estrarre contatti
-    const emailPattern = /[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/;
-    const phonePattern = /(?:\+39)?[\s]?([0-9]{10}|[0-9]{3}[\s]?[0-9]{3}[\s]?[0-9]{4})/;
-    
-    const emailMatch = message.match(emailPattern);
-    const phoneMatch = message.match(phonePattern);
-    
-    if (emailMatch || phoneMatch) {
-      // Contatto trovato - crea ticket
-      const contactInfo = {
-        email: emailMatch ? emailMatch[0] : null,
-        phone: phoneMatch ? phoneMatch[1]?.replace(/\s/g, '') : null,
-        method: emailMatch ? 'EMAIL' : 'WHATSAPP'
-      };
-
-      try {
-        // Crea ticket direttamente con Prisma
-        const ticket = await prisma.ticket.create({
-          data: {
-            sessionId: session.sessionId,
-            subject: `Supporto Chat - ${session.sessionId.substring(0, 8)}`,
-            description: `Richiesta dall'utente: ${message}`,
-            userEmail: contactInfo.email,
-            userPhone: contactInfo.phone,
-            contactMethod: contactInfo.method,
-            priority: 'MEDIUM'
-          }
-        });
-
-        // Log analytics
-        await prisma.analytics.create({
-          data: {
-            eventType: 'ticket_from_offline_chat',
-            sessionId: session.sessionId,
-            eventData: {
-              ticketId: ticket.id,
-              ticketNumber: ticket.ticketNumber,
-              contactMethod: contactInfo.method
-            }
-          }
-        });
-
-        const ticketData = {
-          success: true,
-          ticketNumber: ticket.ticketNumber,
-          message: `✅ **Ticket #${ticket.ticketNumber} creato!**\n\n📧 Ti contatteremo a: ${contactInfo.email || contactInfo.phone}\n⏱️ **Tempo di risposta**: 2-4 ore\n\nGrazie per aver contattato le Lucine di Natale! 🎄`
-        };
-
-        if (ticketData.success) {
-          // Reset session status
-          await prisma.chatSession.update({
-            where: { id: session.id },
-            data: { status: 'ACTIVE' }
-          });
-
-          return res.json({
-            reply: ticketData.message,
-            sessionId: session.sessionId,
-            status: 'ticket_created',
-            ticketNumber: ticketData.ticketNumber,
-            smartActions: [
-              {
-                type: 'success',
-                icon: '✅',
-                text: `Ticket #${ticketData.ticketNumber}`,
-                description: 'Creato con successo'
-              },
-              {
-                type: 'secondary',
-                icon: '💬',
-                text: 'Nuova Conversazione',
-                description: 'Continua a chattare con Lucy'
-              }
-            ]
-          });
-        }
-      } catch (error) {
-        console.error('Error creating ticket:', error);
-      }
-    }
-
-    // Contatto non valido o errore - chiedi di nuovo
-    if (message.toLowerCase().includes('torna') || message.toLowerCase().includes('annulla')) {
-      // User wants to go back to AI chat
-      await prisma.chatSession.update({
-        where: { id: session.id },
-        data: { status: 'ACTIVE' }
-      });
-
-      return res.json({
-        reply: `🔙 Perfetto! Sono tornato in modalità chat normale.\n\nCome posso aiutarti con le **Lucine di Natale**? 🎄`,
-        sessionId: session.sessionId,
-        status: 'back_to_ai'
-      });
-    }
-
-    return res.json({
-      reply: `❌ **Contatto non valido**\n\nInserisci un contatto valido:\n📧 **Email**: esempio@gmail.com\n📱 **WhatsApp**: +39 123 456 7890\n\n🔙 Oppure scrivi "torna" per continuare con la chat AI`,
-      sessionId: session.sessionId,
-      status: 'ticket_collection_retry',
-      smartActions: [
-        {
-          type: 'info',
-          icon: '💡',
-          text: 'Suggerimento',
-          description: 'Copia e incolla il tuo contatto'
-        }
-      ]
-    });
-
-  } catch (error) {
-    console.error('Ticket collection error:', error);
-    return res.status(500).json({
-      error: 'Errore nella raccolta dati ticket',
-      sessionId: session.sessionId
-    });
-  }
-}
 
 export default router;

@@ -28,6 +28,16 @@ router.post('/', async (req, res) => {
       });
     }
 
+    console.log('🎫 Creating ticket with data:', {
+      sessionId,
+      subject: subject || 'Richiesta supporto',
+      description: description || subject || 'Richiesta di supporto dal chatbot',
+      userEmail,
+      userPhone,
+      contactMethod: contactMethod || 'EMAIL',
+      priority: 'MEDIUM'
+    });
+
     const ticket = await prisma.ticket.create({
       data: {
         sessionId,
@@ -36,7 +46,8 @@ router.post('/', async (req, res) => {
         userEmail,
         userPhone,
         contactMethod: contactMethod || 'EMAIL',
-        priority: 'MEDIUM'
+        priority: 'MEDIUM',
+        status: 'OPEN' // Aggiungiamo esplicitamente lo status
       }
     });
 
@@ -61,8 +72,29 @@ router.post('/', async (req, res) => {
     });
 
   } catch (error) {
-    console.error('Ticket creation error:', error);
-    res.status(500).json({ error: 'Failed to create ticket' });
+    console.error('❌ Ticket creation error:', {
+      message: error.message,
+      code: error.code,
+      meta: error.meta
+    });
+    
+    // Controllo errori specifici
+    if (error.code === 'P2002') {
+      return res.status(400).json({ 
+        error: 'Ticket già esistente per questa sessione' 
+      });
+    }
+    
+    if (error.code === 'P2003') {
+      return res.status(400).json({ 
+        error: 'SessionId non valido o non esistente' 
+      });
+    }
+    
+    res.status(500).json({ 
+      error: 'Failed to create ticket',
+      details: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
   }
 });
 

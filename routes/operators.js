@@ -137,6 +137,16 @@ router.post('/take-chat', async (req, res) => {
   try {
     const { sessionId, operatorId } = req.body;
 
+    // Verifica che la sessione esista
+    const sessionExists = await prisma.chatSession.findUnique({
+      where: { sessionId }
+    });
+
+    if (!sessionExists) {
+      console.error('❌ Session not found:', sessionId);
+      return res.status(404).json({ error: 'Session not found' });
+    }
+
     // Check if chat already taken
     const existing = await prisma.operatorChat.findFirst({
       where: {
