@@ -95,6 +95,9 @@ model Operator {
   username      String    @unique
   email         String    @unique
   name          String
+  displayName   String?
+  avatar        String?
+  specialization String?
   passwordHash  String
   isActive      Boolean   @default(true)
   isOnline      Boolean   @default(false)
