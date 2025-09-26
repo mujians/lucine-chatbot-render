@@ -15,11 +15,24 @@ router.post('/', async (req, res) => {
       contactMethod 
     } = req.body;
 
+    // Validazione input
+    if (!description && !subject) {
+      return res.status(400).json({ 
+        error: 'Richiedo almeno subject o description' 
+      });
+    }
+
+    if (!userEmail && !userPhone) {
+      return res.status(400).json({ 
+        error: 'Richiedo almeno email o telefono per il contatto' 
+      });
+    }
+
     const ticket = await prisma.ticket.create({
       data: {
         sessionId,
         subject: subject || 'Richiesta supporto',
-        description,
+        description: description || subject || 'Richiesta di supporto dal chatbot',
         userEmail,
         userPhone,
         contactMethod: contactMethod || 'EMAIL',
@@ -151,6 +164,83 @@ router.put('/:ticketId', async (req, res) => {
 
   } catch (error) {
     res.status(500).json({ error: 'Failed to update ticket' });
+  }
+});
+
+// Create ticket from chat interaction (quando operatori offline)
+router.post('/from-chat', async (req, res) => {
+  try {
+    const { sessionId, userInput, contactInfo } = req.body;
+
+    // Validazione base
+    if (!sessionId) {
+      return res.status(400).json({ error: 'SessionId richiesto' });
+    }
+
+    // Estrai email o telefono dal contactInfo
+    const userEmail = contactInfo?.email || null;
+    const userPhone = contactInfo?.phone || null;
+    const contactMethod = contactInfo?.method || 'EMAIL';
+
+    if (!userEmail && !userPhone) {
+      return res.status(400).json({ 
+        error: 'Per creare un ticket, fornisci almeno email o numero WhatsApp',
+        requiresContact: true,
+        suggestion: 'Scrivi il tuo contatto nel prossimo messaggio'
+      });
+    }
+
+    // Recupera la storia della conversazione per context
+    const session = await prisma.chatSession.findUnique({
+      where: { sessionId },
+      include: {
+        messages: {
+          orderBy: { timestamp: 'asc' },
+          take: 10
+        }
+      }
+    });
+
+    const conversationContext = session?.messages
+      ?.map(msg => `${msg.sender}: ${msg.message}`)
+      ?.join('\n') || 'Nessun messaggio precedente';
+
+    const ticket = await prisma.ticket.create({
+      data: {
+        sessionId,
+        subject: `Supporto da Chat - Sessione ${sessionId.substring(0, 8)}`,
+        description: `RICHIESTA DALL'UTENTE:\n${userInput || 'Richiesta di supporto'}\n\nCONTEXT CONVERSAZIONE:\n${conversationContext}`,
+        userEmail,
+        userPhone,
+        contactMethod,
+        priority: 'MEDIUM'
+      }
+    });
+
+    // Log analytics
+    await prisma.analytics.create({
+      data: {
+        eventType: 'ticket_from_chat',
+        sessionId,
+        eventData: {
+          ticketId: ticket.id,
+          ticketNumber: ticket.ticketNumber,
+          contactMethod,
+          hasContext: !!session?.messages?.length
+        }
+      }
+    });
+
+    res.json({
+      success: true,
+      ticketId: ticket.id,
+      ticketNumber: ticket.ticketNumber,
+      message: `✅ Ticket #${ticket.ticketNumber} creato!\n\n📧 Ti contatteremo a: ${userEmail || userPhone}\n⏱️ Tempo risposta: 2-4 ore`
+    });
+
+  } catch (error) {
+    console.error('Ticket from chat creation error:', error);
+    res.status(500).json({ error: 'Failed to create ticket from chat' });
   }
 });
 

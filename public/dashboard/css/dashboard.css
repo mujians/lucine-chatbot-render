@@ -260,9 +260,40 @@ body {
     gap: 15px;
 }
 
+.operator-info {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.operator-avatar {
+    font-size: 1.5rem;
+    background: var(--bg-secondary);
+    padding: 8px;
+    border-radius: 50%;
+    min-width: 40px;
+    height: 40px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: var(--shadow-soft);
+}
+
+.operator-details {
+    display: flex;
+    flex-direction: column;
+}
+
 #operator-name {
     font-weight: 600;
     color: var(--text-primary);
+    line-height: 1.2;
+}
+
+.operator-spec {
+    color: var(--text-secondary);
+    font-size: 0.8rem;
+    font-weight: 400;
 }
 
 .btn-logout {

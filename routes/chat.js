@@ -82,6 +82,11 @@ router.post('/', async (req, res) => {
       });
     }
 
+    // Check if user is in ticket collection workflow
+    if (session.status === 'REQUESTING_TICKET') {
+      return await handleTicketCollection(message, session, res);
+    }
+
     // Load knowledge base
     const knowledgeBase = await loadKnowledgeBase();
     
@@ -220,11 +225,25 @@ Domanda prezzi:
       });
       console.log('📊 ALL operators in database:', allOperators);
       
-      // Check operator availability
+      // Check operator availability (più specifico)
       const availableOperator = await prisma.operator.findFirst({
         where: { 
           isOnline: true,
-          isActive: true 
+          isActive: true,
+          // Operatore visto nelle ultime 10 minuti (per evitare operatori "zombie")
+          lastSeen: {
+            gte: new Date(Date.now() - 10 * 60 * 1000)
+          }
+        },
+        select: { 
+          id: true, 
+          name: true, 
+          displayName: true, 
+          avatar: true, 
+          specialization: true,
+          isOnline: true,
+          isActive: true,
+          lastSeen: true
         }
       });
 
@@ -246,33 +265,44 @@ Domanda prezzi:
         });
 
         return res.json({
-          reply: `🟢 Ti sto connettendo con ${availableOperator.name}...`,
+          reply: `🟢 Ti sto connettendo con ${availableOperator.displayName || availableOperator.name}...\n\n${availableOperator.avatar || '👤'} Ti risponderò personalmente per aiutarti!`,
           sessionId: session.sessionId,
           status: 'connecting_operator',
           operator: {
             id: availableOperator.id,
-            name: availableOperator.name
+            name: availableOperator.name,
+            displayName: availableOperator.displayName || availableOperator.name,
+            avatar: availableOperator.avatar || '👤',
+            specialization: availableOperator.specialization
           }
         });
       } else {
         console.log('❌ NO OPERATORS AVAILABLE - Offering ticket');
+        
+        // Update session to track that we're in ticket flow
+        await prisma.chatSession.update({
+          where: { id: session.id },
+          data: { status: 'REQUESTING_TICKET' }
+        });
+
         // No operators available - offer ticket
         return res.json({
-          reply: `⏰ Al momento non ci sono operatori disponibili.\n\n📝 Vuoi aprire un ticket di supporto?`,
+          reply: `⏰ **Al momento tutti i nostri operatori sono offline**\n\n🎫 Posso creare un **ticket di supporto** per te:\n📧 **Email**: Risposta in 2-4 ore\n📱 **WhatsApp**: Risposta più rapida\n\n**Per continuare, scrivi il tuo contatto:**\n✉️ Esempio: mario@email.com\n📲 Esempio: +39 123 456 7890`,
           sessionId: session.sessionId,
-          status: 'ticket_request',
+          status: 'ticket_collection',
+          needsContact: true,
           smartActions: [
             {
-              type: 'ticket_email',
-              icon: '📧',
-              text: 'Email Support',
-              description: 'Ricevi risposta via email'
+              type: 'info',
+              icon: '📝',
+              text: 'Come funziona',
+              description: 'Scrivi email o WhatsApp nel prossimo messaggio'
             },
             {
-              type: 'ticket_whatsapp',
-              icon: '📱',
-              text: 'WhatsApp Support',
-              description: 'Ricevi risposta su WhatsApp'
+              type: 'secondary',
+              icon: '🔙',
+              text: 'Torna al Chat AI',
+              description: 'Continua con Lucy (AI)'
             }
           ]
         });
@@ -396,5 +426,129 @@ router.get('/debug', async (req, res) => {
     });
   }
 });
+
+/**
+ * 🎫 Gestisce la raccolta dati per ticket quando operatori offline
+ */
+async function handleTicketCollection(message, session, res) {
+  try {
+    // Analizza il messaggio per estrarre contatti
+    const emailPattern = /[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/;
+    const phonePattern = /(?:\+39)?[\s]?([0-9]{10}|[0-9]{3}[\s]?[0-9]{3}[\s]?[0-9]{4})/;
+    
+    const emailMatch = message.match(emailPattern);
+    const phoneMatch = message.match(phonePattern);
+    
+    if (emailMatch || phoneMatch) {
+      // Contatto trovato - crea ticket
+      const contactInfo = {
+        email: emailMatch ? emailMatch[0] : null,
+        phone: phoneMatch ? phoneMatch[1]?.replace(/\s/g, '') : null,
+        method: emailMatch ? 'EMAIL' : 'WHATSAPP'
+      };
+
+      try {
+        // Crea ticket direttamente con Prisma
+        const ticket = await prisma.ticket.create({
+          data: {
+            sessionId: session.sessionId,
+            subject: `Supporto Chat - ${session.sessionId.substring(0, 8)}`,
+            description: `Richiesta dall'utente: ${message}`,
+            userEmail: contactInfo.email,
+            userPhone: contactInfo.phone,
+            contactMethod: contactInfo.method,
+            priority: 'MEDIUM'
+          }
+        });
+
+        // Log analytics
+        await prisma.analytics.create({
+          data: {
+            eventType: 'ticket_from_offline_chat',
+            sessionId: session.sessionId,
+            eventData: {
+              ticketId: ticket.id,
+              ticketNumber: ticket.ticketNumber,
+              contactMethod: contactInfo.method
+            }
+          }
+        });
+
+        const ticketData = {
+          success: true,
+          ticketNumber: ticket.ticketNumber,
+          message: `✅ **Ticket #${ticket.ticketNumber} creato!**\n\n📧 Ti contatteremo a: ${contactInfo.email || contactInfo.phone}\n⏱️ **Tempo di risposta**: 2-4 ore\n\nGrazie per aver contattato le Lucine di Natale! 🎄`
+        };
+
+        if (ticketData.success) {
+          // Reset session status
+          await prisma.chatSession.update({
+            where: { id: session.id },
+            data: { status: 'ACTIVE' }
+          });
+
+          return res.json({
+            reply: ticketData.message,
+            sessionId: session.sessionId,
+            status: 'ticket_created',
+            ticketNumber: ticketData.ticketNumber,
+            smartActions: [
+              {
+                type: 'success',
+                icon: '✅',
+                text: `Ticket #${ticketData.ticketNumber}`,
+                description: 'Creato con successo'
+              },
+              {
+                type: 'secondary',
+                icon: '💬',
+                text: 'Nuova Conversazione',
+                description: 'Continua a chattare con Lucy'
+              }
+            ]
+          });
+        }
+      } catch (error) {
+        console.error('Error creating ticket:', error);
+      }
+    }
+
+    // Contatto non valido o errore - chiedi di nuovo
+    if (message.toLowerCase().includes('torna') || message.toLowerCase().includes('annulla')) {
+      // User wants to go back to AI chat
+      await prisma.chatSession.update({
+        where: { id: session.id },
+        data: { status: 'ACTIVE' }
+      });
+
+      return res.json({
+        reply: `🔙 Perfetto! Sono tornato in modalità chat normale.\n\nCome posso aiutarti con le **Lucine di Natale**? 🎄`,
+        sessionId: session.sessionId,
+        status: 'back_to_ai'
+      });
+    }
+
+    return res.json({
+      reply: `❌ **Contatto non valido**\n\nInserisci un contatto valido:\n📧 **Email**: esempio@gmail.com\n📱 **WhatsApp**: +39 123 456 7890\n\n🔙 Oppure scrivi "torna" per continuare con la chat AI`,
+      sessionId: session.sessionId,
+      status: 'ticket_collection_retry',
+      smartActions: [
+        {
+          type: 'info',
+          icon: '💡',
+          text: 'Suggerimento',
+          description: 'Copia e incolla il tuo contatto'
+        }
+      ]
+    });
+
+  } catch (error) {
+    console.error('Ticket collection error:', error);
+    return res.status(500).json({
+      error: 'Errore nella raccolta dati ticket',
+      sessionId: session.sessionId
+    });
+  }
+}
 
 export default router;

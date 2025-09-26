@@ -45,11 +45,14 @@ router.post('/login', async (req, res) => {
         operator = await prisma.operator.create({
           data: {
             username: 'admin',
-            email: 'admin@lucinedinatale.it',
-            name: 'Amministratore',
+            email: 'supporto@lucinedinatale.it',
+            name: 'Lucy Support',
+            displayName: 'Lucy - Assistente Specializzato',
+            avatar: '👩‍💼',
             passwordHash: 'demo', // In produzione usare bcrypt
             isActive: true,
-            isOnline: true
+            isOnline: true,
+            specialization: 'Biglietti e Informazioni Generali'
           }
         });
       } else {
@@ -70,7 +73,10 @@ router.post('/login', async (req, res) => {
           id: operator.id,
           username: operator.username,
           name: operator.name,
+          displayName: operator.displayName || operator.name,
+          avatar: operator.avatar || '👤',
           email: operator.email,
+          specialization: operator.specialization,
           isOnline: true,
           isActive: true
         },
@@ -160,7 +166,7 @@ router.post('/take-chat', async (req, res) => {
     // Get operator info
     const operator = await prisma.operator.findUnique({
       where: { id: operatorId },
-      select: { name: true }
+      select: { name: true, displayName: true, avatar: true, specialization: true }
     });
 
     // Add system message
@@ -168,7 +174,7 @@ router.post('/take-chat', async (req, res) => {
       data: {
         sessionId,
         sender: 'SYSTEM',
-        message: `Operatore ${operator.name} si è unito alla chat`
+        message: `${operator.avatar || '👤'} ${operator.displayName || operator.name} si è unito alla chat\n✨ ${operator.specialization || 'Pronto ad aiutarti!'}`
       }
     });
 
@@ -556,6 +562,36 @@ router.get('/chat-history', async (req, res) => {
   } catch (error) {
     console.error('Chat history error:', error);
     res.status(500).json({ error: 'Failed to fetch chat history' });
+  }
+});
+
+// Set operator status (online/offline)
+router.post('/set-status', async (req, res) => {
+  try {
+    const { operatorId, isOnline, isActive } = req.body;
+
+    const operator = await prisma.operator.update({
+      where: { id: operatorId },
+      data: { 
+        isOnline: isOnline !== undefined ? isOnline : true,
+        isActive: isActive !== undefined ? isActive : true,
+        lastSeen: new Date()
+      }
+    });
+
+    res.json({
+      success: true,
+      operator: {
+        id: operator.id,
+        name: operator.name,
+        isOnline: operator.isOnline,
+        isActive: operator.isActive
+      }
+    });
+
+  } catch (error) {
+    console.error('Set status error:', error);
+    res.status(500).json({ error: 'Failed to update operator status' });
   }
 });
 

@@ -273,13 +273,29 @@ class DashboardApp {
             console.log('✅ Added active to dashboard-screen');
         }
         
-        // Update operator name
+        // Update operator name and avatar
         const operatorName = document.getElementById('operator-name');
+        const operatorAvatar = document.getElementById('operator-avatar');
+        
         console.log('🔍 operator-name element:', operatorName);
+        console.log('🔍 currentOperator data:', this.currentOperator);
         
         if (operatorName && this.currentOperator) {
-            operatorName.textContent = this.currentOperator.name || this.currentOperator.username;
-            console.log('✅ Updated operator name');
+            // Usa displayName se disponibile, altrimenti name
+            const displayText = this.currentOperator.displayName || this.currentOperator.name || this.currentOperator.username;
+            operatorName.textContent = displayText;
+            
+            // Aggiungi specializzazione se disponibile
+            if (this.currentOperator.specialization) {
+                operatorName.innerHTML = `${displayText}<br><small class="operator-spec">${this.currentOperator.specialization}</small>`;
+            }
+            
+            console.log('✅ Updated operator name to:', displayText);
+        }
+        
+        if (operatorAvatar && this.currentOperator?.avatar) {
+            operatorAvatar.textContent = this.currentOperator.avatar;
+            console.log('✅ Updated operator avatar to:', this.currentOperator.avatar);
         }
         
         this.updateStatusUI();
@@ -992,15 +1008,56 @@ class DashboardApp {
     }
 
     /**
-     * 🕒 Formatta timestamp
+     * 🕒 Formatta timestamp con formato più ricco
      */
     formatTime(timestamp) {
         if (!timestamp) return '--';
         
         const date = new Date(timestamp);
+        const now = new Date();
+        const diffMs = now - date;
+        const diffMinutes = Math.floor(diffMs / 60000);
+        const diffHours = Math.floor(diffMinutes / 60);
+        const diffDays = Math.floor(diffHours / 24);
+
+        // Se è molto recente (< 1 minuto)
+        if (diffMinutes < 1) {
+            return 'Adesso';
+        }
+        
+        // Se è recente (< 1 ora) 
+        if (diffMinutes < 60) {
+            return `${diffMinutes} min fa`;
+        }
+        
+        // Se è oggi (< 24 ore)
+        if (diffHours < 24 && date.toDateString() === now.toDateString()) {
+            return date.toLocaleTimeString('it-IT', {
+                hour: '2-digit',
+                minute: '2-digit'
+            });
+        }
+        
+        // Se è ieri
+        const yesterday = new Date(now);
+        yesterday.setDate(yesterday.getDate() - 1);
+        if (date.toDateString() === yesterday.toDateString()) {
+            return `Ieri ${date.toLocaleTimeString('it-IT', {
+                hour: '2-digit',
+                minute: '2-digit'
+            })}`;
+        }
+        
+        // Se è più vecchio
+        if (diffDays < 7) {
+            return `${diffDays} giorni fa`;
+        }
+        
+        // Formato completo
         return date.toLocaleString('it-IT', {
             day: '2-digit',
             month: '2-digit',
+            year: '2-digit',
             hour: '2-digit',
             minute: '2-digit'
         });
