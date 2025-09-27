@@ -3,6 +3,15 @@ import { prisma } from '../server.js';
 
 const router = express.Router();
 
+// Simple test endpoint
+router.get('/test', (req, res) => {
+  res.json({ 
+    status: 'ok', 
+    message: 'Analytics endpoint working',
+    timestamp: new Date().toISOString() 
+  });
+});
+
 // Get dashboard stats
 router.get('/dashboard', async (req, res) => {
   try {
