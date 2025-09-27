@@ -46,7 +46,7 @@ router.post('/login', async (req, res) => {
           data: {
             username: 'admin',
             email: 'supporto@lucinedinatale.it',
-            name: 'Lucy Support',
+            name: 'Lucy - Assistente Specializzato',
             passwordHash: 'demo', // In produzione usare bcrypt
             isActive: true,
             isOnline: true
@@ -663,6 +663,58 @@ router.get('/chat-history', async (req, res) => {
   } catch (error) {
     console.error('Chat history error:', error);
     res.status(500).json({ error: 'Failed to fetch chat history' });
+  }
+});
+
+// Update operator profile (name, email, etc.)
+router.put('/profile', async (req, res) => {
+  try {
+    const { operatorId, name, email } = req.body;
+
+    console.log('👤 Profile update request:', { operatorId, name, email });
+
+    // Validation
+    if (!operatorId) {
+      return res.status(400).json({ error: 'OperatorId is required' });
+    }
+
+    // Check if operator exists
+    const existingOperator = await prisma.operator.findUnique({
+      where: { id: operatorId }
+    });
+
+    if (!existingOperator) {
+      return res.status(404).json({ error: 'Operator not found' });
+    }
+
+    // Update profile
+    const updateData = {};
+    if (name) updateData.name = name;
+    if (email) updateData.email = email;
+
+    const updatedOperator = await prisma.operator.update({
+      where: { id: operatorId },
+      data: updateData
+    });
+
+    console.log('✅ Profile updated:', updatedOperator.name);
+
+    res.json({ 
+      success: true,
+      operator: {
+        id: updatedOperator.id,
+        name: updatedOperator.name,
+        email: updatedOperator.email,
+        username: updatedOperator.username
+      }
+    });
+
+  } catch (error) {
+    console.error('❌ Profile update error:', error);
+    res.status(500).json({ 
+      error: 'Failed to update profile',
+      details: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
   }
 });
 
