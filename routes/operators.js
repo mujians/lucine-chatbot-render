@@ -84,6 +84,17 @@ router.post('/login', loginLimiter, async (req, res) => {
             passwordHash: 'demo', // In produzione usare bcrypt
             isActive: true,
             isOnline: true
+          },
+          select: {
+            id: true,
+            username: true,
+            email: true,
+            name: true,
+            passwordHash: true,
+            isActive: true,
+            isOnline: true,
+            lastSeen: true,
+            createdAt: true
           }
         });
       } else {
