@@ -26,6 +26,50 @@ router.post('/test-login', async (req, res) => {
   }
 });
 
+// Quick login without database for testing dashboard
+router.post('/login-quick', async (req, res) => {
+  try {
+    const { username, password } = req.body;
+    
+    if (username === 'admin' && password === 'admin123') {
+      // Genera un token JWT semplice per testare la dashboard
+      const token = TokenManager.generateToken({
+        operatorId: 'admin-test',
+        username: 'admin',
+        name: 'Admin Tester'
+      });
+      
+      res.json({
+        success: true,
+        token,
+        operator: {
+          id: 'admin-test',
+          username: 'admin',
+          name: 'Admin Tester',
+          displayName: 'Admin Tester',
+          avatar: '👤',
+          email: 'admin@test.com',
+          isOnline: true,
+          isActive: true
+        },
+        message: 'Quick login successful'
+      });
+    } else {
+      res.status(401).json({ 
+        success: false,
+        message: 'Credenziali non valide. Usa admin/admin123' 
+      });
+    }
+  } catch (error) {
+    console.error('❌ Quick login error:', error);
+    res.status(500).json({ 
+      success: false,
+      message: 'Quick login error',
+      error: error.message
+    });
+  }
+});
+
 // Login without rate limiting for debugging
 router.post('/login-debug', async (req, res) => {
   try {
