@@ -4,7 +4,6 @@
  */
 
 import { performance } from 'perf_hooks';
-import { prisma } from '../server.js';
 import fs from 'fs/promises';
 import path from 'path';
 
@@ -150,7 +149,12 @@ export const responseTimeMonitor = (req, res, next) => {
 /**
  * 🗃️ Database Query Monitoring
  */
-export const dbQueryMonitor = () => {
+export const dbQueryMonitor = (prisma) => {
+    if (!prisma) {
+        console.warn('⚠️  Prisma not provided to dbQueryMonitor');
+        return;
+    }
+    
     const originalQuery = prisma.$queryRaw;
     const queryMetrics = new Map();
     
@@ -257,15 +261,23 @@ export const errorTracker = (err, req, res, next) => {
 /**
  * 💾 Store error data in database
  */
-async function storeErrorData(errorData) {
+async function storeErrorData(errorData, prisma = null) {
     try {
-        await prisma.analytics.create({
-            data: {
-                eventType: 'application_error',
-                eventData: errorData,
-                timestamp: new Date()
-            }
-        });
+        if (prisma) {
+            await prisma.analytics.create({
+                data: {
+                    eventType: 'application_error',
+                    eventData: errorData,
+                    timestamp: new Date()
+                }
+            });
+        } else {
+            // Fallback to file logging if database not available
+            await perfMonitor.logPerformanceData({
+                type: 'error',
+                data: errorData
+            });
+        }
     } catch (error) {
         // Fallback to file logging if database fails
         await perfMonitor.logPerformanceData({
@@ -289,22 +301,35 @@ function generateErrorId(errorData) {
 /**
  * 📊 Health Check Endpoint Data
  */
-export const getHealthData = async () => {
+export const getHealthData = async (prisma) => {
     try {
         const systemMetrics = perfMonitor.collectSystemMetrics();
         
-        // Database health check
-        const dbStart = performance.now();
-        await prisma.$queryRaw`SELECT 1`;
-        const dbResponseTime = performance.now() - dbStart;
+        let dbResponseTime = 0;
+        let totalSessions = 0;
+        let activeSessions = 0;
+        let totalOperators = 0;
+        let onlineOperators = 0;
         
-        // Get basic stats
-        const [totalSessions, activeSessions, totalOperators, onlineOperators] = await Promise.all([
-            prisma.chatSession.count(),
-            prisma.chatSession.count({ where: { status: 'ACTIVE' } }),
-            prisma.operator.count(),
-            prisma.operator.count({ where: { isOnline: true } })
-        ]);
+        // Database health check (only if prisma is available)
+        if (prisma) {
+            try {
+                const dbStart = performance.now();
+                await prisma.$queryRaw`SELECT 1`;
+                dbResponseTime = performance.now() - dbStart;
+                
+                // Get basic stats
+                [totalSessions, activeSessions, totalOperators, onlineOperators] = await Promise.all([
+                    prisma.chatSession.count(),
+                    prisma.chatSession.count({ where: { status: 'ACTIVE' } }),
+                    prisma.operator.count(),
+                    prisma.operator.count({ where: { isOnline: true } })
+                ]);
+            } catch (dbError) {
+                console.error('❌ Database health check failed:', dbError);
+                dbResponseTime = -1;
+            }
+        }
         
         // API metrics
         const apiMetrics = Object.fromEntries(perfMonitor.metrics);
@@ -315,9 +340,10 @@ export const getHealthData = async () => {
             uptime: process.uptime(),
             system: systemMetrics,
             database: {
-                connected: true,
+                connected: dbResponseTime >= 0,
                 responseTime: Math.round(dbResponseTime),
-                status: dbResponseTime < 100 ? 'excellent' : 
+                status: dbResponseTime < 0 ? 'error' :
+                       dbResponseTime < 100 ? 'excellent' : 
                        dbResponseTime < 500 ? 'good' : 'slow'
             },
             stats: {
@@ -434,8 +460,8 @@ export const cleanupLogs = async (daysToKeep = 7) => {
     }
 };
 
-// Initialize monitoring
-dbQueryMonitor();
+// Initialize monitoring (will be called from server.js)
+// dbQueryMonitor(); // Now called with prisma parameter
 startMetricsCollection();
 
 // Clean up logs daily

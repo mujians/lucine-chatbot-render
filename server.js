@@ -33,7 +33,8 @@ import {
   responseTimeMonitor,
   errorTracker,
   getHealthData,
-  getDebugInfo
+  getDebugInfo,
+  dbQueryMonitor
 } from './middleware/monitoring.js';
 
 // Load environment variables
@@ -174,7 +175,7 @@ app.use(cors({
 // Health check with comprehensive monitoring
 app.get('/health', async (req, res) => {
   try {
-    const healthData = await getHealthData();
+    const healthData = await getHealthData(prisma);
     res.json(healthData);
   } catch (error) {
     res.status(503).json({
@@ -227,6 +228,10 @@ async function startServer() {
     // Test database connection
     await prisma.$connect();
     console.log('✅ Database connected');
+    
+    // Initialize database monitoring
+    dbQueryMonitor(prisma);
+    console.log('✅ Database monitoring initialized');
     
     // Initialize database tables if needed
     await initializeDatabase();
