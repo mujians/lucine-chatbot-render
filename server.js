@@ -13,7 +13,7 @@ import path from 'path';
 import chatRouter from './routes/chat.js';
 import operatorRouter from './routes/operators.js';
 import ticketRouter from './routes/tickets.js';
-import analyticsRouter from './routes/analytics.js';
+import analyticsRouter from './routes/analytics-simple.js';
 import adminRouter from './routes/admin.js';
 
 // Utils

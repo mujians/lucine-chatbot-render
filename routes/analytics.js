@@ -12,21 +12,23 @@ router.get('/test', (req, res) => {
   });
 });
 
-// Get dashboard stats
+// Get dashboard stats - simplified version
 router.get('/dashboard', async (req, res) => {
   try {
-    const now = new Date();
-    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-    const thisWeek = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
-    const thisMonth = new Date(now.getFullYear(), now.getMonth(), 1);
-
     console.log('📊 Fetching dashboard analytics...');
 
-    // Chat stats
-    const chatStats = await prisma.chatSession.groupBy({
-      by: ['status'],
-      _count: true
-    });
+    // Basic chat counts
+    const totalChats = await prisma.chatSession.count();
+    const activeChats = await prisma.chatSession.count({ where: { status: 'ACTIVE' } });
+    const endedChats = await prisma.chatSession.count({ where: { status: 'ENDED' } });
+    
+    // Basic message count
+    const totalMessages = await prisma.message.count();
+    
+    // Basic ticket count
+    const openTickets = await prisma.ticket.count({ where: { status: 'OPEN' } });
+
+    console.log('✅ Basic analytics queries successful');
 
     // Today's chat sessions
     const todayChats = await prisma.chatSession.count({
