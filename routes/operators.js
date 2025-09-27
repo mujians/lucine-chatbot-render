@@ -64,8 +64,7 @@ router.post('/login', loginLimiter, async (req, res) => {
           where: { id: operator.id },
           data: { 
             isOnline: true,
-            isActive: true,
-            lastSeen: new Date()
+            isActive: true
           }
         });
       }
@@ -93,10 +92,11 @@ router.post('/login', loginLimiter, async (req, res) => {
     }
 
   } catch (error) {
-    console.error('Login error:', error);
+    console.error('❌ Login error details:', error);
     res.status(500).json({ 
       success: false,
-      message: 'Errore del server durante il login' 
+      message: 'Errore del server durante il login',
+      error: process.env.NODE_ENV !== 'production' ? error.message : undefined
     });
   }
 });
