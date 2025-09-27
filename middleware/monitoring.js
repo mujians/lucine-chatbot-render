@@ -137,8 +137,10 @@ export const responseTimeMonitor = (req, res, next) => {
             });
         }
         
-        // Add response time header
-        res.setHeader('X-Response-Time', `${Math.round(responseTime)}ms`);
+        // Add response time header only if headers haven't been sent
+        if (!res.headersSent) {
+            res.setHeader('X-Response-Time', `${Math.round(responseTime)}ms`);
+        }
         
         originalEnd.apply(this, args);
     };
