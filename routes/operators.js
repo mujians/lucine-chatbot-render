@@ -59,9 +59,20 @@ router.post('/login', loginLimiter, async (req, res) => {
     
     // Login semplificato: admin/admin123
     if (username === 'admin' && password === 'admin123') {
-      // Trova o crea operatore admin
+      // Trova o crea operatore admin (con solo i campi che esistono)
       let operator = await prisma.operator.findUnique({
-        where: { username: 'admin' }
+        where: { username: 'admin' },
+        select: {
+          id: true,
+          username: true,
+          email: true,
+          name: true,
+          passwordHash: true,
+          isActive: true,
+          isOnline: true,
+          lastSeen: true,
+          createdAt: true
+        }
       });
 
       if (!operator) {
@@ -346,7 +357,8 @@ router.post('/logout', authenticateToken, async (req, res) => {
 
     // Check if operator exists
     const existingOperator = await prisma.operator.findUnique({
-      where: { id: operatorId }
+      where: { id: operatorId },
+      select: { id: true, isActive: true }
     });
 
     if (!existingOperator) {
@@ -396,7 +408,8 @@ router.put('/status', authenticateToken, async (req, res) => {
 
     // Check if operator exists
     const existingOperator = await prisma.operator.findUnique({
-      where: { id: operatorId }
+      where: { id: operatorId },
+      select: { id: true, isActive: true }
     });
 
     if (!existingOperator) {
@@ -703,7 +716,8 @@ router.put('/profile', async (req, res) => {
 
     // Check if operator exists
     const existingOperator = await prisma.operator.findUnique({
-      where: { id: operatorId }
+      where: { id: operatorId },
+      select: { id: true, isActive: true }
     });
 
     if (!existingOperator) {

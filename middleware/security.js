@@ -118,6 +118,13 @@ export const authenticateToken = async (req, res, next) => {
             where: { 
                 id: decoded.operatorId,
                 isActive: true 
+            },
+            select: {
+                id: true,
+                username: true,
+                name: true,
+                isActive: true,
+                isOnline: true
             }
         });
         
