@@ -143,6 +143,8 @@ class DashboardApp {
                 this.currentOperator = data.operator;
                 localStorage.setItem('operator_session', JSON.stringify(this.currentOperator));
                 
+                this.showNotification(`Benvenuto ${data.operator.name}!`, 'success', 'Login effettuato');
+                
                 this.showDashboard();
                 this.refreshData();
                 
@@ -152,10 +154,13 @@ class DashboardApp {
             } else {
                 console.error('❌ Login failed:', data.message);
                 this.showError(loginError, data.message || 'Credenziali non valide');
+                this.showNotification(data.message || 'Credenziali non valide', 'error', 'Login fallito');
             }
         } catch (error) {
             console.error('💥 Login error:', error);
-            this.showError(loginError, 'Errore di connessione. Riprova.');
+            const errorMsg = 'Errore di connessione. Riprova.';
+            this.showError(loginError, errorMsg);
+            this.showNotification(errorMsg, 'error', 'Errore connessione');
         }
     }
 
@@ -1000,11 +1005,96 @@ class DashboardApp {
     }
 
     /**
-     * 🔔 Mostra notifica
+     * 🔔 Mostra notifica toast
      */
-    showNotification(message, type = 'info') {
-        // TODO: Implement toast notifications
-        console.log(`${type.toUpperCase()}: ${message}`);
+    showNotification(message, type = 'info', title = '', duration = 5000) {
+        const container = document.getElementById('toast-container');
+        if (!container) return;
+
+        const toastId = `toast-${Date.now()}`;
+        
+        // Icon mapping
+        const icons = {
+            success: 'fas fa-check-circle',
+            error: 'fas fa-exclamation-circle', 
+            warning: 'fas fa-exclamation-triangle',
+            info: 'fas fa-info-circle'
+        };
+
+        // Default titles
+        const titles = {
+            success: title || 'Successo',
+            error: title || 'Errore',
+            warning: title || 'Attenzione', 
+            info: title || 'Informazione'
+        };
+
+        const toast = document.createElement('div');
+        toast.className = `toast ${type}`;
+        toast.id = toastId;
+        toast.innerHTML = `
+            <i class="toast-icon ${icons[type] || icons.info}"></i>
+            <div class="toast-content">
+                <div class="toast-title">${titles[type]}</div>
+                <div class="toast-message">${message}</div>
+            </div>
+            <button class="toast-close" onclick="this.parentElement.remove()">
+                <i class="fas fa-times"></i>
+            </button>
+        `;
+
+        container.appendChild(toast);
+
+        // Auto-remove after duration
+        if (duration > 0) {
+            setTimeout(() => {
+                if (document.getElementById(toastId)) {
+                    toast.style.animation = 'toast-out 0.3s ease-in';
+                    setTimeout(() => toast.remove(), 300);
+                }
+            }, duration);
+        }
+
+        console.log(`🍞 ${type.toUpperCase()}: ${message}`);
+    }
+
+    /**
+     * 🔄 Mostra/nasconde loading state
+     */
+    setLoading(element, loading = true) {
+        if (typeof element === 'string') {
+            element = document.getElementById(element);
+        }
+        
+        if (!element) return;
+
+        if (loading) {
+            element.classList.add('loading');
+        } else {
+            element.classList.remove('loading');
+        }
+    }
+
+    /**
+     * 📊 Aggiorna badge con animazione
+     */
+    updateBadge(badgeId, count, animate = true) {
+        const badge = document.getElementById(badgeId);
+        if (!badge) return;
+
+        const oldCount = parseInt(badge.textContent) || 0;
+        badge.textContent = count;
+
+        // Animazione se il numero è cambiato
+        if (animate && oldCount !== count) {
+            badge.style.transform = 'scale(1.2)';
+            badge.style.background = count > oldCount ? var('--success-color') : var('--warning-color');
+            
+            setTimeout(() => {
+                badge.style.transform = 'scale(1)';
+                badge.style.background = '';
+            }, 200);
+        }
     }
 
     /**
