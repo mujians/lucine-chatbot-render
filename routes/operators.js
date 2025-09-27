@@ -26,6 +26,103 @@ router.post('/test-login', async (req, res) => {
   }
 });
 
+// Login without rate limiting for debugging
+router.post('/login-debug', async (req, res) => {
+  try {
+    console.log('🐛 Debug login attempt...');
+    const { username, password } = req.body;
+    
+    // Login semplificato: admin/admin123
+    if (username === 'admin' && password === 'admin123') {
+      console.log('🔑 Credentials OK, checking database...');
+      
+      // Trova o crea operatore admin (con solo i campi che esistono)
+      let operator = await prisma.operator.findUnique({
+        where: { username: 'admin' },
+        select: {
+          id: true,
+          username: true,
+          email: true,
+          name: true,
+          passwordHash: true,
+          isActive: true,
+          isOnline: true,
+          lastSeen: true,
+          createdAt: true
+        }
+      });
+      
+      console.log('👤 Operator found:', operator ? 'YES' : 'NO');
+
+      if (!operator) {
+        console.log('🆕 Creating new operator...');
+        operator = await prisma.operator.create({
+          data: {
+            username: 'admin',
+            email: 'supporto@lucinedinatale.it',
+            name: 'Lucy - Assistente Specializzato',
+            passwordHash: 'demo',
+            isActive: true,
+            isOnline: true
+          },
+          select: {
+            id: true,
+            username: true,
+            email: true,
+            name: true,
+            passwordHash: true,
+            isActive: true,
+            isOnline: true,
+            lastSeen: true,
+            createdAt: true
+          }
+        });
+        console.log('✅ Operator created successfully');
+      } else {
+        console.log('📝 Updating existing operator...');
+        await prisma.operator.update({
+          where: { id: operator.id },
+          data: { 
+            isOnline: true,
+            isActive: true
+          }
+        });
+        console.log('✅ Operator updated successfully');
+      }
+
+      res.json({
+        success: true,
+        operator: {
+          id: operator.id,
+          username: operator.username,
+          name: operator.name,
+          displayName: operator.name,
+          avatar: '👤',
+          email: operator.email,
+          isOnline: true,
+          isActive: true
+        },
+        message: 'Debug login successful'
+      });
+
+    } else {
+      res.status(401).json({ 
+        success: false,
+        message: 'Credenziali non valide. Usa admin/admin123' 
+      });
+    }
+
+  } catch (error) {
+    console.error('❌ Debug login error:', error);
+    res.status(500).json({ 
+      success: false,
+      message: 'Debug login error',
+      error: error.message,
+      stack: process.env.NODE_ENV !== 'production' ? error.stack : undefined
+    });
+  }
+});
+
 // Get operator status
 router.get('/status', async (req, res) => {
   try {
