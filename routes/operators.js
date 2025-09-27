@@ -85,6 +85,9 @@ router.post('/login-debug', async (req, res) => {
           data: { 
             isOnline: true,
             isActive: true
+          },
+          select: {
+            id: true
           }
         });
         console.log('✅ Operator updated successfully');
@@ -201,6 +204,9 @@ router.post('/login', loginLimiter, async (req, res) => {
           data: { 
             isOnline: true,
             isActive: true
+          },
+          select: {
+            id: true
           }
         });
       }
