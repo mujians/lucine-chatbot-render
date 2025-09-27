@@ -314,6 +314,23 @@ router.post('/logout', async (req, res) => {
   try {
     const { operatorId } = req.body;
 
+    console.log('🚪 Logout request for operator:', operatorId);
+
+    // Validation
+    if (!operatorId) {
+      return res.status(400).json({ error: 'OperatorId is required' });
+    }
+
+    // Check if operator exists
+    const existingOperator = await prisma.operator.findUnique({
+      where: { id: operatorId }
+    });
+
+    if (!existingOperator) {
+      return res.status(404).json({ error: 'Operator not found' });
+    }
+
+    // Update to offline
     await prisma.operator.update({
       where: { id: operatorId },
       data: {
@@ -322,10 +339,19 @@ router.post('/logout', async (req, res) => {
       }
     });
 
-    res.json({ success: true });
+    console.log('✅ Operator logged out:', existingOperator.name);
+
+    res.json({ 
+      success: true,
+      message: 'Logged out successfully'
+    });
 
   } catch (error) {
-    res.status(500).json({ error: 'Logout failed' });
+    console.error('❌ Logout error:', error);
+    res.status(500).json({ 
+      error: 'Logout failed',
+      details: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
   }
 });
 
@@ -334,7 +360,28 @@ router.put('/status', async (req, res) => {
   try {
     const { operatorId, isOnline } = req.body;
 
-    await prisma.operator.update({
+    console.log('🔄 Status update request:', { operatorId, isOnline });
+
+    // Validation
+    if (!operatorId) {
+      return res.status(400).json({ error: 'OperatorId is required' });
+    }
+
+    if (typeof isOnline !== 'boolean') {
+      return res.status(400).json({ error: 'isOnline must be boolean' });
+    }
+
+    // Check if operator exists
+    const existingOperator = await prisma.operator.findUnique({
+      where: { id: operatorId }
+    });
+
+    if (!existingOperator) {
+      return res.status(404).json({ error: 'Operator not found' });
+    }
+
+    // Update status
+    const updatedOperator = await prisma.operator.update({
       where: { id: operatorId },
       data: {
         isOnline,
@@ -342,10 +389,24 @@ router.put('/status', async (req, res) => {
       }
     });
 
-    res.json({ success: true });
+    console.log('✅ Status updated successfully:', updatedOperator.name, isOnline ? 'ONLINE' : 'OFFLINE');
+
+    res.json({ 
+      success: true,
+      operator: {
+        id: updatedOperator.id,
+        name: updatedOperator.name,
+        isOnline: updatedOperator.isOnline,
+        lastSeen: updatedOperator.lastSeen
+      }
+    });
 
   } catch (error) {
-    res.status(500).json({ error: 'Failed to update status' });
+    console.error('❌ Status update error:', error);
+    res.status(500).json({ 
+      error: 'Failed to update status',
+      details: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
   }
 });
 
@@ -448,8 +509,16 @@ router.post('/send-message', async (req, res) => {
   try {
     const { sessionId, operatorId, message } = req.body;
     
+    console.log('📤 Operator send message request:', { sessionId, operatorId, messageLength: message?.length });
+    
     if (!sessionId || !operatorId || !message) {
       return res.status(400).json({ error: 'SessionId, operatorId and message required' });
+    }
+
+    // Sanitize message
+    const sanitizedMessage = message.trim();
+    if (sanitizedMessage.length === 0) {
+      return res.status(400).json({ error: 'Message cannot be empty' });
     }
 
     // Verify operator is assigned to this session
@@ -473,7 +542,7 @@ router.post('/send-message', async (req, res) => {
       data: {
         sessionId,
         sender: 'OPERATOR',
-        message,
+        message: sanitizedMessage,
         metadata: {
           operatorId,
           operatorName: operatorChat.operator.name
