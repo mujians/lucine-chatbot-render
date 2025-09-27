@@ -10,9 +10,12 @@ class DashboardApp {
         this.activeChat = null;
         this.refreshInterval = null;
         this.websocket = null;
+        this.reconnectAttempts = 0;
+        this.maxReconnectAttempts = 5;
         
         // API Configuration
         this.apiBase = window.location.origin + '/api';
+        this.wsUrl = window.location.origin.replace('http', 'ws');
         
         this.init();
     }
@@ -27,7 +30,7 @@ class DashboardApp {
         this.setupEventListeners();
         this.checkAuthStatus();
         
-        // Auto refresh ogni 30 secondi
+        // Auto refresh ogni 30 secondi (fallback se WebSocket non funziona)
         this.refreshInterval = setInterval(() => {
             if (this.currentOperator) {
                 this.refreshData();
@@ -95,7 +98,7 @@ class DashboardApp {
                 this.showDashboard();
                 this.refreshData();
             } catch (error) {
-                console.error('Invalid session data:', error);
+                console.error('❌ Invalid session data:', error);
                 this.showLogin();
             }
         } else {
@@ -106,26 +109,21 @@ class DashboardApp {
     /**
      * 🔑 Gestione login
      */
-    async handleLogin(e) {
-        e.preventDefault();
-        console.log('🔑 Login form submitted');
+    async handleLogin(event) {
+        event.preventDefault();
         
         const username = document.getElementById('username').value;
         const password = document.getElementById('password').value;
-        const loginError = document.getElementById('login-error');
-        
-        console.log('👤 Username:', username);
-        console.log('🔒 Password length:', password.length);
+        const errorDiv = document.getElementById('login-error');
         
         if (!username || !password) {
-            this.showError(loginError, 'Username e password richiesti');
+            this.showError(errorDiv, 'Username e password sono obbligatori');
             return;
         }
-
+        
         try {
-            console.log('📡 Sending login request to:', `${this.apiBase}/operators/login`);
+            console.log('🔐 Attempting login...');
             
-            // Login request
             const response = await fetch(`${this.apiBase}/operators/login`, {
                 method: 'POST',
                 headers: {
@@ -133,34 +131,34 @@ class DashboardApp {
                 },
                 body: JSON.stringify({ username, password })
             });
-
-            console.log('📬 Response status:', response.status);
+            
             const data = await response.json();
-            console.log('📦 Response data:', data);
-
+            
             if (response.ok && data.success) {
-                console.log('✅ Login successful');
+                console.log('✅ Login successful:', data.operator);
+                
                 this.currentOperator = data.operator;
+                this.authToken = data.token;
+                
+                // Salva sessione
                 localStorage.setItem('operator_session', JSON.stringify(this.currentOperator));
+                localStorage.setItem('auth_token', this.authToken);
                 
-                this.showNotification(`Benvenuto ${data.operator.name}!`, 'success', 'Login effettuato');
-                
+                // Nascondi errori e mostra dashboard
+                errorDiv.textContent = '';
                 this.showDashboard();
                 this.refreshData();
                 
-                // Set operator online
-                await this.setOperatorStatus(true);
+                this.showToast('Login effettuato con successo', 'success');
                 
             } else {
-                console.error('❌ Login failed:', data.message);
-                this.showError(loginError, data.message || 'Credenziali non valide');
-                this.showNotification(data.message || 'Credenziali non valide', 'error', 'Login fallito');
+                console.error('❌ Login failed:', data.error);
+                this.showError(errorDiv, data.error || 'Credenziali non valide');
             }
+            
         } catch (error) {
-            console.error('💥 Login error:', error);
-            const errorMsg = 'Errore di connessione. Riprova.';
-            this.showError(loginError, errorMsg);
-            this.showNotification(errorMsg, 'error', 'Errore connessione');
+            console.error('❌ Login error:', error);
+            this.showError(errorDiv, 'Errore di connessione al server');
         }
     }
 
@@ -168,70 +166,119 @@ class DashboardApp {
      * 🚪 Gestione logout
      */
     async handleLogout() {
-        if (confirm('Sei sicuro di voler uscire?')) {
-            try {
-                // Set operator offline
-                await this.setOperatorStatus(false);
-            } catch (error) {
-                console.error('Logout error:', error);
+        try {
+            if (this.currentOperator) {
+                await fetch(`${this.apiBase}/operators/logout`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ 
+                        operatorId: this.currentOperator.id 
+                    })
+                });
             }
-            
-            this.currentOperator = null;
-            localStorage.removeItem('operator_session');
-            this.showLogin();
-            
-            // Clear intervals
-            if (this.refreshInterval) {
-                clearInterval(this.refreshInterval);
-            }
+        } catch (error) {
+            console.error('❌ Logout error:', error);
         }
+        
+        // Cleanup locale
+        this.currentOperator = null;
+        this.authToken = null;
+        localStorage.removeItem('operator_session');
+        localStorage.removeItem('auth_token');
+        
+        // Disconnetti WebSocket
+        if (this.websocket) {
+            this.websocket.close();
+            this.websocket = null;
+        }
+        
+        this.showLogin();
+        this.showToast('Logout effettuato', 'info');
     }
 
     /**
-     * 🔄 Toggle stato operatore (online/offline)
+     * 📱 Mostra schermata login
+     */
+    showLogin() {
+        document.getElementById('login-screen').style.display = 'flex';
+        document.getElementById('dashboard-screen').style.display = 'none';
+        
+        // Reset form
+        const form = document.getElementById('login-form');
+        if (form) form.reset();
+        
+        // Focus su username
+        const usernameInput = document.getElementById('username');
+        if (usernameInput) usernameInput.focus();
+    }
+
+    /**
+     * 📊 Mostra dashboard
+     */
+    showDashboard() {
+        document.getElementById('login-screen').style.display = 'none';
+        document.getElementById('dashboard-screen').style.display = 'flex';
+        
+        // Aggiorna info operatore
+        const operatorName = document.getElementById('operator-name');
+        if (operatorName && this.currentOperator) {
+            operatorName.textContent = this.currentOperator.name || this.currentOperator.username;
+        }
+        
+        // Connetti WebSocket
+        this.connectWebSocket();
+        
+        // Initialize notifications
+        this.initializeNotifications();
+        
+        // Carica sezione iniziale
+        this.switchSection('overview');
+    }
+
+    /**
+     * 🔄 Toggle status operatore
      */
     async toggleOperatorStatus() {
         if (!this.currentOperator) return;
         
-        const isOnline = this.currentOperator.isOnline;
-        await this.setOperatorStatus(!isOnline);
-    }
-
-    /**
-     * 📡 Imposta stato operatore
-     */
-    async setOperatorStatus(isOnline) {
         try {
+            const newStatus = !this.currentOperator.isOnline;
+            
             const response = await fetch(`${this.apiBase}/operators/status`, {
                 method: 'PUT',
                 headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${this.currentOperator.id}`
+                    'Content-Type': 'application/json'
                 },
-                body: JSON.stringify({ 
+                body: JSON.stringify({
                     operatorId: this.currentOperator.id,
-                    isOnline 
+                    isOnline: newStatus
                 })
             });
-
+            
             if (response.ok) {
-                this.currentOperator.isOnline = isOnline;
-                localStorage.setItem('operator_session', JSON.stringify(this.currentOperator));
+                this.currentOperator.isOnline = newStatus;
                 this.updateStatusUI();
+                this.showToast(`Status: ${newStatus ? 'Online' : 'Offline'}`, 'success');
+            } else {
+                throw new Error('Failed to update status');
             }
+            
         } catch (error) {
-            console.error('Status update error:', error);
+            console.error('❌ Status toggle error:', error);
+            this.showToast('Errore aggiornamento status', 'error');
         }
     }
 
     /**
-     * 🎨 Aggiorna UI stato
+     * 🎨 Aggiorna UI status
      */
     updateStatusUI() {
         const statusDot = document.getElementById('status-dot');
         const statusText = document.getElementById('operator-status');
         
-        if (this.currentOperator.isOnline) {
+        if (this.currentOperator && this.currentOperator.isOnline) {
             statusDot.className = 'status-dot online';
             statusText.textContent = 'Online';
         } else {
@@ -241,87 +288,20 @@ class DashboardApp {
     }
 
     /**
-     * 📺 Mostra schermata login
-     */
-    showLogin() {
-        document.getElementById('login-screen').classList.add('active');
-        document.getElementById('dashboard-screen').classList.remove('active');
-        
-        // Clear form
-        const form = document.getElementById('login-form');
-        if (form) form.reset();
-        
-        // Hide error
-        const error = document.getElementById('login-error');
-        if (error) error.classList.remove('show');
-    }
-
-    /**
-     * 📊 Mostra dashboard
-     */
-    showDashboard() {
-        console.log('📊 showDashboard() called');
-        
-        const loginScreen = document.getElementById('login-screen');
-        const dashboardScreen = document.getElementById('dashboard-screen');
-        
-        console.log('🔍 login-screen element:', loginScreen);
-        console.log('🔍 dashboard-screen element:', dashboardScreen);
-        
-        if (loginScreen) {
-            loginScreen.classList.remove('active');
-            console.log('✅ Removed active from login-screen');
-        }
-        
-        if (dashboardScreen) {
-            dashboardScreen.classList.add('active');
-            console.log('✅ Added active to dashboard-screen');
-        }
-        
-        // Update operator name and avatar
-        const operatorName = document.getElementById('operator-name');
-        const operatorAvatar = document.getElementById('operator-avatar');
-        
-        console.log('🔍 operator-name element:', operatorName);
-        console.log('🔍 currentOperator data:', this.currentOperator);
-        
-        if (operatorName && this.currentOperator) {
-            // Usa displayName se disponibile, altrimenti name
-            const displayText = this.currentOperator.displayName || this.currentOperator.name || this.currentOperator.username;
-            operatorName.textContent = displayText;
-            
-            // Aggiungi specializzazione se disponibile
-            if (this.currentOperator.specialization) {
-                operatorName.innerHTML = `${displayText}<br><small class="operator-spec">${this.currentOperator.specialization}</small>`;
-            }
-            
-            console.log('✅ Updated operator name to:', displayText);
-        }
-        
-        if (operatorAvatar && this.currentOperator?.avatar) {
-            operatorAvatar.textContent = this.currentOperator.avatar;
-            console.log('✅ Updated operator avatar to:', this.currentOperator.avatar);
-        }
-        
-        this.updateStatusUI();
-        this.switchSection('overview');
-    }
-
-    /**
-     * 🔄 Cambio sezione
+     * 🔀 Cambia sezione
      */
     switchSection(section) {
         // Update navigation
         document.querySelectorAll('.nav-item').forEach(item => {
             item.classList.remove('active');
         });
-        document.querySelector(`[data-section="${section}"]`).classList.add('active');
+        document.querySelector(`[data-section="${section}"]`)?.classList.add('active');
         
-        // Update content
-        document.querySelectorAll('.content-section').forEach(sec => {
-            sec.classList.remove('active');
+        // Update content sections
+        document.querySelectorAll('.content-section').forEach(section => {
+            section.classList.remove('active');
         });
-        document.getElementById(`${section}-section`).classList.add('active');
+        document.getElementById(`${section}-section`)?.classList.add('active');
         
         this.currentSection = section;
         
@@ -373,536 +353,391 @@ class DashboardApp {
      */
     async loadOverviewData() {
         try {
-            const [chatsResponse, ticketsResponse, analyticsResponse] = await Promise.all([
-                fetch(`${this.apiBase}/operators/pending-sessions`),
-                fetch(`${this.apiBase}/tickets?status=open`),
-                fetch(`${this.apiBase}/analytics/operator/${this.currentOperator.id}`)
-            ]);
-
-            // Update metrics
-            if (chatsResponse.ok) {
-                const chatsData = await chatsResponse.json();
-                document.getElementById('total-chats').textContent = chatsData.total_pending || 0;
-                document.getElementById('pending-chats').textContent = chatsData.total_pending || 0;
-            }
-
-            if (ticketsResponse.ok) {
-                const ticketsData = await ticketsResponse.json();
-                document.getElementById('total-tickets').textContent = ticketsData.tickets?.length || 0;
-                document.getElementById('open-tickets').textContent = ticketsData.tickets?.length || 0;
-            }
-
-            if (analyticsResponse.ok) {
-                const analyticsData = await analyticsResponse.json();
-                document.getElementById('avg-response').textContent = 
-                    analyticsData.avgResponseTime || '--';
-                document.getElementById('satisfaction').textContent = 
-                    analyticsData.satisfaction || '--';
-            }
-
-            // Load recent activity
-            await this.loadRecentActivity();
-
-        } catch (error) {
-            console.error('Error loading overview data:', error);
-        }
-    }
-
-    /**
-     * 📝 Carica attività recente
-     */
-    async loadRecentActivity() {
-        try {
-            const response = await fetch(`${this.apiBase}/analytics/recent-activity/${this.currentOperator.id}`);
+            console.log('📊 Loading overview data...');
             
-            if (response.ok) {
-                const data = await response.json();
-                const activityList = document.getElementById('activity-list');
-                
-                if (data.activities && data.activities.length > 0) {
-                    activityList.innerHTML = data.activities.map(activity => `
-                        <div class="activity-item">
-                            <div class="activity-icon">
-                                <i class="fas fa-${this.getActivityIcon(activity.type)}"></i>
-                            </div>
-                            <div class="activity-content">
-                                <p>${activity.description}</p>
-                                <span class="activity-time">${this.formatTime(activity.timestamp)}</span>
-                            </div>
-                        </div>
-                    `).join('');
-                } else {
-                    activityList.innerHTML = '<p class="no-data">Nessuna attività recente</p>';
+            const response = await fetch('/api/analytics/dashboard', {
+                headers: {
+                    'Authorization': `Bearer ${this.authToken}`,
+                    'Content-Type': 'application/json'
                 }
+            });
+            
+            if (!response.ok) {
+                throw new Error(`Analytics API failed: ${response.status}`);
             }
+            
+            const data = await response.json();
+            console.log('✅ Analytics data loaded:', data);
+            
+            // Update metric cards with real data
+            document.getElementById('total-chats').textContent = data.summary.activeChats || 0;
+            document.getElementById('total-tickets').textContent = data.summary.openTickets || 0;
+            
+            // Format average session duration
+            const avgDuration = data.summary.avgSessionDuration;
+            const avgResponse = avgDuration > 0 ? `${avgDuration} min` : '--';
+            document.getElementById('avg-response').textContent = avgResponse;
+            
+            // Format satisfaction rating
+            const satisfaction = data.summary.satisfaction;
+            const satisfactionText = satisfaction ? `${satisfaction}/5` : '--';
+            document.getElementById('satisfaction').textContent = satisfactionText;
+            
+            // Update navigation badges
+            document.getElementById('pending-chats').textContent = data.summary.activeChats || 0;
+            document.getElementById('total-sessions').textContent = data.summary.totalChats || 0;
+            document.getElementById('open-tickets').textContent = data.summary.openTickets || 0;
+            
+            // Render recent activity from real data
+            this.renderRecentActivity(data.recentActivity || []);
+            
+            // Store analytics data for other sections
+            this.analyticsData = data;
+            
         } catch (error) {
-            console.error('Error loading recent activity:', error);
+            console.error('❌ Failed to load overview data:', error);
+            this.showToast('Errore nel caricamento dei dati analytics', 'error');
+            
+            // Fallback to placeholder data
+            document.getElementById('total-chats').textContent = '--';
+            document.getElementById('total-tickets').textContent = '--';
+            document.getElementById('avg-response').textContent = '--';
+            document.getElementById('satisfaction').textContent = '--';
         }
     }
 
     /**
-     * 💬 Carica dati chat (Chat Attive Assegnate)
+     * 📝 Render attività recente
+     */
+    renderRecentActivity(activities) {
+        const activityList = document.getElementById('activity-list');
+        if (!activityList || !activities || activities.length === 0) {
+            if (activityList) {
+                activityList.innerHTML = '<p class="no-data">Nessuna attività recente</p>';
+            }
+            return;
+        }
+        
+        activityList.innerHTML = activities.map(activity => {
+            const timeAgo = this.getTimeAgo(new Date(activity.timestamp));
+            const icon = activity.sender === 'USER' ? 'user' : 
+                        activity.sender === 'OPERATOR' ? 'headset' : 'robot';
+            const senderLabel = activity.sender === 'USER' ? 'Utente' : 
+                               activity.sender === 'OPERATOR' ? 'Operatore' : 'Bot';
+            
+            return `
+                <div class="activity-item">
+                    <div class="activity-icon ${activity.sender.toLowerCase()}">
+                        <i class="fas fa-${icon}"></i>
+                    </div>
+                    <div class="activity-content">
+                        <p><strong>${senderLabel}:</strong> ${activity.message}</p>
+                        <span class="activity-time">${timeAgo} • Sessione: ${activity.sessionId.substr(-8)}</span>
+                    </div>
+                </div>
+            `;
+        }).join('');
+    }
+
+    /**
+     * 💬 Carica dati chat
      */
     async loadChatsData() {
         try {
+            console.log('💬 Loading chats data...');
+            
             const response = await fetch(`${this.apiBase}/operators/pending-sessions`);
             
             if (response.ok) {
                 const data = await response.json();
-                const pendingList = document.getElementById('pending-chat-list');
+                console.log('✅ Chats data loaded:', data);
                 
-                console.log('📋 Chat attive caricate:', data.pending_sessions);
+                this.renderPendingChats(data.sessions || []);
                 
-                if (data.pending_sessions && data.pending_sessions.length > 0) {
-                    pendingList.innerHTML = data.pending_sessions.map(session => {
-                        // Controlla se l'operatore corrente è assegnato a questa chat
-                        const isMyChat = session.operator && session.operator.id === this.currentOperator?.id;
-                        const operatorName = session.operator?.name || 'Non assegnato';
-                        
-                        return `
-                        <div class="pending-chat-item ${isMyChat ? 'my-chat' : ''}" data-session-id="${session.sessionId}">
-                            <div class="chat-preview">
-                                <div class="user-info">
-                                    <i class="fas fa-user"></i>
-                                    <span class="session-id">${session.sessionId.slice(0, 8)}...</span>
-                                    ${!isMyChat ? `<span class="operator-assigned">👤 ${operatorName}</span>` : '<span class="my-chat-badge">🟢 Tua Chat</span>'}
-                                </div>
-                                <p class="original-question">${session.originalQuestion || 'Richiesta supporto'}</p>
-                                <div class="chat-meta">
-                                    <span class="waiting-time">${this.formatWaitingTime(session.handover_time)}</span>
-                                    ${isMyChat ? 
-                                        `<button class="btn-respond-chat" onclick="dashboardApp.openChat('${session.sessionId}')">
-                                            <i class="fas fa-comments"></i>
-                                            Rispondi
-                                        </button>` :
-                                        `<button class="btn-view-chat" onclick="dashboardApp.viewChat('${session.sessionId}')" disabled>
-                                            <i class="fas fa-eye"></i>
-                                            ${operatorName}
-                                        </button>`
-                                    }
-                                </div>
-                            </div>
-                        </div>
-                    `}).join('');
-                    
-                    // Update badge con solo le mie chat
-                    const myChatsCount = data.pending_sessions.filter(s => 
-                        s.operator && s.operator.id === this.currentOperator?.id
-                    ).length;
-                    document.getElementById('pending-chats').textContent = myChatsCount;
-                    
-                } else {
-                    pendingList.innerHTML = '<p class="no-data">🎉 Nessuna chat attiva al momento</p>';
-                    document.getElementById('pending-chats').textContent = '0';
-                }
+                // Update badge
+                document.getElementById('pending-chats').textContent = data.total_pending || 0;
+            } else {
+                throw new Error('Failed to load chats');
             }
+            
         } catch (error) {
-            console.error('Error loading chats data:', error);
+            console.error('❌ Failed to load chats:', error);
+            this.showToast('Errore nel caricamento delle chat', 'error');
         }
     }
 
     /**
-     * 📞 Prendi chat in carico
+     * 🎨 Render chat pendenti
+     */
+    renderPendingChats(sessions) {
+        const chatList = document.getElementById('pending-chat-list');
+        if (!chatList) return;
+        
+        if (sessions.length === 0) {
+            chatList.innerHTML = '<p class="no-data">Nessuna chat in attesa</p>';
+            return;
+        }
+        
+        chatList.innerHTML = sessions.map(session => {
+            const waitTime = this.formatWaitingTime(new Date(session.startedAt).getTime());
+            const lastMessage = session.lastMessage || 'Nessun messaggio';
+            
+            return `
+                <div class="chat-item" data-session-id="${session.sessionId}">
+                    <div class="chat-info">
+                        <div class="chat-header">
+                            <span class="session-id">#${session.sessionId.substr(-6)}</span>
+                            <span class="wait-time">${waitTime}</span>
+                        </div>
+                        <p class="last-message">${lastMessage}</p>
+                        <div class="chat-actions">
+                            <button class="btn-take-chat" onclick="dashboardApp.takeChat('${session.sessionId}')">
+                                <i class="fas fa-headset"></i>
+                                Prendi in carico
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }).join('');
+    }
+
+    /**
+     * 🤝 Prendi in carico chat
      */
     async takeChat(sessionId) {
         try {
-            const response = await fetch(`${this.apiBase}/chat?action=operator_take&sessionId=${sessionId}`, {
-                method: 'GET',
+            console.log('🤝 Taking chat:', sessionId);
+            
+            const response = await fetch(`${this.apiBase}/operators/take-chat`, {
+                method: 'POST',
                 headers: {
-                    'Authorization': `Bearer ${this.currentOperator.id}`
-                }
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    sessionId,
+                    operatorId: this.currentOperator.id
+                })
             });
-
-            if (response.ok) {
-                const data = await response.json();
-                if (data.success) {
-                    this.activeChat = sessionId;
-                    await this.loadChatWindow(sessionId);
-                    await this.loadChatsData(); // Refresh pending list
-                    
-                    // Show success message
-                    this.showNotification('Chat presa in carico con successo!', 'success');
-                }
+            
+            const data = await response.json();
+            
+            if (response.ok && data.success) {
+                console.log('✅ Chat taken successfully');
+                this.showToast('Chat presa in carico', 'success');
+                
+                // Refresh chat list
+                this.loadChatsData();
+                
+                // Open chat window
+                this.openChatWindow(sessionId);
+                
+            } else {
+                throw new Error(data.error || 'Failed to take chat');
             }
+            
         } catch (error) {
-            console.error('Error taking chat:', error);
-            this.showNotification('Errore nel prendere la chat', 'error');
+            console.error('❌ Failed to take chat:', error);
+            this.showToast('Errore nel prendere la chat', 'error');
         }
     }
 
     /**
-     * 📬 Apri chat attiva (già assegnata)
+     * 🪟 Apri finestra chat
      */
-    async openChat(sessionId) {
+    async openChatWindow(sessionId) {
         try {
-            console.log('📬 Aprendo chat attiva:', sessionId);
-            this.activeChat = sessionId;
+            // Get session details
+            const response = await fetch(`${this.apiBase}/operators/session/${sessionId}`);
             
-            // Carica la finestra chat con conversazione
-            await this.loadChatWindow(sessionId);
+            if (!response.ok) {
+                throw new Error('Failed to load session');
+            }
             
-            // Avvia polling per nuovi messaggi
-            this.startChatPolling(sessionId);
+            const sessionData = await response.json();
+            console.log('📖 Session data:', sessionData);
             
-            // Show success message
-            this.showNotification('Chat aperta - Puoi rispondere al cliente', 'success');
+            // Store active chat
+            this.activeChat = sessionData.session;
+            
+            // Render chat window
+            this.renderChatWindow(sessionData.session, sessionData.messages || []);
             
         } catch (error) {
-            console.error('Error opening chat:', error);
-            this.showNotification('Errore nell\'aprire la chat', 'error');
+            console.error('❌ Failed to open chat window:', error);
+            this.showToast('Errore apertura chat', 'error');
         }
     }
-    
+
     /**
-     * 👁️ Visualizza chat (non assegnata)
+     * 🎨 Render finestra chat
      */
-    async viewChat(sessionId) {
-        this.showNotification('Questa chat è gestita da un altro operatore', 'info');
-    }
-    
-    /**
-     * 🔄 Start polling per nuovi messaggi
-     */
-    startChatPolling(sessionId) {
-        // Stop existing polling
-        if (this.chatPollingInterval) {
-            clearInterval(this.chatPollingInterval);
-        }
+    renderChatWindow(session, messages) {
+        const chatWindow = document.getElementById('chat-window');
+        if (!chatWindow) return;
         
-        // Poll ogni 2 secondi
-        this.chatPollingInterval = setInterval(async () => {
-            if (this.activeChat === sessionId) {
-                await this.refreshChatMessages(sessionId);
-            }
-        }, 2000);
-    }
-    
-    /**
-     * 📥 Refresh messaggi chat
-     */
-    async refreshChatMessages(sessionId) {
-        try {
-            const response = await fetch(`${this.apiBase}/operators/chat-history?sessionId=${sessionId}`);
-            if (response.ok) {
-                const data = await response.json();
-                if (data.sessions && data.sessions[0]) {
-                    this.updateChatMessages(data.sessions[0].messages);
-                }
-            }
-        } catch (error) {
-            console.error('Error refreshing messages:', error);
-        }
+        const template = document.getElementById('chat-window-template');
+        if (!template) return;
+        
+        chatWindow.innerHTML = template.innerHTML;
+        
+        // Update session info
+        document.querySelector('.session-id').textContent = session.sessionId;
+        document.querySelector('.start-time').textContent = 
+            new Date(session.startedAt).toLocaleString('it-IT');
+        
+        // Render messages
+        this.renderChatMessages(messages);
+        
+        // Setup message input
+        this.setupMessageInput();
     }
 
     /**
-     * 💻 Carica finestra chat
+     * 💭 Render messaggi chat
      */
-    async loadChatWindow(sessionId) {
-        try {
-            // Get session info
-            const response = await fetch(`${this.apiBase}/chat?action=session_info&sessionId=${sessionId}`);
+    renderChatMessages(messages) {
+        const messagesContainer = document.getElementById('chat-messages');
+        if (!messagesContainer) return;
+        
+        messagesContainer.innerHTML = messages.map(msg => {
+            const time = new Date(msg.timestamp).toLocaleTimeString('it-IT', {
+                hour: '2-digit',
+                minute: '2-digit'
+            });
             
-            if (response.ok) {
-                const data = await response.json();
-                const session = data.session;
-                
-                // Update chat window
-                const chatWindow = document.getElementById('chat-window');
-                const template = document.getElementById('chat-window-template');
-                
-                chatWindow.innerHTML = template.innerHTML;
-                
-                // Fill session info
-                chatWindow.querySelector('.session-id').textContent = sessionId;
-                chatWindow.querySelector('.start-time').textContent = 
-                    this.formatTime(session.handover_time);
-                
-                // Load chat history
-                await this.loadChatHistory(sessionId);
-                
-                // Setup message sending
-                this.setupChatInput(sessionId);
-            }
-        } catch (error) {
-            console.error('Error loading chat window:', error);
-        }
-    }
-
-    /**
-     * 💬 Carica storico chat per sessione specifica
-     */
-    async loadChatHistory(sessionId) {
-        try {
-            const response = await fetch(`${this.apiBase}/chat/history/${sessionId}`);
+            const senderClass = msg.sender.toLowerCase();
+            const senderName = msg.sender === 'USER' ? 'Cliente' : 
+                              msg.sender === 'BOT' ? 'Assistente' : 'Tu';
             
-            if (response.ok) {
-                const data = await response.json();
-                const chatMessages = document.getElementById('chat-messages');
-                
-                if (data.messages && data.messages.length > 0) {
-                    chatMessages.innerHTML = data.messages.map(msg => `
-                        <div class="chat-message ${msg.sender.toLowerCase()}" data-timestamp="${msg.timestamp}">
-                            <div class="message-info">
-                                <span class="sender">${msg.sender === 'USER' ? 'Utente' : 'Bot/Operatore'}</span>
-                                <span class="time">${this.formatTime(msg.timestamp)}</span>
-                            </div>
-                            <div class="message-bubble">
-                                ${this.escapeHtml(msg.message)}
-                            </div>
+            return `
+                <div class="message ${senderClass}">
+                    <div class="message-content">
+                        <div class="message-header">
+                            <span class="sender">${senderName}</span>
+                            <span class="time">${time}</span>
                         </div>
-                    `).join('');
-                } else {
-                    chatMessages.innerHTML = '<p class="no-messages">Nessun messaggio ancora</p>';
-                }
-                
-                // Scroll to bottom
-                chatMessages.scrollTop = chatMessages.scrollHeight;
-            }
-        } catch (error) {
-            console.error('Error loading chat history:', error);
-        }
-    }
-
-    /**
-     * 📚 Carica storico completo di tutte le chat per analytics
-     */
-    async loadAllChatHistory() {
-        try {
-            const response = await fetch(`${this.apiBase}/operators/chat-history?limit=50`);
-            
-            if (response.ok) {
-                const data = await response.json();
-                const analyticsHistory = document.getElementById('analytics-chat-history');
-                
-                if (data.sessions && data.sessions.length > 0) {
-                    analyticsHistory.innerHTML = `
-                        <h3>Storico Chat Recenti (${data.sessions.length})</h3>
-                        <div class="chat-history-list">
-                            ${data.sessions.map(session => `
-                                <div class="session-item" data-session-id="${session.sessionId}">
-                                    <div class="session-header">
-                                        <div class="session-info">
-                                            <strong>Sessione: ${session.sessionId.slice(0, 12)}...</strong>
-                                            <span class="session-status status-${session.status.toLowerCase()}">${session.status}</span>
-                                            <span class="message-count">${session.messageCount} messaggi</span>
-                                        </div>
-                                        <div class="session-time">
-                                            ${this.formatTime(session.startedAt)}
-                                        </div>
-                                    </div>
-                                    ${session.operator ? `
-                                        <div class="session-operator">
-                                            👤 Operatore: ${session.operator.name}
-                                        </div>
-                                    ` : ''}
-                                    ${session.lastMessage ? `
-                                        <div class="session-last-message">
-                                            <strong>${session.lastMessage.sender}:</strong> 
-                                            ${this.escapeHtml(session.lastMessage.message.slice(0, 100))}${session.lastMessage.message.length > 100 ? '...' : ''}
-                                        </div>
-                                    ` : ''}
-                                    <button class="btn-view-session" onclick="dashboardApp.viewSessionDetails('${session.sessionId}')">
-                                        <i class="fas fa-eye"></i> Visualizza
-                                    </button>
-                                </div>
-                            `).join('')}
-                        </div>
-                        <div class="pagination-info">
-                            Pagina ${data.pagination.page} di ${data.pagination.pages} - ${data.pagination.total} sessioni totali
-                        </div>
-                    `;
-                } else {
-                    analyticsHistory.innerHTML = '<p class="no-data">Nessuna sessione chat trovata</p>';
-                }
-            }
-        } catch (error) {
-            console.error('Error loading all chat history:', error);
-        }
-    }
-
-    /**
-     * 🔍 Visualizza dettagli sessione in modal
-     */
-    async viewSessionDetails(sessionId) {
-        try {
-            const response = await fetch(`${this.apiBase}/operators/chat-history?sessionId=${sessionId}`);
-            
-            if (response.ok) {
-                const data = await response.json();
-                const session = data.sessions[0];
-                
-                if (session) {
-                    // Create modal with session details
-                    const modal = document.createElement('div');
-                    modal.className = 'session-modal';
-                    modal.innerHTML = `
-                        <div class="modal-content">
-                            <div class="modal-header">
-                                <h3>Dettagli Sessione: ${session.sessionId}</h3>
-                                <button class="modal-close" onclick="this.closest('.session-modal').remove()">×</button>
-                            </div>
-                            <div class="modal-body">
-                                <div class="session-meta">
-                                    <p><strong>Status:</strong> ${session.status}</p>
-                                    <p><strong>Iniziata:</strong> ${this.formatTime(session.startedAt)}</p>
-                                    <p><strong>Ultima attività:</strong> ${this.formatTime(session.lastActivity)}</p>
-                                    ${session.operator ? `<p><strong>Operatore:</strong> ${session.operator.name}</p>` : ''}
-                                </div>
-                                <div class="session-messages">
-                                    <h4>Conversazione (${session.messageCount} messaggi):</h4>
-                                    <div class="messages-container">
-                                        ${session.messages.map(msg => `
-                                            <div class="message-item ${msg.sender.toLowerCase()}">
-                                                <div class="message-header">
-                                                    <span class="sender">${msg.sender}</span>
-                                                    <span class="time">${this.formatTime(msg.timestamp)}</span>
-                                                </div>
-                                                <div class="message-content">${this.escapeHtml(msg.message)}</div>
-                                            </div>
-                                        `).join('')}
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    `;
-                    document.body.appendChild(modal);
-                }
-            }
-        } catch (error) {
-            console.error('Error viewing session details:', error);
-        }
-    }
-
-    /**
-     * 📋 Carica tutte le chat per la sezione dedicata
-     */
-    async loadAllChatsData() {
-        try {
-            const statusFilter = document.getElementById('status-filter')?.value || '';
-            const response = await fetch(`${this.apiBase}/operators/chat-history?limit=50${statusFilter ? `&status=${statusFilter}` : ''}`);
-            
-            if (response.ok) {
-                const data = await response.json();
-                const allChatsContainer = document.getElementById('all-chats-container');
-                const totalSessionsBadge = document.getElementById('total-sessions');
-                
-                if (totalSessionsBadge) {
-                    totalSessionsBadge.textContent = data.pagination.total;
-                }
-                
-                if (data.sessions && data.sessions.length > 0) {
-                    allChatsContainer.innerHTML = `
-                        <div class="section-stats">
-                            <div class="stats-row">
-                                <div class="stat-item">
-                                    <span class="stat-number">${data.pagination.total}</span>
-                                    <span class="stat-label">Sessioni Totali</span>
-                                </div>
-                                <div class="stat-item">
-                                    <span class="stat-number">${data.sessions.filter(s => s.status === 'ACTIVE').length}</span>
-                                    <span class="stat-label">Attive</span>
-                                </div>
-                                <div class="stat-item">
-                                    <span class="stat-number">${data.sessions.filter(s => s.status === 'WITH_OPERATOR').length}</span>
-                                    <span class="stat-label">Con Operatore</span>
-                                </div>
-                                <div class="stat-item">
-                                    <span class="stat-number">${data.sessions.filter(s => s.status === 'ENDED').length}</span>
-                                    <span class="stat-label">Terminate</span>
-                                </div>
-                            </div>
-                        </div>
-                        
-                        <div class="chat-history-list">
-                            ${data.sessions.map(session => `
-                                <div class="session-item ${session.status.toLowerCase()}" data-session-id="${session.sessionId}">
-                                    <div class="session-header">
-                                        <div class="session-info">
-                                            <strong>ID: ${session.sessionId.slice(0, 15)}...</strong>
-                                            <div class="session-badges">
-                                                <span class="session-status status-${session.status.toLowerCase()}">${session.status}</span>
-                                                <span class="message-count">${session.messageCount} msg</span>
-                                                ${session.operator ? `<span class="operator-badge">👤 ${session.operator.name}</span>` : ''}
-                                            </div>
-                                        </div>
-                                        <div class="session-time">
-                                            <div class="time-info">
-                                                <small>Iniziata: ${this.formatTime(session.startedAt)}</small>
-                                                <small>Ultima: ${this.formatTime(session.lastActivity)}</small>
-                                            </div>
-                                        </div>
-                                    </div>
-                                    
-                                    ${session.lastMessage ? `
-                                        <div class="session-last-message">
-                                            <div class="message-preview">
-                                                <strong>${session.lastMessage.sender}:</strong> 
-                                                ${this.escapeHtml(session.lastMessage.message.slice(0, 120))}${session.lastMessage.message.length > 120 ? '...' : ''}
-                                            </div>
-                                            <div class="message-time">${this.formatTime(session.lastMessage.timestamp)}</div>
-                                        </div>
-                                    ` : ''}
-                                    
-                                    <div class="session-actions">
-                                        <button class="btn-view-session" onclick="dashboardApp.viewSessionDetails('${session.sessionId}')">
-                                            <i class="fas fa-eye"></i> Visualizza Conversazione
-                                        </button>
-                                        ${session.status === 'ACTIVE' && !session.operator ? `
-                                            <button class="btn-take-chat" onclick="dashboardApp.takeChat('${session.sessionId}')">
-                                                <i class="fas fa-headset"></i> Prendi in Carico
-                                            </button>
-                                        ` : ''}
-                                    </div>
-                                </div>
-                            `).join('')}
-                        </div>
-                        
-                        <div class="pagination-info">
-                            <p>Visualizzate ${data.sessions.length} di ${data.pagination.total} sessioni totali</p>
-                            ${data.pagination.pages > 1 ? `
-                                <div class="pagination-controls">
-                                    <button ${data.pagination.page === 1 ? 'disabled' : ''} onclick="dashboardApp.loadAllChatsData(${data.pagination.page - 1})">
-                                        <i class="fas fa-chevron-left"></i> Precedente
-                                    </button>
-                                    <span>Pagina ${data.pagination.page} di ${data.pagination.pages}</span>
-                                    <button ${data.pagination.page === data.pagination.pages ? 'disabled' : ''} onclick="dashboardApp.loadAllChatsData(${data.pagination.page + 1})">
-                                        Successiva <i class="fas fa-chevron-right"></i>
-                                    </button>
-                                </div>
-                            ` : ''}
-                        </div>
-                    `;
-                } else {
-                    allChatsContainer.innerHTML = `
-                        <div class="no-data-message">
-                            <i class="fas fa-comments" style="font-size: 3rem; color: var(--text-light); margin-bottom: 1rem;"></i>
-                            <h3>Nessuna chat trovata</h3>
-                            <p>Non ci sono conversazioni nel sistema al momento.</p>
-                        </div>
-                    `;
-                }
-            }
-        } catch (error) {
-            console.error('Error loading all chats data:', error);
-            const allChatsContainer = document.getElementById('all-chats-container');
-            if (allChatsContainer) {
-                allChatsContainer.innerHTML = `
-                    <div class="error-message">
-                        <i class="fas fa-exclamation-triangle"></i>
-                        <p>Errore nel caricamento delle chat. Riprova più tardi.</p>
+                        <p class="message-text">${msg.message}</p>
                     </div>
-                `;
+                </div>
+            `;
+        }).join('');
+        
+        // Scroll to bottom
+        messagesContainer.scrollTop = messagesContainer.scrollHeight;
+    }
+
+    /**
+     * ⌨️ Setup input messaggi
+     */
+    setupMessageInput() {
+        const messageInput = document.getElementById('message-input');
+        const sendButton = document.getElementById('send-message');
+        const charCount = document.querySelector('.char-count');
+        
+        if (!messageInput || !sendButton) return;
+        
+        // Character counter
+        messageInput.addEventListener('input', () => {
+            const length = messageInput.value.length;
+            charCount.textContent = `${length}/500`;
+            
+            if (length > 450) {
+                charCount.style.color = '#ff4444';
+            } else {
+                charCount.style.color = '';
             }
+        });
+        
+        // Send message on Enter
+        messageInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                this.sendMessage();
+            }
+        });
+        
+        // Send button click
+        sendButton.addEventListener('click', () => this.sendMessage());
+    }
+
+    /**
+     * 📤 Invia messaggio
+     */
+    async sendMessage() {
+        const messageInput = document.getElementById('message-input');
+        if (!messageInput || !this.activeChat) return;
+        
+        const message = messageInput.value.trim();
+        if (!message) return;
+        
+        try {
+            console.log('📤 Sending message:', message);
+            
+            const response = await fetch(`${this.apiBase}/operators/send-message`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    sessionId: this.activeChat.sessionId,
+                    operatorId: this.currentOperator.id,
+                    message
+                })
+            });
+            
+            const data = await response.json();
+            
+            if (response.ok && data.success) {
+                console.log('✅ Message sent successfully');
+                
+                // Clear input
+                messageInput.value = '';
+                document.querySelector('.char-count').textContent = '0/500';
+                
+                // Add message to UI immediately
+                this.addMessageToUI(message, 'OPERATOR');
+                
+            } else {
+                throw new Error(data.error || 'Failed to send message');
+            }
+            
+        } catch (error) {
+            console.error('❌ Failed to send message:', error);
+            this.showToast('Errore invio messaggio', 'error');
         }
     }
 
     /**
-     * 🔒 HTML escape per sicurezza
+     * ➕ Aggiungi messaggio alla UI
      */
-    escapeHtml(text) {
-        const div = document.createElement('div');
-        div.textContent = text;
-        return div.innerHTML;
+    addMessageToUI(message, sender) {
+        const messagesContainer = document.getElementById('chat-messages');
+        if (!messagesContainer) return;
+        
+        const time = new Date().toLocaleTimeString('it-IT', {
+            hour: '2-digit',
+            minute: '2-digit'
+        });
+        
+        const senderClass = sender.toLowerCase();
+        const senderName = sender === 'USER' ? 'Cliente' : 
+                          sender === 'BOT' ? 'Assistente' : 'Tu';
+        
+        const messageHTML = `
+            <div class="message ${senderClass}">
+                <div class="message-content">
+                    <div class="message-header">
+                        <span class="sender">${senderName}</span>
+                        <span class="time">${time}</span>
+                    </div>
+                    <p class="message-text">${message}</p>
+                </div>
+            </div>
+        `;
+        
+        messagesContainer.insertAdjacentHTML('beforeend', messageHTML);
+        messagesContainer.scrollTop = messagesContainer.scrollHeight;
     }
 
     /**
@@ -910,49 +745,78 @@ class DashboardApp {
      */
     async loadTicketsData() {
         try {
-            const response = await fetch(`${this.apiBase}/tickets`);
+            console.log('🎫 Loading tickets data...');
+            
+            const statusFilter = document.getElementById('ticket-status-filter')?.value || 'all';
+            const priorityFilter = document.getElementById('ticket-priority-filter')?.value || 'all';
+            
+            const params = new URLSearchParams();
+            if (statusFilter !== 'all') params.append('status', statusFilter);
+            if (priorityFilter !== 'all') params.append('priority', priorityFilter);
+            
+            const response = await fetch(`${this.apiBase}/tickets?${params}`);
             
             if (response.ok) {
                 const data = await response.json();
-                const ticketsList = document.getElementById('tickets-list');
+                console.log('✅ Tickets data loaded:', data);
                 
-                if (data.tickets && data.tickets.length > 0) {
-                    ticketsList.innerHTML = data.tickets.map(ticket => `
-                        <div class="ticket-item" data-ticket-id="${ticket.id}">
-                            <div class="ticket-header">
-                                <div class="ticket-info">
-                                    <h4>#${ticket.id}</h4>
-                                    <span class="ticket-priority priority-${ticket.priority}">${ticket.priority}</span>
-                                    <span class="ticket-status status-${ticket.status}">${ticket.status}</span>
-                                </div>
-                                <div class="ticket-time">
-                                    ${this.formatTime(ticket.createdAt)}
-                                </div>
-                            </div>
-                            <div class="ticket-content">
-                                <p class="ticket-subject">${ticket.subject || 'Supporto richiesto'}</p>
-                                <p class="ticket-contact">📧 ${ticket.userEmail}</p>
-                                ${ticket.whatsappNumber ? `<p class="ticket-contact">📱 ${ticket.whatsappNumber}</p>` : ''}
-                            </div>
-                            <div class="ticket-actions">
-                                <button class="btn-assign" onclick="dashboardApp.assignTicket('${ticket.id}')">
-                                    <i class="fas fa-user-check"></i>
-                                    Assegna a me
-                                </button>
-                                <button class="btn-view" onclick="dashboardApp.viewTicket('${ticket.id}')">
-                                    <i class="fas fa-eye"></i>
-                                    Visualizza
-                                </button>
-                            </div>
-                        </div>
-                    `).join('');
-                } else {
-                    ticketsList.innerHTML = '<p class="no-data">Nessun ticket disponibile</p>';
-                }
+                this.renderTickets(data.tickets || []);
+                
+                // Update badge
+                const openTickets = data.tickets?.filter(t => t.status === 'OPEN').length || 0;
+                document.getElementById('open-tickets').textContent = openTickets;
+                
+            } else {
+                throw new Error('Failed to load tickets');
             }
+            
         } catch (error) {
-            console.error('Error loading tickets data:', error);
+            console.error('❌ Failed to load tickets:', error);
+            this.showToast('Errore nel caricamento dei ticket', 'error');
         }
+    }
+
+    /**
+     * 🎨 Render ticket
+     */
+    renderTickets(tickets) {
+        const ticketsList = document.getElementById('tickets-list');
+        if (!ticketsList) return;
+        
+        if (tickets.length === 0) {
+            ticketsList.innerHTML = '<p class="no-data">Nessun ticket trovato</p>';
+            return;
+        }
+        
+        ticketsList.innerHTML = tickets.map(ticket => {
+            const statusClass = ticket.status.toLowerCase();
+            const priorityClass = ticket.priority.toLowerCase();
+            const createdDate = new Date(ticket.createdAt).toLocaleDateString('it-IT');
+            
+            return `
+                <div class="ticket-item ${statusClass}">
+                    <div class="ticket-header">
+                        <span class="ticket-id">#${ticket.id.substr(-6)}</span>
+                        <span class="ticket-priority ${priorityClass}">${ticket.priority}</span>
+                        <span class="ticket-status ${statusClass}">${ticket.status}</span>
+                    </div>
+                    <div class="ticket-content">
+                        <h4>${ticket.subject}</h4>
+                        <p>${ticket.description}</p>
+                        <div class="ticket-meta">
+                            <span>📧 ${ticket.contactMethod}: ${ticket.contactValue}</span>
+                            <span>📅 ${createdDate}</span>
+                        </div>
+                    </div>
+                    <div class="ticket-actions">
+                        <button class="btn-ticket-action">
+                            <i class="fas fa-eye"></i>
+                            Visualizza
+                        </button>
+                    </div>
+                </div>
+            `;
+        }).join('');
     }
 
     /**
@@ -960,162 +824,464 @@ class DashboardApp {
      */
     async loadAnalyticsData() {
         try {
-            const response = await fetch(`${this.apiBase}/analytics/operator/${this.currentOperator.id}`);
+            console.log('📈 Loading analytics data...');
+            
+            const period = document.getElementById('analytics-period')?.value || 'today';
+            
+            // Use stored analytics data if available, otherwise fetch
+            if (this.analyticsData) {
+                this.renderAnalytics(this.analyticsData);
+            } else {
+                // Fetch fresh analytics
+                const response = await fetch(`/api/analytics/dashboard`);
+                
+                if (response.ok) {
+                    const data = await response.json();
+                    this.analyticsData = data;
+                    this.renderAnalytics(data);
+                }
+            }
+            
+        } catch (error) {
+            console.error('❌ Failed to load analytics:', error);
+            this.showToast('Errore nel caricamento analytics', 'error');
+        }
+    }
+
+    /**
+     * 🎨 Render analytics
+     */
+    renderAnalytics(data) {
+        // For now, just show placeholder charts
+        // In a real implementation, you'd use Chart.js or similar
+        const chartPlaceholder = '<div class="chart-placeholder-text">📊 Grafico non ancora implementato</div>';
+        
+        document.querySelectorAll('.chart-placeholder canvas').forEach(canvas => {
+            canvas.style.display = 'none';
+            canvas.parentElement.innerHTML = chartPlaceholder;
+        });
+        
+        // Show chat history in analytics section
+        this.loadAllChatsData('analytics-chat-history');
+    }
+
+    /**
+     * 📜 Carica tutte le chat
+     */
+    async loadAllChatsData(containerId = 'all-chats-container') {
+        try {
+            console.log('📜 Loading all chats data...');
+            
+            const statusFilter = document.getElementById('status-filter')?.value || '';
+            
+            const params = new URLSearchParams();
+            if (statusFilter) params.append('status', statusFilter);
+            
+            const response = await fetch(`${this.apiBase}/operators/all-sessions?${params}`);
+            
+            if (response.ok) {
+                const data = await response.json();
+                console.log('✅ All chats data loaded:', data);
+                
+                this.renderAllChats(data.sessions || [], containerId);
+                
+                // Update badge for total sessions
+                document.getElementById('total-sessions').textContent = data.total || 0;
+                
+            } else {
+                throw new Error('Failed to load all chats');
+            }
+            
+        } catch (error) {
+            console.error('❌ Failed to load all chats:', error);
+            this.showToast('Errore nel caricamento dello storico chat', 'error');
+        }
+    }
+
+    /**
+     * 🎨 Render tutte le chat
+     */
+    renderAllChats(sessions, containerId) {
+        const container = document.getElementById(containerId);
+        if (!container) return;
+        
+        if (sessions.length === 0) {
+            container.innerHTML = '<p class="no-data">Nessuna chat trovata</p>';
+            return;
+        }
+        
+        container.innerHTML = sessions.map(session => {
+            const startDate = new Date(session.startedAt).toLocaleString('it-IT');
+            const duration = session.endedAt ? 
+                this.calculateDuration(session.startedAt, session.endedAt) : 'In corso';
+            
+            const statusClass = session.status.toLowerCase().replace('_', '-');
+            const statusLabel = session.status === 'ACTIVE' ? 'Attiva' :
+                               session.status === 'WITH_OPERATOR' ? 'Con Operatore' :
+                               session.status === 'ENDED' ? 'Terminata' : session.status;
+            
+            return `
+                <div class="chat-history-item ${statusClass}">
+                    <div class="chat-summary">
+                        <div class="chat-header">
+                            <span class="session-id">#${session.sessionId.substr(-8)}</span>
+                            <span class="chat-status ${statusClass}">${statusLabel}</span>
+                        </div>
+                        <div class="chat-details">
+                            <p><strong>Inizio:</strong> ${startDate}</p>
+                            <p><strong>Durata:</strong> ${duration}</p>
+                            ${session.operatorId ? `<p><strong>Operatore:</strong> ${session.operatorId}</p>` : ''}
+                        </div>
+                        <div class="chat-actions">
+                            <button class="btn-view-chat" onclick="dashboardApp.viewChatHistory('${session.sessionId}')">
+                                <i class="fas fa-eye"></i>
+                                Visualizza
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }).join('');
+    }
+
+    /**
+     * 👁️ Visualizza storico chat
+     */
+    async viewChatHistory(sessionId) {
+        try {
+            console.log('👁️ Viewing chat history:', sessionId);
+            
+            const response = await fetch(`${this.apiBase}/operators/session/${sessionId}`);
             
             if (response.ok) {
                 const data = await response.json();
                 
-                // TODO: Implement charts with Chart.js
-                // For now, show placeholder data
-                console.log('Analytics data:', data);
+                // Switch to chats section and open chat window
+                this.switchSection('chats');
+                this.renderChatWindow(data.session, data.messages || []);
+                
+                // Set as active chat (readonly)
+                this.activeChat = { ...data.session, readonly: true };
+                
+                // Disable input for historical chats
+                const messageInput = document.getElementById('message-input');
+                const sendButton = document.getElementById('send-message');
+                
+                if (messageInput) {
+                    messageInput.disabled = true;
+                    messageInput.placeholder = 'Chat terminata - visualizzazione in sola lettura';
+                }
+                if (sendButton) {
+                    sendButton.disabled = true;
+                }
+                
+            } else {
+                throw new Error('Failed to load chat history');
             }
             
-            // Load chat history for analytics section
-            await this.loadAllChatHistory();
-            
         } catch (error) {
-            console.error('Error loading analytics data:', error);
+            console.error('❌ Failed to view chat history:', error);
+            this.showToast('Errore visualizzazione storico', 'error');
         }
     }
 
     /**
-     * 🔄 Refresh solo chat
+     * 🔄 Refresh chat correnti
      */
     async refreshChats() {
-        const refreshBtn = document.getElementById('refresh-chats');
-        refreshBtn.classList.add('loading');
+        await this.loadChatsData();
+        this.showToast('Chat aggiornate', 'info');
+    }
+
+    /**
+     * 🔌 Connessione WebSocket
+     */
+    connectWebSocket() {
+        if (!this.currentOperator) {
+            console.log('❌ No operator - skipping WebSocket connection');
+            return;
+        }
+        
+        console.log('🔌 Connecting to WebSocket...');
         
         try {
-            await this.loadChatsData();
-        } finally {
-            refreshBtn.classList.remove('loading');
+            this.websocket = new WebSocket(this.wsUrl);
+            
+            this.websocket.onopen = () => {
+                console.log('✅ WebSocket connected');
+                this.reconnectAttempts = 0;
+                
+                // Authenticate with operator ID
+                this.websocket.send(JSON.stringify({
+                    type: 'operator_auth',
+                    operatorId: this.currentOperator.id
+                }));
+            };
+            
+            this.websocket.onmessage = (event) => {
+                try {
+                    const data = JSON.parse(event.data);
+                    console.log('📨 WebSocket message:', data);
+                    
+                    this.handleWebSocketMessage(data);
+                } catch (error) {
+                    console.error('❌ WebSocket message parse error:', error);
+                }
+            };
+            
+            this.websocket.onclose = (event) => {
+                console.log('🔌 WebSocket closed:', event.code, event.reason);
+                this.websocket = null;
+                
+                // Auto-reconnect after delay
+                if (this.currentOperator && this.reconnectAttempts < this.maxReconnectAttempts) {
+                    this.reconnectAttempts++;
+                    const delay = Math.min(1000 * Math.pow(2, this.reconnectAttempts), 30000);
+                    
+                    console.log(`🔄 Reconnecting WebSocket in ${delay}ms (attempt ${this.reconnectAttempts})`);
+                    
+                    setTimeout(() => {
+                        this.connectWebSocket();
+                    }, delay);
+                }
+            };
+            
+            this.websocket.onerror = (error) => {
+                console.error('❌ WebSocket error:', error);
+            };
+            
+        } catch (error) {
+            console.error('❌ WebSocket connection error:', error);
         }
     }
 
     /**
-     * ⚠️ Mostra messaggio di errore
+     * 📨 Gestione messaggi WebSocket
      */
-    showError(element, message) {
-        element.textContent = message;
-        element.classList.add('show');
-        
-        setTimeout(() => {
-            element.classList.remove('show');
-        }, 5000);
+    handleWebSocketMessage(data) {
+        switch (data.type) {
+            case 'auth_success':
+                console.log('✅ WebSocket authenticated');
+                this.showToast('Connessione real-time attiva', 'success');
+                break;
+                
+            case 'notification':
+                this.handleNotification(data);
+                break;
+                
+            case 'new_message':
+                if (this.activeChat && data.sessionId === this.activeChat.sessionId) {
+                    this.addMessageToUI(data.message, data.sender);
+                }
+                break;
+                
+            case 'chat_ended':
+                if (this.activeChat && data.sessionId === this.activeChat.sessionId) {
+                    this.showToast('Chat terminata', 'info');
+                    this.refreshChats();
+                }
+                break;
+                
+            default:
+                console.log('🔔 Unknown WebSocket message type:', data.type);
+        }
     }
 
     /**
-     * 🔔 Mostra notifica toast
+     * 🔔 Initialize notification system
      */
-    showNotification(message, type = 'info', title = '', duration = 5000) {
+    async initializeNotifications() {
+        try {
+            if (window.notificationManager) {
+                // Request permission on first login
+                const hasPermission = await window.notificationManager.requestPermission();
+                console.log('🔔 Notification permission:', hasPermission);
+                
+                // Listen for service worker messages
+                if ('serviceWorker' in navigator) {
+                    navigator.serviceWorker.addEventListener('message', (event) => {
+                        if (event.data.type === 'notification_clicked') {
+                            this.handleNotificationClick(event.data.data);
+                        }
+                    });
+                }
+            }
+        } catch (error) {
+            console.error('❌ Error initializing notifications:', error);
+        }
+    }
+
+    /**
+     * 🖱️ Handle notification click from service worker
+     */
+    handleNotificationClick(data) {
+        console.log('🔔 Notification click handled:', data);
+        
+        switch (data.type) {
+            case 'newChat':
+                if (data.sessionId) {
+                    this.switchSection('chats');
+                    setTimeout(() => {
+                        this.openChatWindow(data.sessionId);
+                    }, 100);
+                }
+                break;
+                
+            case 'newMessage':
+                if (data.sessionId) {
+                    this.switchSection('chats');
+                }
+                break;
+                
+            case 'newTicket':
+                this.switchSection('tickets');
+                break;
+        }
+    }
+
+    /**
+     * 🔔 Gestione notifiche WebSocket
+     */
+    handleNotification(notification) {
+        console.log('🔔 WebSocket notification received:', notification);
+        
+        // Show in-app toast notification
+        if (notification.title && notification.message) {
+            this.showToast(`${notification.title}: ${notification.message}`, 'info');
+        }
+        
+        // Handle specific notification events with enhanced browser notifications
+        switch (notification.event) {
+            case 'new_chat_assigned':
+                this.refreshChats();
+                
+                // Enhanced browser notification
+                if (window.notificationManager) {
+                    window.notificationManager.showNewChatNotification({
+                        sessionId: notification.sessionId,
+                        operatorId: notification.operator?.id,
+                        message: notification.message
+                    });
+                }
+                break;
+                
+            case 'new_message':
+                // Only refresh if not viewing this chat
+                if (!this.activeChat || this.activeChat.sessionId !== notification.sessionId) {
+                    this.refreshChats();
+                }
+                
+                // Show message notification
+                if (window.notificationManager) {
+                    window.notificationManager.showNewMessageNotification({
+                        sessionId: notification.sessionId,
+                        message: notification.message,
+                        messageId: notification.messageId
+                    });
+                }
+                break;
+                
+            case 'chat_ended':
+                this.refreshChats();
+                break;
+                
+            case 'urgent_request':
+                if (window.notificationManager) {
+                    window.notificationManager.showUrgentNotification({
+                        message: notification.message,
+                        sessionId: notification.sessionId
+                    });
+                }
+                break;
+                
+            case 'new_ticket':
+                if (window.notificationManager) {
+                    window.notificationManager.showTicketNotification({
+                        ticketId: notification.ticketId,
+                        subject: notification.subject
+                    });
+                }
+                break;
+        }
+    }
+
+    /**
+     * 🍞 Mostra toast notification
+     */
+    showToast(message, type = 'info') {
         const container = document.getElementById('toast-container');
         if (!container) return;
-
-        const toastId = `toast-${Date.now()}`;
         
-        // Icon mapping
-        const icons = {
-            success: 'fas fa-check-circle',
-            error: 'fas fa-exclamation-circle', 
-            warning: 'fas fa-exclamation-triangle',
-            info: 'fas fa-info-circle'
-        };
-
-        // Default titles
-        const titles = {
-            success: title || 'Successo',
-            error: title || 'Errore',
-            warning: title || 'Attenzione', 
-            info: title || 'Informazione'
-        };
-
         const toast = document.createElement('div');
-        toast.className = `toast ${type}`;
-        toast.id = toastId;
+        toast.className = `toast toast-${type}`;
+        
+        const icon = type === 'success' ? 'check-circle' :
+                    type === 'error' ? 'exclamation-triangle' :
+                    type === 'warning' ? 'exclamation-circle' :
+                    'info-circle';
+        
         toast.innerHTML = `
-            <i class="toast-icon ${icons[type] || icons.info}"></i>
             <div class="toast-content">
-                <div class="toast-title">${titles[type]}</div>
-                <div class="toast-message">${message}</div>
+                <i class="fas fa-${icon}"></i>
+                <span>${message}</span>
             </div>
             <button class="toast-close" onclick="this.parentElement.remove()">
                 <i class="fas fa-times"></i>
             </button>
         `;
-
+        
         container.appendChild(toast);
-
-        // Auto-remove after duration
-        if (duration > 0) {
-            setTimeout(() => {
-                if (document.getElementById(toastId)) {
-                    toast.style.animation = 'toast-out 0.3s ease-in';
-                    setTimeout(() => toast.remove(), 300);
-                }
-            }, duration);
-        }
-
-        console.log(`🍞 ${type.toUpperCase()}: ${message}`);
+        
+        // Auto remove after 5 seconds
+        setTimeout(() => {
+            if (toast.parentElement) {
+                toast.remove();
+            }
+        }, 5000);
     }
 
     /**
-     * 🔄 Mostra/nasconde loading state
+     * ❌ Mostra errore
      */
-    setLoading(element, loading = true) {
-        if (typeof element === 'string') {
-            element = document.getElementById(element);
+    showError(element, message) {
+        if (element) {
+            element.textContent = message;
+            element.style.display = 'block';
         }
-        
-        if (!element) return;
+    }
 
-        if (loading) {
-            element.classList.add('loading');
+    /**
+     * ⏰ Calcola durata sessione
+     */
+    calculateDuration(startTime, endTime) {
+        const start = new Date(startTime);
+        const end = new Date(endTime);
+        const diffMs = end - start;
+        
+        const minutes = Math.floor(diffMs / 60000);
+        if (minutes < 60) {
+            return `${minutes} min`;
         } else {
-            element.classList.remove('loading');
+            const hours = Math.floor(minutes / 60);
+            const remainingMinutes = minutes % 60;
+            return `${hours}h ${remainingMinutes}m`;
         }
     }
 
     /**
-     * 📊 Aggiorna badge con animazione
+     * 🕐 Formatta tempo fa
      */
-    updateBadge(badgeId, count, animate = true) {
-        const badge = document.getElementById(badgeId);
-        if (!badge) return;
-
-        const oldCount = parseInt(badge.textContent) || 0;
-        badge.textContent = count;
-
-        // Animazione se il numero è cambiato
-        if (animate && oldCount !== count) {
-            badge.style.transform = 'scale(1.2)';
-            badge.style.background = count > oldCount ? var('--success-color') : var('--warning-color');
-            
-            setTimeout(() => {
-                badge.style.transform = 'scale(1)';
-                badge.style.background = '';
-            }, 200);
-        }
-    }
-
-    /**
-     * 🕒 Formatta timestamp con formato più ricco
-     */
-    formatTime(timestamp) {
-        if (!timestamp) return '--';
-        
-        const date = new Date(timestamp);
+    getTimeAgo(date) {
         const now = new Date();
         const diffMs = now - date;
         const diffMinutes = Math.floor(diffMs / 60000);
-        const diffHours = Math.floor(diffMinutes / 60);
-        const diffDays = Math.floor(diffHours / 24);
-
-        // Se è molto recente (< 1 minuto)
+        const diffHours = Math.floor(diffMs / 3600000);
+        const diffDays = Math.floor(diffMs / 86400000);
+        
         if (diffMinutes < 1) {
-            return 'Adesso';
+            return 'Ora';
         }
         
-        // Se è recente (< 1 ora) 
         if (diffMinutes < 60) {
             return `${diffMinutes} min fa`;
         }
@@ -1218,7 +1384,5 @@ if (window.location.hostname === 'localhost') {
         }
     };
     
-    console.log('🔧 Debug helpers available:');
-    console.log('- debugDashboard.fakeLogin() - Login senza autenticazione');
-    console.log('- debugDashboard.clearSession() - Cancella sessione');
+    console.log('🔧 Debug mode - use window.debugDashboard.fakeLogin() to test');
 }

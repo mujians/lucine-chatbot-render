@@ -1,0 +1,67 @@
+{
+  "name": "Lucine di Natale - Dashboard Operatori",
+  "short_name": "Lucine Dashboard",
+  "description": "Dashboard per operatori di supporto Lucine di Natale",
+  "start_url": "/dashboard/",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#c41e3a",
+  "orientation": "portrait-primary",
+  "scope": "/dashboard/",
+  "icons": [
+    {
+      "src": "icons/notification-icon.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "icons/badge-icon.png", 
+      "sizes": "96x96",
+      "type": "image/png",
+      "purpose": "badge"
+    }
+  ],
+  "categories": ["business", "productivity"],
+  "lang": "it",
+  "screenshots": [
+    {
+      "src": "screenshots/desktop.png",
+      "sizes": "1280x720",
+      "type": "image/png",
+      "platform": "wide"
+    },
+    {
+      "src": "screenshots/mobile.png", 
+      "sizes": "750x1334",
+      "type": "image/png"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Chat Live",
+      "short_name": "Chat",
+      "description": "Accedi direttamente alle chat live",
+      "url": "/dashboard/?section=chats",
+      "icons": [
+        {
+          "src": "icons/chat-icon.png",
+          "sizes": "96x96"
+        }
+      ]
+    },
+    {
+      "name": "Ticket",
+      "short_name": "Ticket", 
+      "description": "Gestisci i ticket di supporto",
+      "url": "/dashboard/?section=tickets",
+      "icons": [
+        {
+          "src": "icons/ticket-icon.png",
+          "sizes": "96x96"
+        }
+      ]
+    }
+  ],
+  "prefer_related_applications": false
+}

@@ -1,6 +1,6 @@
 import express from 'express';
 import OpenAI from 'openai';
-import { prisma } from '../server.js';
+import { prisma, notifyOperators } from '../server.js';
 import { loadKnowledgeBase } from '../utils/knowledge.js';
 
 const router = express.Router();
@@ -374,6 +374,19 @@ Domanda prezzi:
             operatorId: availableOperator.id
           }
         });
+
+        // 🔔 Notify operator of new chat assignment
+        notifyOperators({
+          event: 'new_chat_assigned',
+          sessionId: session.sessionId,
+          userMessage: message,
+          operator: {
+            id: availableOperator.id,
+            name: availableOperator.name
+          },
+          title: 'Nuova Chat Assegnata',
+          message: `Chat dal cliente: "${message.substring(0, 50)}${message.length > 50 ? '...' : ''}"`
+        }, availableOperator.id);
 
         return res.json({
           reply: `🟢 Ti sto connettendo con ${availableOperator.name}...\n\n👤 Ti risponderò personalmente per aiutarti!`,

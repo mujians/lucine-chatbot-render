@@ -11,13 +11,22 @@ router.get('/dashboard', async (req, res) => {
     const thisWeek = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
     const thisMonth = new Date(now.getFullYear(), now.getMonth(), 1);
 
+    console.log('📊 Fetching dashboard analytics...');
+
     // Chat stats
     const chatStats = await prisma.chatSession.groupBy({
       by: ['status'],
       _count: true
     });
 
-    // Message stats
+    // Today's chat sessions
+    const todayChats = await prisma.chatSession.count({
+      where: {
+        startedAt: { gte: today }
+      }
+    });
+
+    // Message stats for today
     const messageStats = await prisma.message.groupBy({
       by: ['sender'],
       _count: true,
@@ -32,56 +41,120 @@ router.get('/dashboard', async (req, res) => {
       _count: true
     });
 
-    // Popular questions
-    const popularQuestions = await prisma.$queryRaw`
-      SELECT message, COUNT(*) as count
-      FROM "Message"
-      WHERE sender = 'USER'
-        AND timestamp >= ${thisWeek}
-      GROUP BY message
-      ORDER BY count DESC
-      LIMIT 10
-    `;
-
-    // Average response time
-    const avgResponseTime = await prisma.analytics.aggregate({
-      where: {
-        eventType: 'chat_message',
-        timestamp: { gte: today }
+    // Recent activity - last 10 activities
+    const recentActivity = await prisma.message.findMany({
+      take: 10,
+      orderBy: { timestamp: 'desc' },
+      include: {
+        session: true
       },
-      _avg: {
-        responseTime: true
+      where: {
+        sender: { in: ['USER', 'OPERATOR'] }
       }
     });
 
-    // Operator performance
-    const operatorStats = await prisma.operatorChat.groupBy({
-      by: ['operatorId'],
-      _count: true,
-      _avg: {
-        rating: true
+    // Chat sessions with operator escalation
+    const escalatedChats = await prisma.chatSession.count({
+      where: {
+        status: 'WITH_OPERATOR'
       }
     });
+
+    // Average session duration calculation
+    const completedSessions = await prisma.chatSession.findMany({
+      where: {
+        status: 'ENDED',
+        endedAt: { not: null },
+        startedAt: { gte: thisWeek }
+      },
+      select: {
+        startedAt: true,
+        endedAt: true
+      }
+    });
+
+    const avgSessionDuration = completedSessions.length > 0 
+      ? completedSessions.reduce((sum, session) => {
+          const duration = new Date(session.endedAt) - new Date(session.startedAt);
+          return sum + duration;
+        }, 0) / completedSessions.length / 1000 / 60 // Convert to minutes
+      : 0;
+
+    // Calculate satisfaction rating from operator chats
+    const satisfactionData = await prisma.operatorChat.aggregate({
+      _avg: { rating: true },
+      _count: { rating: true },
+      where: {
+        rating: { not: null }
+      }
+    });
+
+    // Most active hours analysis
+    const activeHours = await prisma.$queryRaw`
+      SELECT 
+        EXTRACT(hour FROM timestamp) as hour,
+        COUNT(*) as message_count
+      FROM "Message"
+      WHERE timestamp >= ${thisWeek}
+      GROUP BY hour
+      ORDER BY message_count DESC
+      LIMIT 5
+    `;
 
     res.json({
       summary: {
         totalChats: chatStats.reduce((sum, s) => sum + s._count, 0),
+        todayChats,
         activeChats: chatStats.find(s => s.status === 'ACTIVE')?._count || 0,
-        todayMessages: messageStats.reduce((sum, s) => sum + s._count, 0),
+        escalatedChats,
         openTickets: ticketStats.find(s => s.status === 'OPEN')?._count || 0,
-        avgResponseTime: avgResponseTime._avg.responseTime || 0
+        avgSessionDuration: Math.round(avgSessionDuration * 10) / 10, // Round to 1 decimal
+        satisfaction: satisfactionData._avg.rating ? Math.round(satisfactionData._avg.rating * 10) / 10 : null,
+        totalRatings: satisfactionData._count.rating || 0
       },
-      chatStats,
-      messageStats,
-      ticketStats,
-      popularQuestions,
-      operatorStats,
+      recentActivity: recentActivity.map(msg => ({
+        id: msg.id,
+        message: msg.message.substring(0, 50) + (msg.message.length > 50 ? '...' : ''),
+        sender: msg.sender,
+        timestamp: msg.timestamp,
+        sessionId: msg.session.sessionId
+      })),
+      chatStats: chatStats.map(stat => ({
+        status: stat.status,
+        count: stat._count,
+        label: stat.status === 'ACTIVE' ? 'Attive' : 
+               stat.status === 'WITH_OPERATOR' ? 'Con Operatore' : 
+               stat.status === 'ENDED' ? 'Terminate' : stat.status
+      })),
+      messageStats: messageStats.map(stat => ({
+        sender: stat.sender,
+        count: stat._count,
+        label: stat.sender === 'USER' ? 'Utenti' : 
+               stat.sender === 'BOT' ? 'Bot' : 
+               stat.sender === 'OPERATOR' ? 'Operatori' : stat.sender
+      })),
+      ticketStats: ticketStats.map(stat => ({
+        status: stat.status,
+        count: stat._count,
+        label: stat.status === 'OPEN' ? 'Aperti' : 
+               stat.status === 'CLOSED' ? 'Chiusi' : stat.status
+      })),
+      activeHours: activeHours.map(hour => ({
+        hour: parseInt(hour.hour),
+        messageCount: parseInt(hour.message_count),
+        label: `${hour.hour}:00`
+      })),
       timestamp: new Date().toISOString()
     });
 
+    console.log('✅ Dashboard analytics sent successfully');
+
   } catch (error) {
-    console.error('Analytics error:', error);
-    res.status(500).json({ error: 'Failed to fetch analytics' });
+    console.error('❌ Analytics error:', error);
+    res.status(500).json({ 
+      error: 'Failed to fetch analytics',
+      timestamp: new Date().toISOString()
+    });
   }
 });
 

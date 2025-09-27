@@ -1,5 +1,11 @@
 import express from 'express';
 import { prisma } from '../server.js';
+import { 
+  authenticateToken, 
+  validateSession, 
+  TokenManager,
+  loginLimiter
+} from '../middleware/security.js';
 
 const router = express.Router();
 
@@ -30,7 +36,7 @@ router.get('/status', async (req, res) => {
 });
 
 // Operator login (semplificato per demo)
-router.post('/login', async (req, res) => {
+router.post('/login', loginLimiter, async (req, res) => {
   try {
     const { username, password } = req.body;
     
@@ -129,7 +135,7 @@ router.get('/pending-chats', async (req, res) => {
 });
 
 // Take chat
-router.post('/take-chat', async (req, res) => {
+router.post('/take-chat', authenticateToken, validateSession, async (req, res) => {
   try {
     const { sessionId, operatorId } = req.body;
 
@@ -310,7 +316,7 @@ router.post('/end-chat', async (req, res) => {
 });
 
 // Operator logout
-router.post('/logout', async (req, res) => {
+router.post('/logout', authenticateToken, async (req, res) => {
   try {
     const { operatorId } = req.body;
 
@@ -356,7 +362,7 @@ router.post('/logout', async (req, res) => {
 });
 
 // Update operator status (online/offline)
-router.put('/status', async (req, res) => {
+router.put('/status', authenticateToken, async (req, res) => {
   try {
     const { operatorId, isOnline } = req.body;
 
@@ -505,7 +511,7 @@ router.post('/send', async (req, res) => {
 });
 
 // Send message from operator to user (dashboard → backend)
-router.post('/send-message', async (req, res) => {
+router.post('/send-message', authenticateToken, validateSession, async (req, res) => {
   try {
     const { sessionId, operatorId, message } = req.body;
     

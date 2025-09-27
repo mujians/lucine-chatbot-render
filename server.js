@@ -5,6 +5,8 @@ import morgan from 'morgan';
 import dotenv from 'dotenv';
 import rateLimit from 'express-rate-limit';
 import { PrismaClient } from '@prisma/client';
+import { WebSocketServer } from 'ws';
+import { createServer } from 'http';
 
 // Routes
 import chatRouter from './routes/chat.js';
@@ -15,6 +17,24 @@ import adminRouter from './routes/admin.js';
 
 // Utils
 import { initializeDatabase } from './utils/db-init.js';
+
+// Security & Monitoring Middleware
+import { 
+  apiLimiter,
+  chatLimiter,
+  loginLimiter,
+  sanitizeInput,
+  securityHeaders,
+  securityLogger,
+  detectSuspiciousActivity
+} from './middleware/security.js';
+
+import {
+  responseTimeMonitor,
+  errorTracker,
+  getHealthData,
+  getDebugInfo
+} from './middleware/monitoring.js';
 
 // Load environment variables
 dotenv.config();
@@ -28,11 +48,97 @@ export const prisma = new PrismaClient({
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-// Middleware
-app.use(helmet());
+// Create HTTP server
+const server = createServer(app);
+
+// WebSocket Server
+const wss = new WebSocketServer({ server });
+
+// Store active connections by operatorId
+export const operatorConnections = new Map();
+
+// WebSocket connection handling
+wss.on('connection', (ws, req) => {
+  console.log('🔌 New WebSocket connection');
+  
+  ws.on('message', (message) => {
+    try {
+      const data = JSON.parse(message);
+      console.log('📨 WebSocket message:', data);
+      
+      if (data.type === 'operator_auth') {
+        // Associate connection with operator
+        ws.operatorId = data.operatorId;
+        operatorConnections.set(data.operatorId, ws);
+        
+        console.log(`👤 Operator ${data.operatorId} connected via WebSocket`);
+        
+        // Send confirmation
+        ws.send(JSON.stringify({
+          type: 'auth_success',
+          operatorId: data.operatorId,
+          timestamp: new Date().toISOString()
+        }));
+      }
+    } catch (error) {
+      console.error('❌ WebSocket message error:', error);
+    }
+  });
+  
+  ws.on('close', () => {
+    if (ws.operatorId) {
+      operatorConnections.delete(ws.operatorId);
+      console.log(`👋 Operator ${ws.operatorId} disconnected`);
+    }
+  });
+  
+  ws.on('error', (error) => {
+    console.error('❌ WebSocket error:', error);
+  });
+});
+
+// Utility function to notify operators
+export function notifyOperators(message, targetOperatorId = null) {
+  const notification = {
+    type: 'notification',
+    ...message,
+    timestamp: new Date().toISOString()
+  };
+  
+  if (targetOperatorId && operatorConnections.has(targetOperatorId)) {
+    // Send to specific operator
+    const ws = operatorConnections.get(targetOperatorId);
+    if (ws.readyState === ws.OPEN) {
+      ws.send(JSON.stringify(notification));
+      console.log(`🔔 Notification sent to operator ${targetOperatorId}`);
+    }
+  } else {
+    // Broadcast to all connected operators
+    let sentCount = 0;
+    operatorConnections.forEach((ws, operatorId) => {
+      if (ws.readyState === ws.OPEN) {
+        ws.send(JSON.stringify(notification));
+        sentCount++;
+      }
+    });
+    console.log(`📢 Notification broadcast to ${sentCount} operators`);
+  }
+}
+
+// Security & Monitoring Middleware
+app.use(securityHeaders);
+app.use(securityLogger);
+app.use(responseTimeMonitor);
+app.use(detectSuspiciousActivity);
+app.use(sanitizeInput);
+
+// Basic Middleware
+app.use(helmet({
+  contentSecurityPolicy: false // We handle CSP in securityHeaders
+}));
 app.use(morgan('combined'));
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
+app.use(express.json({ limit: '10mb' }));
+app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
 // CORS configuration - permetti sia Shopify che dashboard
 const allowedOrigins = [
@@ -65,34 +171,47 @@ app.use(cors({
 // });
 // app.use('/api/', limiter);
 
-// Health check
-app.get('/health', (req, res) => {
-  res.json({ 
-    status: 'ok', 
-    timestamp: new Date().toISOString(),
-    uptime: process.uptime(),
-    environment: process.env.NODE_ENV
-  });
+// Health check with comprehensive monitoring
+app.get('/health', async (req, res) => {
+  try {
+    const healthData = await getHealthData();
+    res.json(healthData);
+  } catch (error) {
+    res.status(503).json({
+      status: 'error',
+      message: 'Health check failed',
+      timestamp: new Date().toISOString()
+    });
+  }
 });
 
-// API Routes
-app.use('/api/chat', chatRouter);
-app.use('/api/operators', operatorRouter);
-app.use('/api/tickets', ticketRouter);
-app.use('/api/analytics', analyticsRouter);
-app.use('/api/admin', adminRouter);
+// Debug endpoint (development only)
+if (process.env.NODE_ENV !== 'production') {
+  app.get('/debug', async (req, res) => {
+    try {
+      const debugInfo = await getDebugInfo(req);
+      res.json(debugInfo);
+    } catch (error) {
+      res.status(500).json({
+        error: 'Debug info collection failed',
+        message: error.message
+      });
+    }
+  });
+}
+
+// API Routes with rate limiting
+app.use('/api/chat', chatLimiter, chatRouter);
+app.use('/api/operators', apiLimiter, operatorRouter);
+app.use('/api/tickets', apiLimiter, ticketRouter);
+app.use('/api/analytics', apiLimiter, analyticsRouter);
+app.use('/api/admin', loginLimiter, adminRouter);
 
 // Static dashboard
 app.use('/dashboard', express.static('public/dashboard'));
 
-// Error handling middleware
-app.use((err, req, res, next) => {
-  console.error('Error:', err);
-  res.status(err.status || 500).json({
-    error: err.message || 'Internal server error',
-    timestamp: new Date().toISOString()
-  });
-});
+// Error handling middleware with comprehensive tracking
+app.use(errorTracker);
 
 // 404 handler
 app.use((req, res) => {
@@ -112,10 +231,11 @@ async function startServer() {
     // Initialize database tables if needed
     await initializeDatabase();
     
-    app.listen(PORT, '0.0.0.0', () => {
+    server.listen(PORT, '0.0.0.0', () => {
       console.log(`🚀 Server running on port ${PORT}`);
       console.log(`🌍 Environment: ${process.env.NODE_ENV}`);
       console.log(`📊 Dashboard: http://localhost:${PORT}/dashboard`);
+      console.log(`🔌 WebSocket Server: ws://localhost:${PORT}`);
     });
   } catch (error) {
     console.error('❌ Failed to start server:', error);
