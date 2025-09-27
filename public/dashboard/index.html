@@ -63,9 +63,6 @@
                     </div>
                 </div>
                 <div class="header-right">
-                    <button id="notification-settings" class="btn-notification-settings" title="Impostazioni Notifiche">
-                        <i class="fas fa-bell"></i>
-                    </button>
                     <div class="operator-info">
                         <span id="operator-avatar" class="operator-avatar">👤</span>
                         <div class="operator-details">
@@ -284,69 +281,8 @@
     <!-- Toast Notifications Container -->
     <div id="toast-container" class="toast-container"></div>
 
-    <!-- Notification Settings Modal -->
-    <div id="notification-modal" class="modal">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h3>🔔 Impostazioni Notifiche</h3>
-                <button class="modal-close" id="close-notification-modal">
-                    <i class="fas fa-times"></i>
-                </button>
-            </div>
-            <div class="modal-body">
-                <div class="setting-group">
-                    <label class="setting-label">
-                        <input type="checkbox" id="enable-notifications" checked>
-                        <span>Abilita notifiche browser</span>
-                    </label>
-                    <p class="setting-description">Ricevi notifiche per nuove chat e messaggi</p>
-                </div>
-                
-                <div class="setting-group">
-                    <label class="setting-label">
-                        <input type="checkbox" id="enable-sound" checked>
-                        <span>Suoni notifiche</span>
-                    </label>
-                    <p class="setting-description">Riproduci suoni per gli avvisi</p>
-                </div>
-                
-                <div class="setting-group">
-                    <label class="setting-label">
-                        <input type="checkbox" id="enable-vibration" checked>
-                        <span>Vibrazione (mobile)</span>
-                    </label>
-                    <p class="setting-description">Vibra per notifiche importanti</p>
-                </div>
-                
-                <div class="setting-group">
-                    <label class="setting-label">
-                        <input type="checkbox" id="persistent-notifications" checked>
-                        <span>Notifiche persistenti</span>
-                    </label>
-                    <p class="setting-description">Le notifiche rimangono fino al click</p>
-                </div>
-                
-                <div class="setting-group">
-                    <label class="setting-label">
-                        <span>Volume suoni</span>
-                        <input type="range" id="notification-volume" min="0" max="1" step="0.1" value="0.7">
-                        <span id="volume-value">70%</span>
-                    </label>
-                </div>
-                
-                <div class="setting-actions">
-                    <button id="test-notifications" class="btn-test">
-                        <i class="fas fa-play"></i>
-                        Test Notifiche
-                    </button>
-                    <button id="reset-notifications" class="btn-reset">
-                        <i class="fas fa-undo"></i>
-                        Reset Default
-                    </button>
-                </div>
-            </div>
-        </div>
-    </div>
+    <!-- Notification Settings Modal - Temporarily Disabled -->
+    <!-- Will be re-enabled once notifications.js is properly deployed -->
 
     <!-- Chat Window Template -->
     <template id="chat-window-template">
@@ -394,7 +330,6 @@
         </div>
     </template>
 
-    <script src="js/notifications.js"></script>
     <script src="js/dashboard.js"></script>
 </body>
 </html>
