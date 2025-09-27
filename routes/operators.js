@@ -9,6 +9,23 @@ import {
 
 const router = express.Router();
 
+// Simple test endpoint
+router.post('/test-login', async (req, res) => {
+  try {
+    console.log('🧪 Testing login functionality...');
+    const { username, password } = req.body;
+    
+    if (username === 'admin' && password === 'admin123') {
+      res.json({ success: true, message: 'Test login OK' });
+    } else {
+      res.status(401).json({ success: false, message: 'Test login failed' });
+    }
+  } catch (error) {
+    console.error('❌ Test login error:', error);
+    res.status(500).json({ success: false, message: 'Test error', details: error.message });
+  }
+});
+
 // Get operator status
 router.get('/status', async (req, res) => {
   try {
