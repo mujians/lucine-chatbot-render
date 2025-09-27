@@ -60,22 +60,21 @@ router.get('/dashboard', async (req, res) => {
       }
     });
 
-    // Average session duration calculation
+    // Average session duration calculation (using lastActivity as end time)
     const completedSessions = await prisma.chatSession.findMany({
       where: {
         status: 'ENDED',
-        endedAt: { not: null },
         startedAt: { gte: thisWeek }
       },
       select: {
         startedAt: true,
-        endedAt: true
+        lastActivity: true
       }
     });
 
     const avgSessionDuration = completedSessions.length > 0 
       ? completedSessions.reduce((sum, session) => {
-          const duration = new Date(session.endedAt) - new Date(session.startedAt);
+          const duration = new Date(session.lastActivity) - new Date(session.startedAt);
           return sum + duration;
         }, 0) / completedSessions.length / 1000 / 60 // Convert to minutes
       : 0;
