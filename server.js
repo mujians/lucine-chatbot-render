@@ -7,6 +7,7 @@ import rateLimit from 'express-rate-limit';
 import { PrismaClient } from '@prisma/client';
 import { WebSocketServer } from 'ws';
 import { createServer } from 'http';
+import path from 'path';
 
 // Routes
 import chatRouter from './routes/chat.js';
@@ -208,8 +209,48 @@ app.use('/api/tickets', apiLimiter, ticketRouter);
 app.use('/api/analytics', apiLimiter, analyticsRouter);
 app.use('/api/admin', loginLimiter, adminRouter);
 
-// Static dashboard
-app.use('/dashboard', express.static('public/dashboard'));
+// Static dashboard with enhanced error handling
+app.use('/dashboard', express.static('public/dashboard', {
+  etag: false,
+  lastModified: false,
+  setHeaders: (res, path) => {
+    // Set proper MIME types
+    if (path.endsWith('.js')) {
+      res.setHeader('Content-Type', 'application/javascript');
+    } else if (path.endsWith('.css')) {
+      res.setHeader('Content-Type', 'text/css');
+    } else if (path.endsWith('.json')) {
+      res.setHeader('Content-Type', 'application/json');
+    }
+    // Disable caching for development
+    res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+    res.setHeader('Pragma', 'no-cache');
+    res.setHeader('Expires', '0');
+  }
+}));
+
+// Dashboard fallback routes for debugging
+app.get('/dashboard/js/dashboard.js', (req, res) => {
+  const filePath = path.join(process.cwd(), 'public/dashboard/js/dashboard.js');
+  console.log(`📁 Serving dashboard.js from: ${filePath}`);
+  res.sendFile(filePath, (err) => {
+    if (err) {
+      console.error('❌ Error serving dashboard.js:', err);
+      res.status(500).json({ error: 'Failed to serve dashboard.js', details: err.message });
+    }
+  });
+});
+
+app.get('/dashboard/css/dashboard.css', (req, res) => {
+  const filePath = path.join(process.cwd(), 'public/dashboard/css/dashboard.css');
+  console.log(`📁 Serving dashboard.css from: ${filePath}`);
+  res.sendFile(filePath, (err) => {
+    if (err) {
+      console.error('❌ Error serving dashboard.css:', err);
+      res.status(500).json({ error: 'Failed to serve dashboard.css', details: err.message });
+    }
+  });
+});
 
 // Error handling middleware with comprehensive tracking
 app.use(errorTracker);
