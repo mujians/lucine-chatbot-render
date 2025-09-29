@@ -506,6 +506,14 @@ router.put('/status', authenticateToken, async (req, res) => {
       data: {
         isOnline,
         lastSeen: new Date()
+      },
+      select: {
+        id: true,
+        username: true,
+        name: true,
+        isActive: true,
+        isOnline: true,
+        lastSeen: true
       }
     });
 

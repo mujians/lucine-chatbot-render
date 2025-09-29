@@ -737,7 +737,31 @@ class DashboardApp {
      */
     async openChatWindow(sessionId) {
         try {
-            // Get session details using new endpoint
+            // FIRST: Auto-take the chat to ensure operator is assigned
+            console.log('🔄 Auto-taking chat before opening:', sessionId);
+            
+            const takeResponse = await fetch(`${this.apiBase}/operators/take-chat`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${localStorage.getItem('auth_token')}`,
+                    'X-Session-ID': sessionId
+                },
+                body: JSON.stringify({
+                    sessionId,
+                    operatorId: this.currentOperator.id
+                })
+            });
+            
+            if (!takeResponse.ok) {
+                const takeError = await takeResponse.json();
+                // If chat is already taken by someone else, still try to open (might be read-only)
+                console.warn('⚠️ Take chat failed:', takeError.error);
+            } else {
+                console.log('✅ Chat auto-taken successfully');
+            }
+            
+            // THEN: Get session details
             const response = await fetch(`${this.apiBase}/operators/chat/${sessionId}`, {
                 headers: {
                     'Authorization': `Bearer ${localStorage.getItem('auth_token')}`
