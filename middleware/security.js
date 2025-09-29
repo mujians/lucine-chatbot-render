@@ -153,6 +153,10 @@ export const authenticateToken = async (req, res, next) => {
 export const validateSession = async (req, res, next) => {
     const sessionId = req.headers['x-session-id'] || req.body.sessionId;
     
+    console.log('🔍 Session validation - sessionId:', sessionId);
+    console.log('🔍 Headers:', req.headers['x-session-id']);
+    console.log('🔍 Body sessionId:', req.body.sessionId);
+    
     if (!sessionId) {
         return res.status(400).json({
             error: 'Session ID richiesto',
@@ -164,6 +168,11 @@ export const validateSession = async (req, res, next) => {
         const session = await prisma.chatSession.findUnique({
             where: { sessionId }
         });
+        
+        console.log('🔍 Session found:', session ? 'YES' : 'NO');
+        if (session) {
+            console.log('🔍 Session details:', { id: session.sessionId, status: session.status });
+        }
         
         if (!session) {
             return res.status(404).json({

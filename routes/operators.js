@@ -43,8 +43,8 @@ router.post('/login', loginLimiter, async (req, res) => {
   try {
     const { username, password } = req.body;
     
-    // Login semplificato: admin/admin123
-    if (username === 'admin' && password === 'admin123') {
+    // Secure login with environment variable
+    if (username === 'admin' && password === process.env.ADMIN_PASSWORD) {
       // Trova o crea operatore admin (con solo i campi che esistono)
       let operator = await prisma.operator.findUnique({
         where: { username: 'admin' },
@@ -122,7 +122,7 @@ router.post('/login', loginLimiter, async (req, res) => {
     } else {
       res.status(401).json({ 
         success: false,
-        message: 'Credenziali non valide. Usa admin/admin123' 
+        message: 'Credenziali non valide' 
       });
     }
 

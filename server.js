@@ -139,8 +139,12 @@ app.use(helmet({
   contentSecurityPolicy: false // We handle CSP in securityHeaders
 }));
 app.use(morgan('combined'));
-app.use(express.json({ limit: '10mb' }));
-app.use(express.urlencoded({ extended: true, limit: '10mb' }));
+app.use(express.json({ limit: '1mb' })); // Reduced from 10mb - security improvement
+app.use(express.urlencoded({ extended: true, limit: '1mb' }));
+
+// Apply security middleware
+app.use(sanitizeInput);
+app.use(detectSuspiciousActivity);
 
 // CORS configuration - permetti sia Shopify che dashboard
 const allowedOrigins = [
