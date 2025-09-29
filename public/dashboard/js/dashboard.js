@@ -1240,61 +1240,6 @@ class DashboardApp {
             console.log('🔊 Notification sound not available');
         }
     }
-        
-        // Handle specific notification events with enhanced browser notifications
-        switch (notification.event) {
-            case 'new_chat_assigned':
-                this.refreshChats();
-                
-                // Enhanced browser notification (disabled temporarily)
-                // if (window.notificationManager) {
-                //     window.notificationManager.showNewChatNotification({
-                //         sessionId: notification.sessionId,
-                //         operatorId: notification.operator?.id,
-                //         message: notification.message
-                //     });
-                // }
-                break;
-                
-            case 'new_message':
-                // Only refresh if not viewing this chat
-                if (!this.activeChat || this.activeChat.sessionId !== notification.sessionId) {
-                    this.refreshChats();
-                }
-                
-                // Show message notification (disabled temporarily)
-                // if (window.notificationManager) {
-                //     window.notificationManager.showNewMessageNotification({
-                //         sessionId: notification.sessionId,
-                //         message: notification.message,
-                //         messageId: notification.messageId
-                //     });
-                // }
-                break;
-                
-            case 'chat_ended':
-                this.refreshChats();
-                break;
-                
-            case 'urgent_request':
-                // if (window.notificationManager) {
-                //     window.notificationManager.showUrgentNotification({
-                //         message: notification.message,
-                //         sessionId: notification.sessionId
-                //     });
-                // }
-                break;
-                
-            case 'new_ticket':
-                // if (window.notificationManager) {
-                //     window.notificationManager.showTicketNotification({
-                //         ticketId: notification.ticketId,
-                //         subject: notification.subject
-                //     });
-                // }
-                break;
-        }
-    }
 
     /**
      * 🍞 Mostra toast notification
