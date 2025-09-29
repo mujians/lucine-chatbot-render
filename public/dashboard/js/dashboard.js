@@ -97,12 +97,24 @@ class DashboardApp {
      * 🔐 Controllo stato autenticazione
      */
     checkAuthStatus() {
-        // FORCE FRESH LOGIN FOR DEBUGGING
-        console.log('🧹 Clearing old session data to force fresh authentication...');
-        localStorage.removeItem('operator_session');
-        localStorage.removeItem('auth_token');
-        localStorage.removeItem('authToken'); // old key
-        this.showLogin();
+        const savedOperator = localStorage.getItem('operator_session');
+        const savedToken = localStorage.getItem('auth_token');
+        
+        if (savedOperator && savedToken) {
+            try {
+                this.currentOperator = JSON.parse(savedOperator);
+                this.authToken = savedToken;
+                this.showDashboard();
+                this.refreshData();
+            } catch (error) {
+                console.error('❌ Invalid session data:', error);
+                localStorage.removeItem('operator_session');
+                localStorage.removeItem('auth_token');
+                this.showLogin();
+            }
+        } else {
+            this.showLogin();
+        }
     }
 
     /**
@@ -123,7 +135,7 @@ class DashboardApp {
         try {
             console.log('🔐 Attempting login...');
             
-            const response = await fetch(`${this.apiBase}/operators/login-quick`, {
+            const response = await fetch(`${this.apiBase}/operators/login`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json'

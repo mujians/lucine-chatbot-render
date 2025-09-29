@@ -9,210 +9,8 @@ import {
 
 const router = express.Router();
 
-// Simple test endpoint
-router.post('/test-login', async (req, res) => {
-  try {
-    console.log('🧪 Testing login functionality...');
-    const { username, password } = req.body;
-    
-    if (username === 'admin' && password === 'admin123') {
-      res.json({ success: true, message: 'Test login OK' });
-    } else {
-      res.status(401).json({ success: false, message: 'Test login failed' });
-    }
-  } catch (error) {
-    console.error('❌ Test login error:', error);
-    res.status(500).json({ success: false, message: 'Test error', details: error.message });
-  }
-});
 
-// Quick login without database for testing dashboard
-router.post('/login-quick', async (req, res) => {
-  try {
-    const { username, password } = req.body;
-    
-    if (username === 'admin' && password === 'admin123') {
-      // Find or create test operator
-      let operator = await prisma.operator.findUnique({
-        where: { username: 'admin' },
-        select: {
-          id: true,
-          username: true,
-          email: true,
-          name: true,
-          isActive: true,
-          isOnline: true
-        }
-      });
-      
-      if (!operator) {
-        // Create test operator
-        operator = await prisma.operator.create({
-          data: {
-            username: 'admin',
-            email: 'admin@lucinedinatale.it',
-            name: 'Admin Tester',
-            passwordHash: 'test-hash',
-            isActive: true,
-            isOnline: true
-          },
-          select: {
-            id: true,
-            username: true,
-            email: true,
-            name: true,
-            isActive: true,
-            isOnline: true
-          }
-        });
-      } else {
-        // Update to active/online
-        await prisma.operator.update({
-          where: { id: operator.id },
-          data: { 
-            isOnline: true,
-            isActive: true
-          }
-        });
-      }
-      
-      // Generate token with REAL operator ID
-      const token = TokenManager.generateToken({
-        operatorId: operator.id,
-        username: operator.username,
-        name: operator.name
-      });
-      
-      res.json({
-        success: true,
-        token,
-        operator: {
-          id: operator.id,
-          username: operator.username,
-          name: operator.name,
-          displayName: operator.name,
-          avatar: '👤',
-          email: operator.email,
-          isOnline: true,
-          isActive: true
-        },
-        message: 'Quick login successful'
-      });
-    } else {
-      res.status(401).json({ 
-        success: false,
-        message: 'Credenziali non valide. Usa admin/admin123' 
-      });
-    }
-  } catch (error) {
-    console.error('❌ Quick login error:', error);
-    res.status(500).json({ 
-      success: false,
-      message: 'Quick login error',
-      error: error.message
-    });
-  }
-});
 
-// Login without rate limiting for debugging
-router.post('/login-debug', async (req, res) => {
-  try {
-    console.log('🐛 Debug login attempt...');
-    const { username, password } = req.body;
-    
-    // Login semplificato: admin/admin123
-    if (username === 'admin' && password === 'admin123') {
-      console.log('🔑 Credentials OK, checking database...');
-      
-      // Trova o crea operatore admin (con solo i campi che esistono)
-      let operator = await prisma.operator.findUnique({
-        where: { username: 'admin' },
-        select: {
-          id: true,
-          username: true,
-          email: true,
-          name: true,
-          passwordHash: true,
-          isActive: true,
-          isOnline: true,
-          lastSeen: true,
-          createdAt: true
-        }
-      });
-      
-      console.log('👤 Operator found:', operator ? 'YES' : 'NO');
-
-      if (!operator) {
-        console.log('🆕 Creating new operator...');
-        operator = await prisma.operator.create({
-          data: {
-            username: 'admin',
-            email: 'supporto@lucinedinatale.it',
-            name: 'Lucy - Assistente Specializzato',
-            passwordHash: 'demo',
-            isActive: true,
-            isOnline: true
-          },
-          select: {
-            id: true,
-            username: true,
-            email: true,
-            name: true,
-            passwordHash: true,
-            isActive: true,
-            isOnline: true,
-            lastSeen: true,
-            createdAt: true
-          }
-        });
-        console.log('✅ Operator created successfully');
-      } else {
-        console.log('📝 Updating existing operator...');
-        await prisma.operator.update({
-          where: { id: operator.id },
-          data: { 
-            isOnline: true,
-            isActive: true
-          },
-          select: {
-            id: true
-          }
-        });
-        console.log('✅ Operator updated successfully');
-      }
-
-      res.json({
-        success: true,
-        operator: {
-          id: operator.id,
-          username: operator.username,
-          name: operator.name,
-          displayName: operator.name,
-          avatar: '👤',
-          email: operator.email,
-          isOnline: true,
-          isActive: true
-        },
-        message: 'Debug login successful'
-      });
-
-    } else {
-      res.status(401).json({ 
-        success: false,
-        message: 'Credenziali non valide. Usa admin/admin123' 
-      });
-    }
-
-  } catch (error) {
-    console.error('❌ Debug login error:', error);
-    res.status(500).json({ 
-      success: false,
-      message: 'Debug login error',
-      error: error.message,
-      stack: process.env.NODE_ENV !== 'production' ? error.stack : undefined
-    });
-  }
-});
 
 // Get operator status
 router.get('/status', async (req, res) => {
@@ -299,13 +97,20 @@ router.post('/login', loginLimiter, async (req, res) => {
         });
       }
 
+      // Generate JWT token
+      const token = TokenManager.generateToken({
+        operatorId: operator.id,
+        username: operator.username,
+        name: operator.name
+      });
+
       res.json({
         success: true,
+        token,
         operator: {
           id: operator.id,
           username: operator.username,
           name: operator.name,
-          displayName: operator.name,
           avatar: '👤',
           email: operator.email,
           isOnline: true,
