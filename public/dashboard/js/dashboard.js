@@ -249,7 +249,8 @@ class DashboardApp {
             const response = await fetch(`${this.apiBase}/operators/status`, {
                 method: 'PUT',
                 headers: {
-                    'Content-Type': 'application/json'
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${localStorage.getItem('authToken')}`
                 },
                 body: JSON.stringify({
                     operatorId: this.currentOperator.id,
@@ -446,18 +447,23 @@ class DashboardApp {
         try {
             console.log('💬 Loading chats data...');
             
-            const response = await fetch(`${this.apiBase}/operators/pending-sessions`);
+            const response = await fetch(`${this.apiBase}/operators/pending-chats`, {
+                headers: {
+                    'Authorization': `Bearer ${localStorage.getItem('authToken')}`
+                }
+            });
             
             if (response.ok) {
                 const data = await response.json();
                 console.log('✅ Chats data loaded:', data);
                 
-                this.renderPendingChats(data.sessions || []);
+                this.renderPendingChats(data.pending || []);
                 
                 // Update badge
-                document.getElementById('pending-chats').textContent = data.total_pending || 0;
+                document.getElementById('pending-chats').textContent = data.count || 0;
             } else {
-                throw new Error('Failed to load chats');
+                console.error('❌ Failed to load chats:', response.status);
+                this.showToast('Errore nel caricamento delle chat', 'error');
             }
             
         } catch (error) {
@@ -512,7 +518,9 @@ class DashboardApp {
             const response = await fetch(`${this.apiBase}/operators/take-chat`, {
                 method: 'POST',
                 headers: {
-                    'Content-Type': 'application/json'
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${localStorage.getItem('authToken')}`,
+                    'X-Session-ID': sessionId
                 },
                 body: JSON.stringify({
                     sessionId,
@@ -677,7 +685,9 @@ class DashboardApp {
             const response = await fetch(`${this.apiBase}/operators/send-message`, {
                 method: 'POST',
                 headers: {
-                    'Content-Type': 'application/json'
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${localStorage.getItem('authToken')}`,
+                    'X-Session-ID': this.activeChat.sessionId
                 },
                 body: JSON.stringify({
                     sessionId: this.activeChat.sessionId,
@@ -1145,10 +1155,88 @@ class DashboardApp {
     handleNotification(notification) {
         console.log('🔔 WebSocket notification received:', notification);
         
-        // Show in-app toast notification
-        if (notification.title && notification.message) {
-            this.showToast(`${notification.title}: ${notification.message}`, 'info');
+        switch (notification.notificationType || notification.type) {
+            case 'new_operator_request':
+                this.handleNewOperatorRequest(notification);
+                break;
+            case 'chat_assigned':
+                this.handleChatAssigned(notification);
+                break;
+            case 'new_message':
+                this.handleNewMessage(notification);
+                break;
+            default:
+                // Show generic notification
+                if (notification.title && notification.message) {
+                    this.showToast(`${notification.title}: ${notification.message}`, 'info');
+                }
         }
+    }
+
+    /**
+     * 🆕 Gestione nuova richiesta operatore
+     */
+    handleNewOperatorRequest(notification) {
+        console.log('🙋 New operator request:', notification);
+        
+        // Play notification sound
+        this.playNotificationSound();
+        
+        // Show prominent notification
+        this.showToast(`🙋 Nuova richiesta di supporto da ${notification.sessionId || 'cliente'}`, 'warning', 10000);
+        
+        // Update pending chats count and reload
+        this.loadChatsData();
+        
+        // If on overview, refresh data
+        if (this.currentSection === 'overview') {
+            this.loadOverviewData();
+        }
+        
+        // Browser notification (if permission granted)
+        if ('Notification' in window && Notification.permission === 'granted') {
+            new Notification('🙋 Nuova richiesta supporto', {
+                body: notification.message || 'Un cliente ha richiesto assistenza',
+                icon: '/dashboard/icons/notification-icon.png',
+                requireInteraction: true,
+                tag: 'operator-request'
+            });
+        }
+    }
+
+    /**
+     * 💬 Gestione nuovo messaggio in chat attiva
+     */
+    handleNewMessage(notification) {
+        // Se la chat è aperta, aggiorna i messaggi
+        if (this.activeChat && this.activeChat.sessionId === notification.sessionId) {
+            this.refreshChatMessages();
+        }
+        
+        // Toast notification per nuovi messaggi
+        this.showToast(`💬 Nuovo messaggio da ${notification.sessionId}`, 'info');
+    }
+
+    /**
+     * 📋 Gestione chat assegnata
+     */
+    handleChatAssigned(notification) {
+        this.showToast(`📋 Chat assegnata: ${notification.sessionId}`, 'success');
+        this.loadChatsData();
+    }
+
+    /**
+     * 🔊 Play notification sound
+     */
+    playNotificationSound() {
+        try {
+            const audio = new Audio('/dashboard/sounds/notification.mp3');
+            audio.volume = 0.5;
+            audio.play().catch(e => console.log('🔊 Sound play failed:', e));
+        } catch (error) {
+            console.log('🔊 Notification sound not available');
+        }
+    }
         
         // Handle specific notification events with enhanced browser notifications
         switch (notification.event) {
