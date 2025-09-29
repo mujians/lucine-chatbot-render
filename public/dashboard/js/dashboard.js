@@ -370,26 +370,37 @@ class DashboardApp {
             const data = await response.json();
             console.log('✅ Analytics data loaded:', data);
             
-            // Update metric cards with real data
-            document.getElementById('metric-active-chats').textContent = data.summary.activeChats || 0;
-            document.getElementById('metric-operator-chats').textContent = data.summary.operatorChats || 0;
-            document.getElementById('metric-open-tickets').textContent = data.summary.openTickets || 0;
-            document.getElementById('metric-total-messages').textContent = data.summary.totalMessages || 0;
+            // Update metric cards with real data (safe DOM access)
+            const setElementText = (id, value) => {
+                const el = document.getElementById(id);
+                if (el) el.textContent = value;
+            };
             
-            // Format average session duration
-            const avgDuration = data.summary.avgSessionDuration;
-            const avgResponse = avgDuration > 0 ? `${avgDuration} min` : '--';
-            document.getElementById('avg-response').textContent = avgResponse;
+            setElementText('metric-active-chats', data.summary.activeChats || 0);
+            setElementText('metric-operator-chats', data.summary.operatorChats || 0);
+            setElementText('metric-open-tickets', data.summary.openTickets || 0);
+            setElementText('metric-total-messages', data.summary.totalMessages || 0);
             
-            // Format satisfaction rating
-            const satisfaction = data.summary.satisfaction;
-            const satisfactionText = satisfaction ? `${satisfaction}/5` : '--';
-            document.getElementById('satisfaction').textContent = satisfactionText;
+            // Format average session duration (only if element exists)
+            const avgResponseEl = document.getElementById('avg-response');
+            if (avgResponseEl) {
+                const avgDuration = data.summary.avgSessionDuration;
+                const avgResponse = avgDuration > 0 ? `${avgDuration} min` : '--';
+                avgResponseEl.textContent = avgResponse;
+            }
+            
+            // Format satisfaction rating (only if element exists)
+            const satisfactionEl = document.getElementById('satisfaction');
+            if (satisfactionEl) {
+                const satisfaction = data.summary.satisfaction;
+                const satisfactionText = satisfaction ? `${satisfaction}/5` : '--';
+                satisfactionEl.textContent = satisfactionText;
+            }
             
             // Update navigation badges
-            document.getElementById('pending-chats').textContent = data.summary.activeChats || 0;
-            document.getElementById('total-sessions').textContent = data.summary.totalChats || 0;
-            document.getElementById('open-tickets').textContent = data.summary.openTickets || 0;
+            setElementText('pending-chats', data.summary.activeChats || 0);
+            setElementText('total-sessions', data.summary.totalChats || 0);
+            setElementText('open-tickets', data.summary.openTickets || 0);
             
             // Render recent activity from real data
             this.renderRecentActivity(data.recentActivity || []);
@@ -402,11 +413,19 @@ class DashboardApp {
             this.showToast('Errore nel caricamento dei dati analytics', 'error');
             
             // Fallback to placeholder data
-            document.getElementById('metric-active-chats').textContent = '--';
-            document.getElementById('metric-operator-chats').textContent = '--';
-            document.getElementById('metric-open-tickets').textContent = '--';
-            document.getElementById('metric-total-messages').textContent = '--';
-            document.getElementById('satisfaction').textContent = '--';
+            const setElementText = (id, value) => {
+                const el = document.getElementById(id);
+                if (el) el.textContent = value;
+            };
+            
+            setElementText('metric-active-chats', '--');
+            setElementText('metric-operator-chats', '--');
+            setElementText('metric-open-tickets', '--');
+            setElementText('metric-total-messages', '--');
+            const satisfactionEl = document.getElementById('satisfaction');
+            if (satisfactionEl) {
+                satisfactionEl.textContent = '--';
+            }
         }
     }
 
@@ -463,7 +482,10 @@ class DashboardApp {
                 this.renderPendingChats(data.pending || []);
                 
                 // Update badge
-                document.getElementById('pending-chats').textContent = data.count || 0;
+                const pendingChatsEl = document.getElementById('pending-chats');
+                if (pendingChatsEl) {
+                    pendingChatsEl.textContent = data.count || 0;
+                }
             } else {
                 console.error('❌ Failed to load chats:', response.status);
                 this.showToast('Errore nel caricamento delle chat', 'error');
@@ -777,7 +799,10 @@ class DashboardApp {
                 
                 // Update badge
                 const openTickets = data.tickets?.filter(t => t.status === 'OPEN').length || 0;
-                document.getElementById('open-tickets').textContent = openTickets;
+                const openTicketsEl = document.getElementById('open-tickets');
+                if (openTicketsEl) {
+                    openTicketsEl.textContent = openTickets;
+                }
                 
             } else {
                 throw new Error('Failed to load tickets');
@@ -899,7 +924,10 @@ class DashboardApp {
                 this.renderAllChats(data.sessions || [], containerId);
                 
                 // Update badge for total sessions
-                document.getElementById('total-sessions').textContent = data.total || 0;
+                const totalSessionsEl = document.getElementById('total-sessions');
+                if (totalSessionsEl) {
+                    totalSessionsEl.textContent = data.total || 0;
+                }
                 
             } else {
                 throw new Error('Failed to load all chats');
