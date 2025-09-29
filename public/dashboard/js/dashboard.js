@@ -60,6 +60,12 @@ class DashboardApp {
             statusToggle.addEventListener('click', () => this.toggleOperatorStatus());
         }
 
+        // Sidebar Toggle
+        const sidebarToggle = document.getElementById('sidebar-toggle');
+        if (sidebarToggle) {
+            sidebarToggle.addEventListener('click', () => this.toggleSidebar());
+        }
+
         // Navigation
         const navItems = document.querySelectorAll('.nav-item');
         navItems.forEach(item => {
@@ -289,6 +295,24 @@ class DashboardApp {
     }
 
     /**
+     * 📱 Toggle sidebar
+     */
+    toggleSidebar() {
+        const sidebar = document.getElementById('dashboard-sidebar');
+        const toggleIcon = document.querySelector('#sidebar-toggle i');
+        
+        if (sidebar && toggleIcon) {
+            sidebar.classList.toggle('collapsed');
+            
+            if (sidebar.classList.contains('collapsed')) {
+                toggleIcon.className = 'fas fa-chevron-right';
+            } else {
+                toggleIcon.className = 'fas fa-chevron-left';
+            }
+        }
+    }
+
+    /**
      * 🔀 Cambia sezione
      */
     switchSection(section) {
@@ -449,7 +473,7 @@ class DashboardApp {
                                activity.sender === 'OPERATOR' ? 'Operatore' : 'Bot';
             
             return `
-                <div class="activity-item">
+                <div class="activity-item clickable" onclick="dashboardApp.jumpToChat('${activity.sessionId}')">
                     <div class="activity-icon ${activity.sender.toLowerCase()}">
                         <i class="fas fa-${icon}"></i>
                     </div>
@@ -457,9 +481,54 @@ class DashboardApp {
                         <p><strong>${senderLabel}:</strong> ${activity.message}</p>
                         <span class="activity-time">${timeAgo} • Sessione: ${activity.sessionId.substr(-8)}</span>
                     </div>
+                    <div class="activity-action">
+                        <i class="fas fa-chevron-right"></i>
+                        <span class="action-tooltip">Clicca per gestire la chat</span>
+                    </div>
                 </div>
             `;
         }).join('');
+    }
+
+    /**
+     * 🏃‍♂️ Jump to chat from recent activity
+     */
+    async jumpToChat(sessionId) {
+        try {
+            console.log('🏃‍♂️ Jumping to chat:', sessionId);
+            
+            // Switch to chats section
+            this.switchSection('chats');
+            
+            // Check if chat needs to be taken
+            const response = await fetch(`${this.apiBase}/operators/pending-chats`);
+            if (response.ok) {
+                const data = await response.json();
+                const pendingChat = data.pending.find(chat => chat.sessionId === sessionId);
+                
+                if (pendingChat) {
+                    // Chat is pending, show it and highlight
+                    this.loadChatsData();
+                    setTimeout(() => {
+                        const chatElement = document.querySelector(`[data-session-id="${sessionId}"]`);
+                        if (chatElement) {
+                            chatElement.scrollIntoView({ behavior: 'smooth' });
+                            chatElement.classList.add('highlighted');
+                            setTimeout(() => {
+                                chatElement.classList.remove('highlighted');
+                            }, 3000);
+                        }
+                    }, 500);
+                } else {
+                    // Chat might be already taken, try to open it
+                    this.openChatWindow(sessionId);
+                }
+            }
+            
+        } catch (error) {
+            console.error('❌ Jump to chat error:', error);
+            this.showToast('Chat non trovata o non disponibile', 'warning');
+        }
     }
 
     /**
@@ -619,12 +688,64 @@ class DashboardApp {
             // Store active chat
             this.activeChat = sessionData.session;
             
+            // Show chat modal
+            this.showChatModal();
+            
             // Render chat window
             this.renderChatWindow(sessionData.session, sessionData.messages || []);
             
         } catch (error) {
             console.error('❌ Failed to open chat window:', error);
             this.showToast('Errore apertura chat', 'error');
+        }
+    }
+
+    /**
+     * 📱 Show chat modal
+     */
+    showChatModal() {
+        const modal = document.getElementById('chat-modal');
+        if (modal) {
+            modal.style.display = 'flex';
+            
+            // Add escape key handler
+            document.addEventListener('keydown', this.handleEscapeKey.bind(this));
+            
+            // Add click outside handler
+            modal.addEventListener('click', this.handleModalBackdropClick.bind(this));
+        }
+    }
+
+    /**
+     * ❌ Hide chat modal
+     */
+    hideChatModal() {
+        const modal = document.getElementById('chat-modal');
+        if (modal) {
+            modal.style.display = 'none';
+            this.activeChat = null;
+            
+            // Remove event handlers
+            document.removeEventListener('keydown', this.handleEscapeKey.bind(this));
+            modal.removeEventListener('click', this.handleModalBackdropClick.bind(this));
+        }
+    }
+
+    /**
+     * ⌨️ Handle escape key
+     */
+    handleEscapeKey(event) {
+        if (event.key === 'Escape') {
+            this.hideChatModal();
+        }
+    }
+
+    /**
+     * 🖱️ Handle modal backdrop click
+     */
+    handleModalBackdropClick(event) {
+        if (event.target.id === 'chat-modal') {
+            this.hideChatModal();
         }
     }
 
@@ -1467,30 +1588,4 @@ document.addEventListener('DOMContentLoaded', () => {
     window.dashboardApp = new DashboardApp();
 });
 
-// 🔧 Debug helpers (remove in production)
-if (window.location.hostname === 'localhost') {
-    window.debugDashboard = {
-        fakeLogin: () => {
-            const fakeOperator = {
-                id: 'op_001',
-                username: 'admin',
-                name: 'Operatore Demo',
-                email: 'admin@lucinedinatale.it',
-                isOnline: true,
-                isActive: true
-            };
-            
-            localStorage.setItem('operator_session', JSON.stringify(fakeOperator));
-            window.dashboardApp.currentOperator = fakeOperator;
-            window.dashboardApp.showDashboard();
-            window.dashboardApp.refreshData();
-        },
-        
-        clearSession: () => {
-            localStorage.removeItem('operator_session');
-            window.dashboardApp.showLogin();
-        }
-    };
-    
-    console.log('🔧 Debug mode - use window.debugDashboard.fakeLogin() to test');
-}
+// Debug helpers removed for production

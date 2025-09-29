@@ -38,7 +38,7 @@
     <!-- Main Dashboard -->
     <div id="dashboard-container" class="dashboard-container hidden">
         <!-- Sidebar -->
-        <aside class="dashboard-sidebar">
+        <aside class="dashboard-sidebar" id="dashboard-sidebar">
             <div class="sidebar-header">
                 <div class="sidebar-logo">
                     <div class="logo-icon">❄️</div>
@@ -47,6 +47,9 @@
                         <p>Dashboard Operatori</p>
                     </div>
                 </div>
+                <button class="sidebar-toggle" id="sidebar-toggle">
+                    <i class="fas fa-chevron-left"></i>
+                </button>
                 
                 <div class="operator-status">
                     <div class="status-indicator online" id="status-indicator"></div>
@@ -200,31 +203,42 @@
 
                 <!-- Chat Live Section -->
                 <section id="chats-section" class="content-section">
-                    <div class="chat-layout">
-                        <!-- Chat List -->
-                        <div class="chat-list-panel">
-                            <div class="chat-list-header">
-                                <h2 class="chat-list-title">Chat Pendenti</h2>
+                    <div class="card">
+                        <div class="card-header">
+                            <h2 class="card-title">Chat in Attesa</h2>
+                            <div class="header-actions">
                                 <button class="btn-refresh" id="refresh-chats">
                                     <i class="fas fa-sync-alt"></i>
+                                    Aggiorna
                                 </button>
                             </div>
-                            <div class="chat-list-content" id="pending-chat-list">
+                        </div>
+                        <div class="card-content">
+                            <div id="pending-chat-list" class="pending-chats-grid">
                                 <!-- Chat items will be populated by JavaScript -->
                                 <div class="empty-state">
                                     <div class="empty-icon">💬</div>
                                     <h3>Nessuna chat in attesa</h3>
-                                    <p>Le nuove richieste di supporto appariranno qui automaticamente</p>
+                                    <p>Le richieste di supporto appariranno qui automaticamente</p>
                                 </div>
                             </div>
                         </div>
+                    </div>
 
-                        <!-- Chat Window -->
-                        <div class="chat-window" id="chat-window">
-                            <div class="empty-state">
-                                <div class="empty-icon">🗨️</div>
-                                <h3>Seleziona una chat</h3>
-                                <p>Scegli una chat dalla lista per iniziare la conversazione</p>
+                    <!-- Chat Window Modal (will appear when chat is taken) -->
+                    <div class="chat-modal" id="chat-modal" style="display: none;">
+                        <div class="chat-modal-content">
+                            <div class="chat-modal-header">
+                                <h3>Chat Operatore</h3>
+                                <button class="modal-close-btn" onclick="dashboardApp.hideChatModal()">
+                                    <i class="fas fa-times"></i>
+                                </button>
+                            </div>
+                            <div class="chat-window" id="chat-window">
+                                <div class="empty-state">
+                                    <div class="empty-icon">🗨️</div>
+                                    <h3>Caricamento chat...</h3>
+                                </div>
                             </div>
                         </div>
                     </div>
