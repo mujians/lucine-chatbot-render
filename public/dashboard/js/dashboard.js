@@ -124,7 +124,7 @@ class DashboardApp {
         try {
             console.log('🔐 Attempting login...');
             
-            const response = await fetch(`${this.apiBase}/operators/login`, {
+            const response = await fetch(`${this.apiBase}/operators/login-quick`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json'
@@ -250,7 +250,7 @@ class DashboardApp {
                 method: 'PUT',
                 headers: {
                     'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${localStorage.getItem('authToken')}`
+                    'Authorization': `Bearer ${localStorage.getItem('auth_token')}`
                 },
                 body: JSON.stringify({
                     operatorId: this.currentOperator.id,
@@ -452,7 +452,7 @@ class DashboardApp {
             
             const response = await fetch(`${this.apiBase}/operators/pending-chats`, {
                 headers: {
-                    'Authorization': `Bearer ${localStorage.getItem('authToken')}`
+                    'Authorization': `Bearer ${localStorage.getItem('auth_token')}`
                 }
             });
             
@@ -522,7 +522,7 @@ class DashboardApp {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${localStorage.getItem('authToken')}`,
+                    'Authorization': `Bearer ${localStorage.getItem('auth_token')}`,
                     'X-Session-ID': sessionId
                 },
                 body: JSON.stringify({
@@ -689,7 +689,7 @@ class DashboardApp {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${localStorage.getItem('authToken')}`,
+                    'Authorization': `Bearer ${localStorage.getItem('auth_token')}`,
                     'X-Session-ID': this.activeChat.sessionId
                 },
                 body: JSON.stringify({
