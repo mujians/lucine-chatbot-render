@@ -505,26 +505,52 @@ class DashboardApp {
         if (!chatList) return;
         
         if (sessions.length === 0) {
-            chatList.innerHTML = '<p class="no-data">Nessuna chat in attesa</p>';
+            chatList.innerHTML = `
+                <div class="empty-state">
+                    <div class="empty-icon">💬</div>
+                    <h3>Nessuna chat in attesa</h3>
+                    <p>Le richieste di supporto appariranno qui automaticamente</p>
+                </div>
+            `;
             return;
         }
         
         chatList.innerHTML = sessions.map(session => {
-            const waitTime = this.formatWaitingTime(new Date(session.startedAt).getTime());
-            const lastMessage = session.lastMessage || 'Nessun messaggio';
+            const waitTime = this.formatWaitingTime(session.timeWaiting || 0);
+            const lastMessage = session.lastMessage || 'Richiesta operatore';
+            const userLastSeen = this.formatTimeAgo(new Date(session.userLastSeen));
+            const isUrgent = (session.timeWaiting || 0) > 300000; // > 5 minuti
             
             return `
-                <div class="chat-item" data-session-id="${session.sessionId}">
+                <div class="chat-item ${isUrgent ? 'urgent' : ''}" data-session-id="${session.sessionId}">
+                    <div class="chat-status">
+                        <div class="status-indicator ${isUrgent ? 'urgent' : 'waiting'}"></div>
+                        <div class="operator-request-badge">
+                            <i class="fas fa-user-headset"></i>
+                            RICHIESTA OPERATORE
+                        </div>
+                    </div>
                     <div class="chat-info">
                         <div class="chat-header">
                             <span class="session-id">#${session.sessionId.substr(-6)}</span>
-                            <span class="wait-time">${waitTime}</span>
+                            <span class="wait-time ${isUrgent ? 'urgent' : ''}">
+                                ⏱️ ${waitTime}
+                            </span>
                         </div>
                         <p class="last-message">${lastMessage}</p>
+                        <div class="user-status">
+                            <span class="user-last-seen">
+                                👤 Ultima attività: ${userLastSeen}
+                            </span>
+                            ${session.assignedOperator ? 
+                                `<span class="assigned-to">📋 Assegnato a: ${session.assignedOperator.name}</span>` : 
+                                ''
+                            }
+                        </div>
                         <div class="chat-actions">
-                            <button class="btn-take-chat" onclick="dashboardApp.takeChat('${session.sessionId}')">
+                            <button class="btn-take-chat ${isUrgent ? 'urgent' : ''}" onclick="dashboardApp.takeChat('${session.sessionId}')">
                                 <i class="fas fa-headset"></i>
-                                Prendi in carico
+                                ${isUrgent ? 'PRENDI SUBITO' : 'Prendi in carico'}
                             </button>
                         </div>
                     </div>
@@ -1386,12 +1412,10 @@ class DashboardApp {
     /**
      * ⏱️ Formatta tempo di attesa
      */
-    formatWaitingTime(timestamp) {
-        if (!timestamp) return '0 min';
+    formatWaitingTime(milliseconds) {
+        if (!milliseconds) return '0 min';
         
-        const now = Date.now();
-        const diff = now - timestamp;
-        const minutes = Math.floor(diff / 60000);
+        const minutes = Math.floor(milliseconds / 60000);
         
         if (minutes < 60) {
             return `${minutes} min`;
@@ -1399,6 +1423,26 @@ class DashboardApp {
             const hours = Math.floor(minutes / 60);
             return `${hours}h ${minutes % 60}m`;
         }
+    }
+
+    /**
+     * 📅 Formatta tempo relativo (es. "2 minuti fa")
+     */
+    formatTimeAgo(date) {
+        if (!date) return 'mai';
+        
+        const now = new Date();
+        const diff = now - date;
+        const minutes = Math.floor(diff / 60000);
+        
+        if (minutes < 1) return 'ora';
+        if (minutes < 60) return `${minutes} min fa`;
+        
+        const hours = Math.floor(minutes / 60);
+        if (hours < 24) return `${hours}h fa`;
+        
+        const days = Math.floor(hours / 24);
+        return `${days}g fa`;
     }
 
     /**

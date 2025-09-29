@@ -287,22 +287,33 @@ router.post('/login', loginLimiter, async (req, res) => {
   }
 });
 
-// Get pending chats
+// Get pending chats (sessions that need operator attention)
 router.get('/pending-chats', async (req, res) => {
   try {
     const pendingChats = await prisma.chatSession.findMany({
       where: {
-        status: 'ACTIVE',
+        status: 'WITH_OPERATOR',
         operatorChats: {
-          none: {}
+          some: {
+            endedAt: null // Has active operator chat but not taken yet
+          }
         }
       },
       include: {
         messages: {
           orderBy: { timestamp: 'desc' },
           take: 5
+        },
+        operatorChats: {
+          where: { endedAt: null },
+          include: {
+            operator: {
+              select: { id: true, name: true }
+            }
+          }
         }
-      }
+      },
+      orderBy: { lastActivity: 'desc' }
     });
 
     res.json({
@@ -310,7 +321,11 @@ router.get('/pending-chats', async (req, res) => {
         sessionId: chat.sessionId,
         startedAt: chat.startedAt,
         lastActivity: chat.lastActivity,
-        lastMessage: chat.messages[0]?.message
+        lastMessage: chat.messages[0]?.message,
+        operatorRequested: true,
+        assignedOperator: chat.operatorChats[0]?.operator,
+        timeWaiting: Date.now() - new Date(chat.lastActivity).getTime(),
+        userLastSeen: chat.lastActivity
       })),
       count: pendingChats.length
     });
