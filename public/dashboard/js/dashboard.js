@@ -202,8 +202,8 @@ class DashboardApp {
      * 📱 Mostra schermata login
      */
     showLogin() {
-        document.getElementById('login-screen').style.display = 'flex';
-        document.getElementById('dashboard-screen').style.display = 'none';
+        document.getElementById('login-screen').classList.remove('hidden');
+        document.getElementById('dashboard-container').classList.add('hidden');
         
         // Reset form
         const form = document.getElementById('login-form');
@@ -218,8 +218,8 @@ class DashboardApp {
      * 📊 Mostra dashboard
      */
     showDashboard() {
-        document.getElementById('login-screen').style.display = 'none';
-        document.getElementById('dashboard-screen').style.display = 'flex';
+        document.getElementById('login-screen').classList.add('hidden');
+        document.getElementById('dashboard-container').classList.remove('hidden');
         
         // Aggiorna info operatore
         const operatorName = document.getElementById('operator-name');
@@ -371,8 +371,10 @@ class DashboardApp {
             console.log('✅ Analytics data loaded:', data);
             
             // Update metric cards with real data
-            document.getElementById('total-chats').textContent = data.summary.activeChats || 0;
-            document.getElementById('total-tickets').textContent = data.summary.openTickets || 0;
+            document.getElementById('metric-active-chats').textContent = data.summary.activeChats || 0;
+            document.getElementById('metric-operator-chats').textContent = data.summary.operatorChats || 0;
+            document.getElementById('metric-open-tickets').textContent = data.summary.openTickets || 0;
+            document.getElementById('metric-total-messages').textContent = data.summary.totalMessages || 0;
             
             // Format average session duration
             const avgDuration = data.summary.avgSessionDuration;
@@ -400,9 +402,10 @@ class DashboardApp {
             this.showToast('Errore nel caricamento dei dati analytics', 'error');
             
             // Fallback to placeholder data
-            document.getElementById('total-chats').textContent = '--';
-            document.getElementById('total-tickets').textContent = '--';
-            document.getElementById('avg-response').textContent = '--';
+            document.getElementById('metric-active-chats').textContent = '--';
+            document.getElementById('metric-operator-chats').textContent = '--';
+            document.getElementById('metric-open-tickets').textContent = '--';
+            document.getElementById('metric-total-messages').textContent = '--';
             document.getElementById('satisfaction').textContent = '--';
         }
     }
@@ -411,7 +414,7 @@ class DashboardApp {
      * 📝 Render attività recente
      */
     renderRecentActivity(activities) {
-        const activityList = document.getElementById('activity-list');
+        const activityList = document.getElementById('recent-activity');
         if (!activityList || !activities || activities.length === 0) {
             if (activityList) {
                 activityList.innerHTML = '<p class="no-data">Nessuna attività recente</p>';
