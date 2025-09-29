@@ -591,37 +591,46 @@ class DashboardApp {
             const isUrgent = (session.timeWaiting || 0) > 300000; // > 5 minuti
             
             return `
-                <div class="chat-item ${isUrgent ? 'urgent' : ''}" data-session-id="${session.sessionId}">
-                    <div class="chat-status">
-                        <div class="status-indicator ${isUrgent ? 'urgent' : 'waiting'}"></div>
-                        <div class="operator-request-badge">
-                            <i class="fas fa-user-headset"></i>
-                            RICHIESTA OPERATORE
+                <div class="chat-card ${isUrgent ? 'urgent' : ''}" data-session-id="${session.sessionId}">
+                    <div class="card-header">
+                        <div class="session-info">
+                            <span class="session-id">ID: ${session.sessionId.substr(-6).toUpperCase()}</span>
+                            <div class="urgency-badge ${isUrgent ? 'urgent' : 'normal'}">
+                                ${isUrgent ? 'URGENTE' : 'IN ATTESA'}
+                            </div>
+                        </div>
+                        <div class="time-badge">
+                            <i class="fas fa-clock"></i> ${waitTime}
                         </div>
                     </div>
-                    <div class="chat-info">
-                        <div class="chat-header">
-                            <span class="session-id">#${session.sessionId.substr(-6)}</span>
-                            <span class="wait-time ${isUrgent ? 'urgent' : ''}">
-                                ⏱️ ${waitTime}
-                            </span>
+                    
+                    <div class="card-body">
+                        <div class="message-preview">
+                            <i class="fas fa-comment-dots"></i>
+                            <p>${lastMessage}</p>
                         </div>
-                        <p class="last-message">${lastMessage}</p>
-                        <div class="user-status">
-                            <span class="user-last-seen">
-                                👤 Ultima attività: ${userLastSeen}
-                            </span>
+                        
+                        <div class="user-info">
+                            <div class="info-item">
+                                <i class="fas fa-user"></i>
+                                <span>Ultima attività: ${userLastSeen}</span>
+                            </div>
                             ${session.assignedOperator ? 
-                                `<span class="assigned-to">📋 Assegnato a: ${session.assignedOperator.name}</span>` : 
+                                `<div class="info-item">
+                                    <i class="fas fa-user-check"></i>
+                                    <span>Assegnato: ${session.assignedOperator.name}</span>
+                                </div>` : 
                                 ''
                             }
                         </div>
-                        <div class="chat-actions">
-                            <button class="btn-take-chat ${isUrgent ? 'urgent' : ''}" onclick="dashboardApp.takeChat('${session.sessionId}')">
-                                <i class="fas fa-headset"></i>
-                                ${isUrgent ? 'PRENDI SUBITO' : 'Prendi in carico'}
-                            </button>
-                        </div>
+                    </div>
+                    
+                    <div class="card-footer">
+                        <button class="btn-primary ${isUrgent ? 'btn-urgent' : ''}" 
+                                onclick="dashboardApp.takeChat('${session.sessionId}')">
+                            <i class="fas fa-headset"></i>
+                            <span>${isUrgent ? 'GESTISCI URGENTE' : 'Prendi in carico'}</span>
+                        </button>
                     </div>
                 </div>
             `;
