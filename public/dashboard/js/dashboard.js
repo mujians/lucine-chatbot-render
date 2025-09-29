@@ -97,19 +97,12 @@ class DashboardApp {
      * 🔐 Controllo stato autenticazione
      */
     checkAuthStatus() {
-        const savedOperator = localStorage.getItem('operator_session');
-        if (savedOperator) {
-            try {
-                this.currentOperator = JSON.parse(savedOperator);
-                this.showDashboard();
-                this.refreshData();
-            } catch (error) {
-                console.error('❌ Invalid session data:', error);
-                this.showLogin();
-            }
-        } else {
-            this.showLogin();
-        }
+        // FORCE FRESH LOGIN FOR DEBUGGING
+        console.log('🧹 Clearing old session data to force fresh authentication...');
+        localStorage.removeItem('operator_session');
+        localStorage.removeItem('auth_token');
+        localStorage.removeItem('authToken'); // old key
+        this.showLogin();
     }
 
     /**
@@ -142,6 +135,8 @@ class DashboardApp {
             
             if (response.ok && data.success) {
                 console.log('✅ Login successful:', data.operator);
+                console.log('🔑 JWT Token received:', data.token);
+                console.log('👤 Operator ID from server:', data.operator.id);
                 
                 this.currentOperator = data.operator;
                 this.authToken = data.token;
@@ -149,6 +144,8 @@ class DashboardApp {
                 // Salva sessione
                 localStorage.setItem('operator_session', JSON.stringify(this.currentOperator));
                 localStorage.setItem('auth_token', this.authToken);
+                
+                console.log('💾 Saved to localStorage - currentOperator:', this.currentOperator);
                 
                 // Nascondi errori e mostra dashboard
                 errorDiv.textContent = '';
@@ -767,10 +764,12 @@ class DashboardApp {
             modal.style.display = 'flex';
             
             // Add escape key handler
-            document.addEventListener('keydown', this.handleEscapeKey.bind(this));
+            this.escapeHandler = this.handleEscapeKey.bind(this);
+            document.addEventListener('keydown', this.escapeHandler);
             
             // Add click outside handler
-            modal.addEventListener('click', this.handleModalBackdropClick.bind(this));
+            this.backdropHandler = this.handleModalBackdropClick.bind(this);
+            modal.addEventListener('click', this.backdropHandler);
         }
     }
 
@@ -1258,6 +1257,7 @@ class DashboardApp {
                 this.reconnectAttempts = 0;
                 
                 // Authenticate with operator ID
+                console.log('🔐 Authenticating WebSocket with operator ID:', this.currentOperator.id);
                 this.websocket.send(JSON.stringify({
                     type: 'operator_auth',
                     operatorId: this.currentOperator.id
