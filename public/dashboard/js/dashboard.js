@@ -339,10 +339,10 @@ class DashboardApp {
                 this.loadChatsData();
                 break;
             case 'all-chats':
-                this.loadAllChatsData();
+                this.showEmptyChatsHistory();
                 break;
             case 'tickets':
-                this.loadTicketsData();
+                this.showEmptyTickets();
                 break;
             case 'analytics':
                 this.loadAnalyticsData();
@@ -362,10 +362,10 @@ class DashboardApp {
                 await this.loadChatsData();
                 break;
             case 'all-chats':
-                await this.loadAllChatsData();
+                this.showEmptyChatsHistory();
                 break;
             case 'tickets':
-                await this.loadTicketsData();
+                this.showEmptyTickets();
                 break;
             case 'analytics':
                 await this.loadAnalyticsData();
@@ -532,6 +532,50 @@ class DashboardApp {
     }
 
     /**
+     * 📝 Show empty tickets state
+     */
+    showEmptyTickets() {
+        const ticketsList = document.getElementById('tickets-list');
+        if (ticketsList) {
+            ticketsList.innerHTML = `
+                <div class="empty-state">
+                    <div class="empty-icon">🎫</div>
+                    <h3>Nessun ticket</h3>
+                    <p>I ticket di supporto appariranno qui quando saranno disponibili</p>
+                </div>
+            `;
+        }
+        
+        // Reset badge
+        const openTicketsEl = document.getElementById('open-tickets');
+        if (openTicketsEl) {
+            openTicketsEl.textContent = '0';
+        }
+    }
+
+    /**
+     * 📜 Show empty chat history state
+     */
+    showEmptyChatsHistory() {
+        const container = document.getElementById('all-chats-container');
+        if (container) {
+            container.innerHTML = `
+                <div class="empty-state">
+                    <div class="empty-icon">💬</div>
+                    <h3>Nessuno storico</h3>
+                    <p>Lo storico delle chat apparirà qui man mano che vengono gestite</p>
+                </div>
+            `;
+        }
+        
+        // Reset badge
+        const totalSessionsEl = document.getElementById('total-sessions');
+        if (totalSessionsEl) {
+            totalSessionsEl.textContent = '0';
+        }
+    }
+
+    /**
      * 💬 Carica dati chat
      */
     async loadChatsData() {
@@ -684,11 +728,16 @@ class DashboardApp {
      */
     async openChatWindow(sessionId) {
         try {
-            // Get session details
-            const response = await fetch(`${this.apiBase}/operators/session/${sessionId}`);
+            // Get session details using new endpoint
+            const response = await fetch(`${this.apiBase}/operators/chat/${sessionId}`, {
+                headers: {
+                    'Authorization': `Bearer ${localStorage.getItem('auth_token')}`
+                }
+            });
             
             if (!response.ok) {
-                throw new Error('Failed to load session');
+                const errorData = await response.json();
+                throw new Error(errorData.error || 'Failed to load session');
             }
             
             const sessionData = await response.json();
@@ -705,7 +754,7 @@ class DashboardApp {
             
         } catch (error) {
             console.error('❌ Failed to open chat window:', error);
-            this.showToast('Errore apertura chat', 'error');
+            this.showToast(`Errore apertura chat: ${error.message}`, 'error');
         }
     }
 

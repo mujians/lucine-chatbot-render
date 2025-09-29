@@ -394,25 +394,42 @@ router.post('/take-chat', authenticateToken, validateSession, async (req, res) =
       return res.status(404).json({ error: 'Session not found' });
     }
 
-    // Check if chat already taken
+    // Check if chat already taken by ANOTHER operator
     const existing = await prisma.operatorChat.findFirst({
       where: {
         sessionId,
         endedAt: null
+      },
+      include: {
+        operator: {
+          select: { id: true, name: true }
+        }
       }
     });
 
+    let operatorChat;
+    
     if (existing) {
-      return res.status(400).json({ error: 'Chat already taken' });
-    }
-
-    // Create operator chat
-    const operatorChat = await prisma.operatorChat.create({
-      data: {
-        sessionId,
-        operatorId
+      // Check if it's the same operator trying to take it
+      if (existing.operatorId === operatorId) {
+        // Same operator, just activate the existing chat
+        operatorChat = existing;
+        console.log('✅ Operator taking their own assigned chat');
+      } else {
+        // Different operator, reject
+        return res.status(400).json({ 
+          error: `Chat already taken by ${existing.operator.name}` 
+        });
       }
-    });
+    } else {
+      // Create new operator chat
+      operatorChat = await prisma.operatorChat.create({
+        data: {
+          sessionId,
+          operatorId
+        }
+      });
+    }
 
     // Update session status
     await prisma.chatSession.update({
@@ -469,6 +486,51 @@ router.post('/take-chat', authenticateToken, validateSession, async (req, res) =
       error: 'Failed to take chat',
       details: process.env.NODE_ENV === 'development' ? error.message : undefined
     });
+  }
+});
+
+// Open chat (direct access without taking)
+router.get('/chat/:sessionId', authenticateToken, async (req, res) => {
+  try {
+    const { sessionId } = req.params;
+    
+    // Get session with messages
+    const session = await prisma.chatSession.findUnique({
+      where: { sessionId },
+      include: {
+        messages: {
+          orderBy: { timestamp: 'asc' }
+        },
+        operatorChats: {
+          where: { endedAt: null },
+          include: {
+            operator: {
+              select: { id: true, name: true }
+            }
+          }
+        }
+      }
+    });
+
+    if (!session) {
+      return res.status(404).json({ error: 'Session not found' });
+    }
+
+    res.json({
+      success: true,
+      session: {
+        sessionId: session.sessionId,
+        status: session.status,
+        startedAt: session.startedAt,
+        lastActivity: session.lastActivity,
+        operator: session.operatorChats[0]?.operator || null
+      },
+      messages: session.messages
+    });
+
+  } catch (error) {
+    console.error('❌ Get chat error:', error);
+    res.status(500).json({ error: 'Failed to get chat' });
   }
 });
 
