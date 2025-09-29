@@ -32,23 +32,67 @@ router.post('/login-quick', async (req, res) => {
     const { username, password } = req.body;
     
     if (username === 'admin' && password === 'admin123') {
-      // Genera un token JWT semplice per testare la dashboard
+      // Find or create test operator
+      let operator = await prisma.operator.findUnique({
+        where: { username: 'admin' },
+        select: {
+          id: true,
+          username: true,
+          email: true,
+          name: true,
+          isActive: true,
+          isOnline: true
+        }
+      });
+      
+      if (!operator) {
+        // Create test operator
+        operator = await prisma.operator.create({
+          data: {
+            username: 'admin',
+            email: 'admin@lucinedinatale.it',
+            name: 'Admin Tester',
+            passwordHash: 'test-hash',
+            isActive: true,
+            isOnline: true
+          },
+          select: {
+            id: true,
+            username: true,
+            email: true,
+            name: true,
+            isActive: true,
+            isOnline: true
+          }
+        });
+      } else {
+        // Update to active/online
+        await prisma.operator.update({
+          where: { id: operator.id },
+          data: { 
+            isOnline: true,
+            isActive: true
+          }
+        });
+      }
+      
+      // Generate token with REAL operator ID
       const token = TokenManager.generateToken({
-        operatorId: 'admin-test',
-        username: 'admin',
-        name: 'Admin Tester'
+        operatorId: operator.id,
+        username: operator.username,
+        name: operator.name
       });
       
       res.json({
         success: true,
         token,
         operator: {
-          id: 'admin-test',
-          username: 'admin',
-          name: 'Admin Tester',
-          displayName: 'Admin Tester',
+          id: operator.id,
+          username: operator.username,
+          name: operator.name,
+          displayName: operator.name,
           avatar: '👤',
-          email: 'admin@test.com',
+          email: operator.email,
           isOnline: true,
           isActive: true
         },
