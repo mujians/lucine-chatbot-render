@@ -330,6 +330,41 @@ Informazione mancante:
       };
     }
 
+    // 🔧 LOGICA MECCANICA: Rileva automaticamente quando AI non sa rispondere
+    const unknownPatterns = [
+      /non ho informazioni specifiche/i,
+      /mi dispiace.*non so/i,
+      /non sono a conoscenza/i,
+      /non conosco/i,
+      /non posso rispondere/i,
+      /vuoi parlare con un operatore/i
+    ];
+
+    const isUnknownResponse = unknownPatterns.some(pattern => 
+      pattern.test(parsedResponse.reply)
+    );
+
+    // Se AI non sa rispondere, aggiungi automaticamente pulsanti YES/NO
+    if (isUnknownResponse && !parsedResponse.smartActions) {
+      console.log('🔧 MECCANICO: Aggiunta automatica pulsanti YES/NO per risposta sconosciuta');
+      parsedResponse.smartActions = [
+        {
+          type: "primary",
+          icon: "👤",
+          text: "SÌ, CHIAMA OPERATORE",
+          description: "Ti connetto subito con un operatore",
+          action: "request_operator"
+        },
+        {
+          type: "secondary",
+          icon: "🔙",
+          text: "NO, CONTINUA CON AI",
+          description: "Rimani con l'assistente virtuale",
+          action: "continue_ai"
+        }
+      ];
+    }
+
     // Save bot response
     console.log('🤖 Saving bot response for session:', session.sessionId, 'Response:', parsedResponse);
     await prisma.message.create({
