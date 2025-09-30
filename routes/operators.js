@@ -484,7 +484,13 @@ router.post('/send-message', authenticateToken, validateSession, async (req, res
         endedAt: null
       },
       include: {
-        operator: true
+        operator: {
+          select: {
+            id: true,
+            name: true,
+            username: true
+          }
+        }
       }
     });
 
@@ -531,7 +537,45 @@ router.post('/send-message', authenticateToken, validateSession, async (req, res
   }
 });
 
-
-
+// Get messages for a session (for polling/real-time updates)
+router.get('/messages/:sessionId', authenticateToken, validateSession, async (req, res) => {
+  try {
+    const { sessionId } = req.params;
+    const since = req.query.since ? new Date(req.query.since) : new Date(Date.now() - 24 * 60 * 60 * 1000); // Last 24h default
+    
+    // Verify operator has access to this session
+    const operatorChat = await prisma.operatorChat.findFirst({
+      where: {
+        sessionId,
+        operatorId: req.operator.id,
+        endedAt: null
+      }
+    });
+    
+    if (!operatorChat) {
+      return res.status(403).json({ error: 'Access denied to this session' });
+    }
+    
+    // Get messages since timestamp
+    const messages = await prisma.message.findMany({
+      where: {
+        sessionId,
+        timestamp: { gte: since }
+      },
+      orderBy: { timestamp: 'asc' },
+      take: 100 // Limit to prevent overload
+    });
+    
+    res.success({
+      messages,
+      sessionId,
+      count: messages.length
+    });
+    
+  } catch (error) {
+    console.error('❌ Get messages error:', error);
+    res.error('Failed to fetch messages', 'MESSAGES_FETCH_ERROR');
+  }
+});
 
 export default router;
