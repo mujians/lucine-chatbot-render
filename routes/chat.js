@@ -468,6 +468,8 @@ router.get('/poll/:sessionId', async (req, res) => {
   try {
     const { sessionId } = req.params;
     const { lastMessageTime } = req.query;
+    
+    console.log(`📨 User polling for messages - Session: ${sessionId}, LastMessageTime: ${lastMessageTime}`);
 
     const whereClause = {
       sessionId,
@@ -485,6 +487,8 @@ router.get('/poll/:sessionId', async (req, res) => {
       where: whereClause,
       orderBy: { timestamp: 'asc' }
     });
+
+    console.log(`📨 Found ${newMessages.length} new operator messages for session ${sessionId}`);
 
     // Get current session status
     const session = await prisma.chatSession.findUnique({

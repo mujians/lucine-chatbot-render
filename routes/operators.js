@@ -517,6 +517,11 @@ router.post('/send-message', authenticateToken, validateSession, async (req, res
       data: { lastActivity: new Date() }
     });
 
+    console.log(`✅ Operator message saved to DB for session ${sessionId}: "${sanitizedMessage}"`);
+    
+    // TODO: Add user notification system here if needed
+    // For now, user should receive message via polling on their chat endpoint
+
     res.json({
       success: true,
       message: {
