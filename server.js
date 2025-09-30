@@ -36,6 +36,9 @@ import { healthService } from './services/health-service.js';
 import { queueService } from './services/queue-service.js';
 import { slaService } from './services/sla-service.js';
 
+// Database migration script
+import { ensureTables } from './scripts/ensure-tables.js';
+
 
 // Load environment variables
 dotenv.config();
@@ -259,6 +262,10 @@ async function startServer() {
     // Test database connection
     await prisma.$connect();
     console.log('✅ Database connected');
+    
+    // Ensure all required tables exist
+    await ensureTables();
+    console.log('✅ Database tables verified');
     
     // Initialize services after database is ready
     await healthService.init(prisma);

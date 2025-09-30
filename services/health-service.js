@@ -134,8 +134,17 @@ class HealthService {
      */
     getMemoryMetrics() {
         const usage = process.memoryUsage();
-        const totalMem = process.platform === 'linux' ? 
-            require('os').totalmem() : 2 * 1024 * 1024 * 1024; // Fallback 2GB
+        // Fallback a 2GB se non possiamo ottenere il totale della memoria
+        let totalMem = 2 * 1024 * 1024 * 1024; // 2GB default
+        
+        try {
+            if (process.platform === 'linux') {
+                // Per Linux/Render, usiamo un calcolo approssimativo basato su RSS
+                totalMem = usage.rss * 4; // Stima conservativa
+            }
+        } catch (error) {
+            // Usa il fallback
+        }
         
         return {
             heapUsed: Math.round(usage.heapUsed / 1024 / 1024), // MB
