@@ -242,8 +242,8 @@ ORARI E DATE - Fornisci sempre informazioni complete:
 
 2. INFORMAZIONE MANCANTE - Solo se non hai l'informazione nella knowledge base:
    - NON dare mai contatti diretti (email/WhatsApp)
-   - SEMPRE suggerisci operatore con: actions: ["richiesta_operatore"], escalation: "operator"
-   - Messaggio: "Non ho informazioni specifiche. Vuoi parlare con un operatore?"
+   - USA escape_routes.operator_confirmation per mostrare pulsanti di conferma
+   - Includi SEMPRE smartActions per SÌ/NO: reply: knowledge.escape_routes.operator_confirmation.message, smartActions: knowledge.escape_routes.operator_confirmation.smartActions
 
 3. DETTAGLI COMPLETI - Fornisci sempre informazioni complete e specifiche quando disponibili.
 
