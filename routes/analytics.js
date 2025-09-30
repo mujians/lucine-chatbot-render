@@ -1,15 +1,15 @@
 import express from 'express';
 import { prisma } from '../server.js';
+import { StatusCodes, ErrorCodes } from '../utils/api-response.js';
 
 const router = express.Router();
 
 // Simple test endpoint
 router.get('/test', (req, res) => {
-  res.json({ 
-    status: 'ok', 
-    message: 'Analytics endpoint working',
-    timestamp: new Date().toISOString() 
-  });
+  res.success(
+    { status: 'ok' }, 
+    'Analytics endpoint working'
+  );
 });
 
 // Simplified dashboard stats
@@ -44,7 +44,7 @@ router.get('/dashboard', async (req, res) => {
 
     console.log('✅ Simplified analytics queries successful');
 
-    res.json({
+    res.success({
       summary: {
         totalChats,
         activeChats,
@@ -67,17 +67,16 @@ router.get('/dashboard', async (req, res) => {
         { status: 'ACTIVE', count: activeChats, label: 'Attive' },
         { status: 'ENDED', count: endedChats, label: 'Terminate' },
         { status: 'WITH_OPERATOR', count: operatorChats, label: 'Con Operatore' }
-      ],
-      timestamp: new Date().toISOString()
-    });
+      ]
+    }, 'Dashboard analytics loaded successfully');
 
   } catch (error) {
     console.error('❌ Simplified analytics error:', error);
-    res.status(500).json({ 
-      error: 'Failed to fetch analytics',
-      details: error.message,
-      timestamp: new Date().toISOString()
-    });
+    res.error(
+      'Failed to fetch analytics',
+      ErrorCodes.INTERNAL_ERROR,
+      StatusCodes.INTERNAL_SERVER_ERROR
+    );
   }
 });
 

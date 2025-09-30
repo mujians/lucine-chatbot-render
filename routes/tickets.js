@@ -1,5 +1,6 @@
 import express from 'express';
 import { prisma } from '../server.js';
+import { StatusCodes, ErrorCodes } from '../utils/api-response.js';
 
 const router = express.Router();
 
@@ -17,15 +18,11 @@ router.post('/', async (req, res) => {
 
     // Validazione input
     if (!description && !subject) {
-      return res.status(400).json({ 
-        error: 'Richiedo almeno subject o description' 
-      });
+      return res.validationError(['Richiedo almeno subject o description']);
     }
 
     if (!userEmail && !userPhone) {
-      return res.status(400).json({ 
-        error: 'Richiedo almeno email o telefono per il contatto' 
-      });
+      return res.validationError(['Richiedo almeno email o telefono per il contatto']);
     }
 
     console.log('🎫 Creating ticket with data:', {
@@ -64,12 +61,10 @@ router.post('/', async (req, res) => {
       }
     });
 
-    res.json({
-      success: true,
+    res.success({
       ticketId: ticket.id,
-      ticketNumber: ticket.ticketNumber,
-      message: `Ticket #${ticket.ticketNumber} creato. Ti contatteremo presto!`
-    });
+      ticketNumber: ticket.ticketNumber
+    }, `Ticket #${ticket.ticketNumber} creato. Ti contatteremo presto!`);
 
   } catch (error) {
     console.error('❌ Ticket creation error:', {
@@ -80,21 +75,26 @@ router.post('/', async (req, res) => {
     
     // Controllo errori specifici
     if (error.code === 'P2002') {
-      return res.status(400).json({ 
-        error: 'Ticket già esistente per questa sessione' 
-      });
+      return res.error(
+        'Ticket già esistente per questa sessione',
+        ErrorCodes.DUPLICATE_RESOURCE,
+        StatusCodes.CONFLICT
+      );
     }
     
     if (error.code === 'P2003') {
-      return res.status(400).json({ 
-        error: 'SessionId non valido o non esistente' 
-      });
+      return res.error(
+        'SessionId non valido o non esistente',
+        ErrorCodes.NOT_FOUND,
+        StatusCodes.BAD_REQUEST
+      );
     }
     
-    res.status(500).json({ 
-      error: 'Failed to create ticket',
-      details: process.env.NODE_ENV === 'development' ? error.message : undefined
-    });
+    res.error(
+      'Failed to create ticket',
+      ErrorCodes.INTERNAL_ERROR,
+      StatusCodes.INTERNAL_SERVER_ERROR
+    );
   }
 });
 

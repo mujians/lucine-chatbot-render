@@ -24,6 +24,8 @@ model ChatSession {
   
   @@index([status, lastActivity])
   @@index([sessionId])
+  @@index([status])
+  @@index([lastActivity])
 }
 
 // Messaggi chat
@@ -31,7 +33,7 @@ model Message {
   id          String    @id @default(uuid())
   sessionId   String
   sender      SenderType
-  message     String    @db.Text
+  message     String
   metadata    Json?     // Per salvare actions, escalation, etc
   timestamp   DateTime  @default(now())
   
@@ -57,7 +59,7 @@ model Ticket {
   
   // Content
   subject       String
-  description   String    @db.Text
+  description   String
   
   // Timestamps
   createdAt     DateTime  @default(now())
@@ -79,7 +81,7 @@ model Ticket {
 model TicketNote {
   id        String   @id @default(uuid())
   ticketId  String
-  note      String   @db.Text
+  note      String
   isPublic  Boolean  @default(false)
   createdBy String?
   createdAt DateTime @default(now())
@@ -109,6 +111,9 @@ model Operator {
   chats         OperatorChat[]
   
   @@index([isOnline, isActive])
+  @@index([username])
+  @@index([isActive])
+  @@index([lastSeen])
 }
 
 // Chat live operatore
@@ -119,7 +124,7 @@ model OperatorChat {
   startedAt   DateTime  @default(now())
   endedAt     DateTime?
   rating      Int?      // 1-5 stelle
-  notes       String?   @db.Text
+  notes       String?
   
   // Relations
   session     ChatSession @relation(fields: [sessionId], references: [sessionId])
@@ -127,6 +132,8 @@ model OperatorChat {
   
   @@index([sessionId, operatorId])
   @@index([startedAt])
+  @@index([operatorId])
+  @@index([endedAt])
 }
 
 // Analytics
@@ -150,8 +157,8 @@ model Analytics {
 model KnowledgeItem {
   id          String    @id @default(uuid())
   category    String
-  question    String    @db.Text
-  answer      String    @db.Text
+  question    String
+  answer      String
   keywords    String[]
   isActive    Boolean   @default(true)
   views       Int       @default(0)

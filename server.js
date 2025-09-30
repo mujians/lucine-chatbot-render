@@ -14,10 +14,7 @@ import chatRouter from './routes/chat.js';
 import operatorRouter from './routes/operators.js';
 import ticketRouter from './routes/tickets.js';
 import analyticsRouter from './routes/analytics.js';
-import adminRouter from './routes/admin.js';
 
-// Utils
-import { initializeDatabase } from './utils/db-init.js';
 
 // Security & Monitoring Middleware
 import { 
@@ -30,13 +27,9 @@ import {
   detectSuspiciousActivity
 } from './middleware/security.js';
 
-import {
-  responseTimeMonitor,
-  errorTracker,
-  getHealthData,
-  getDebugInfo,
-  dbQueryMonitor
-} from './middleware/monitoring.js';
+// API Response Standardization
+import { standardizeResponse } from './utils/api-response.js';
+
 
 // Load environment variables
 dotenv.config();
@@ -130,7 +123,6 @@ export function notifyOperators(message, targetOperatorId = null) {
 // Security & Monitoring Middleware
 app.use(securityHeaders);
 app.use(securityLogger);
-app.use(responseTimeMonitor);
 app.use(detectSuspiciousActivity);
 app.use(sanitizeInput);
 
@@ -141,6 +133,9 @@ app.use(helmet({
 app.use(morgan('combined'));
 app.use(express.json({ limit: '1mb' })); // Reduced from 10mb - security improvement
 app.use(express.urlencoded({ extended: true, limit: '1mb' }));
+
+// Standardized API responses
+app.use(standardizeResponse);
 
 // Apply security middleware
 app.use(sanitizeInput);
@@ -211,7 +206,6 @@ app.use('/api/chat', chatLimiter, chatRouter);
 app.use('/api/operators', apiLimiter, operatorRouter);
 app.use('/api/tickets', apiLimiter, ticketRouter);
 app.use('/api/analytics', apiLimiter, analyticsRouter);
-app.use('/api/admin', loginLimiter, adminRouter);
 
 // Static dashboard - simplified configuration
 app.use('/dashboard', express.static('public/dashboard'));
@@ -240,7 +234,6 @@ app.get('/dashboard/css/dashboard.css', (req, res) => {
 });
 
 // Error handling middleware with comprehensive tracking
-app.use(errorTracker);
 
 // 404 handler
 app.use((req, res) => {
@@ -258,11 +251,9 @@ async function startServer() {
     console.log('✅ Database connected');
     
     // Initialize database monitoring
-    dbQueryMonitor(prisma);
     console.log('✅ Database monitoring initialized');
     
-    // Initialize database tables if needed
-    await initializeDatabase();
+    // Database ready for use
     
     server.listen(PORT, '0.0.0.0', () => {
       console.log(`🚀 Server running on port ${PORT}`);

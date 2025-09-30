@@ -2,6 +2,7 @@ import express from 'express';
 import OpenAI from 'openai';
 import { prisma, notifyOperators } from '../server.js';
 import { loadKnowledgeBase } from '../utils/knowledge.js';
+import { businessLogic } from '../services/business-logic.js';
 
 const router = express.Router();
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
