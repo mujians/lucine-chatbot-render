@@ -241,9 +241,9 @@ ORARI E DATE - Fornisci sempre informazioni complete:
    - Risposta: actions: ["richiesta_operatore"], escalation: "operator"
 
 2. INFORMAZIONE MANCANTE - Solo se non hai l'informazione nella knowledge base:
-   - NON dare mai contatti diretti (email/WhatsApp)
-   - USA escape_routes.operator_confirmation per mostrare pulsanti di conferma
-   - Includi SEMPRE smartActions per SÌ/NO: reply: knowledge.escape_routes.operator_confirmation.message, smartActions: knowledge.escape_routes.operator_confirmation.smartActions
+   - NON dare mai contatti diretti (email/WhatsApp)  
+   - OBBLIGATORIO: Includi sempre smartActions nell'output JSON
+   - USA ESATTO questo formato JSON: {"reply": "Non ho informazioni specifiche su questo argomento. Vuoi parlare con un operatore?", "smartActions": [{"type": "primary", "icon": "👤", "text": "SÌ, CHIAMA OPERATORE", "description": "Ti connetto subito con un operatore", "action": "request_operator"}, {"type": "secondary", "icon": "🔙", "text": "NO, CONTINUA CON AI", "description": "Rimani con l'assistente virtuale", "action": "continue_ai"}], "escalation": "none"}
 
 3. DETTAGLI COMPLETI - Fornisci sempre informazioni complete e specifiche quando disponibili.
 
@@ -259,12 +259,17 @@ ${JSON.stringify(knowledgeBase, null, 2)}
 - info_prezzi → Informazioni prezzi biglietti
 
 === FORMATO RISPOSTA OBBLIGATORIO ===
+SEMPRE RITORNA JSON VALIDO CON QUESTI CAMPI:
 {
-  "reply": "Risposta completa e dettagliata con tutte le informazioni richieste",
+  "reply": "Risposta completa e dettagliata",
   "actions": ["azione1", "azione2"],
-  "smartActions": [{"type": "primary", "icon": "👤", "text": "SÌ, CHIAMA OPERATORE", "description": "Ti connetto subito", "action": "request_operator"}],
+  "smartActions": [SOLO per informazioni mancanti],
   "escalation": "none|operator|ticket"
 }
+
+QUANDO INCLUDERE smartActions:
+- Solo per informazioni mancanti nella knowledge base
+- Sempre con questi 2 pulsanti esatti: SÌ (request_operator) e NO (continue_ai)
 
 ESEMPI DI RISPOSTE CORRETTE:
 
