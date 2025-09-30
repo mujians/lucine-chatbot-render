@@ -3,6 +3,7 @@ import OpenAI from 'openai';
 import { prisma, notifyOperators } from '../server.js';
 import { loadKnowledgeBase } from '../utils/knowledge.js';
 import { businessLogic } from '../services/business-logic.js';
+import { timeoutService } from '../services/timeout-service.js';
 
 const router = express.Router();
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
@@ -189,6 +190,16 @@ router.post('/', async (req, res) => {
         data: { lastActivity: new Date() }
       })
     ]);
+
+    // Check if session is in timeout - riattiva se necessario
+    if (session.status === 'WAITING_CLIENT') {
+      const reactivated = await timeoutService.reactivateChat(session.sessionId);
+      if (reactivated) {
+        console.log(`🔄 Chat ${session.sessionId} riattivata da WAITING_CLIENT`);
+        // Aggiorna session object per continuare il flusso
+        session.status = session.operatorChats.length > 0 ? 'WITH_OPERATOR' : 'ACTIVE';
+      }
+    }
 
     // Check if in live chat with operator
     if (session.status === 'WITH_OPERATOR' && session.operatorChats.length > 0) {

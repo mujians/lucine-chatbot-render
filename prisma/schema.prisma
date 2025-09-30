@@ -22,6 +22,7 @@ model ChatSession {
   tickets       Ticket[]
   operatorChats OperatorChat[]
   queueEntries  QueueEntry[]
+  internalNotes InternalNote[]
   
   @@index([status, lastActivity])
   @@index([sessionId])
@@ -111,6 +112,7 @@ model Operator {
   tickets       Ticket[]
   chats         OperatorChat[]
   queueEntries  QueueEntry[]
+  internalNotes InternalNote[]
   
   @@index([isOnline, isActive])
   @@index([username])
@@ -198,12 +200,34 @@ model KnowledgeItem {
   @@index([keywords])
 }
 
+model InternalNote {
+  id          String   @id @default(uuid())
+  content     String
+  operatorId  String
+  sessionId   String
+  
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  // Relations  
+  operator    Operator      @relation(fields: [operatorId], references: [id])
+  session     ChatSession   @relation(fields: [sessionId], references: [sessionId])
+  
+  @@index([sessionId])
+  @@index([operatorId])
+  @@index([createdAt])
+}
+
 // Enums
 enum SessionStatus {
   ACTIVE
-  IDLE
+  IDLE  
   ENDED
   WITH_OPERATOR
+  RESOLVED
+  NOT_RESOLVED
+  WAITING_CLIENT
+  CANCELLED
 }
 
 enum SenderType {

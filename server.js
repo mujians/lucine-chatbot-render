@@ -15,6 +15,7 @@ import operatorRouter from './routes/operators.js';
 import ticketRouter from './routes/tickets.js';
 import analyticsRouter from './routes/analytics.js';
 import healthRouter from './routes/health.js';
+import chatManagementRouter from './routes/chat-management.js';
 
 
 // Security & Monitoring Middleware
@@ -39,6 +40,9 @@ import { slaService } from './services/sla-service.js';
 
 // Database migration script
 import { ensureTables } from './scripts/ensure-tables.js';
+
+// Services
+import { timeoutService } from './services/timeout-service.js';
 
 
 // Load environment variables
@@ -220,6 +224,7 @@ app.use('/api/operators', apiLimiter, operatorRouter);
 app.use('/api/tickets', apiLimiter, ticketRouter);
 app.use('/api/analytics', apiLimiter, analyticsRouter);
 app.use('/api/health', apiLimiter, healthRouter);
+app.use('/api/chat-management', apiLimiter, chatManagementRouter);
 
 // Static dashboard - simplified configuration
 app.use('/dashboard', express.static('public/dashboard'));
@@ -280,6 +285,10 @@ async function startServer() {
     
     await slaService.init(prisma);
     console.log('✅ SLA service initialized');
+    
+    // Start timeout service
+    timeoutService.start();
+    console.log('✅ Timeout service started');
     
     console.log('✅ All services initialized');
     
