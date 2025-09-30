@@ -62,18 +62,17 @@ async function ensureTables() {
                 WHEN duplicate_object THEN null;
             END $$;`;
 
-        // Crea gli indici se non esistono
-        const createIndices = `
-            CREATE INDEX IF NOT EXISTS "QueueEntry_status_priority_enteredAt_idx" ON "QueueEntry"("status", "priority", "enteredAt");
-            CREATE INDEX IF NOT EXISTS "QueueEntry_enteredAt_idx" ON "QueueEntry"("enteredAt");
-            CREATE INDEX IF NOT EXISTS "QueueEntry_assignedTo_idx" ON "QueueEntry"("assignedTo");
-            
-            CREATE INDEX IF NOT EXISTS "SLARecord_entityId_entityType_idx" ON "SLARecord"("entityId", "entityType");
-            CREATE INDEX IF NOT EXISTS "SLARecord_status_responseDeadline_idx" ON "SLARecord"("status", "responseDeadline");
-            CREATE INDEX IF NOT EXISTS "SLARecord_status_resolutionDeadline_idx" ON "SLARecord"("status", "resolutionDeadline");
-        `;
+        // Array di query per gli indici (una per volta)
+        const indexQueries = [
+            `CREATE INDEX IF NOT EXISTS "QueueEntry_status_priority_enteredAt_idx" ON "QueueEntry"("status", "priority", "enteredAt");`,
+            `CREATE INDEX IF NOT EXISTS "QueueEntry_enteredAt_idx" ON "QueueEntry"("enteredAt");`,
+            `CREATE INDEX IF NOT EXISTS "QueueEntry_assignedTo_idx" ON "QueueEntry"("assignedTo");`,
+            `CREATE INDEX IF NOT EXISTS "SLARecord_entityId_entityType_idx" ON "SLARecord"("entityId", "entityType");`,
+            `CREATE INDEX IF NOT EXISTS "SLARecord_status_responseDeadline_idx" ON "SLARecord"("status", "responseDeadline");`,
+            `CREATE INDEX IF NOT EXISTS "SLARecord_status_resolutionDeadline_idx" ON "SLARecord"("status", "resolutionDeadline");`
+        ];
 
-        // Esegui le query
+        // Esegui le query una per volta
         await prisma.$executeRawUnsafe(createQueueStatusEnum);
         console.log('✅ QueueStatus enum created/verified');
 
@@ -86,7 +85,10 @@ async function ensureTables() {
         await prisma.$executeRawUnsafe(createSLARecordTable);
         console.log('✅ SLARecord table created/verified');
 
-        await prisma.$executeRawUnsafe(createIndices);
+        // Crea gli indici uno per volta
+        for (const indexQuery of indexQueries) {
+            await prisma.$executeRawUnsafe(indexQuery);
+        }
         console.log('✅ Database indices created/verified');
 
         console.log('🎉 All database tables are ready!');
