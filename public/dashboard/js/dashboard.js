@@ -399,8 +399,11 @@ class DashboardApp {
                 throw new Error(`Analytics API failed: ${response.status}`);
             }
             
-            const data = await response.json();
-            console.log('✅ Analytics data loaded:', data);
+            const response_data = await response.json();
+            console.log('✅ Analytics data loaded:', response_data);
+            
+            // Extract data from API response wrapper
+            const data = response_data.data || response_data;
             
             // Update metric cards with real data (safe DOM access)
             const setElementText = (id, value) => {
@@ -408,15 +411,15 @@ class DashboardApp {
                 if (el) el.textContent = value;
             };
             
-            setElementText('metric-active-chats', data.summary.activeChats || 0);
-            setElementText('metric-operator-chats', data.summary.operatorChats || 0);
-            setElementText('metric-open-tickets', data.summary.openTickets || 0);
-            setElementText('metric-total-messages', data.summary.totalMessages || 0);
+            setElementText('metric-active-chats', data.summary?.activeChats || 0);
+            setElementText('metric-operator-chats', data.summary?.operatorChats || 0);
+            setElementText('metric-open-tickets', data.summary?.openTickets || 0);
+            setElementText('metric-total-messages', data.summary?.totalMessages || 0);
             
             // Format average session duration (only if element exists)
             const avgResponseEl = document.getElementById('avg-response');
             if (avgResponseEl) {
-                const avgDuration = data.summary.avgSessionDuration;
+                const avgDuration = data.summary?.avgSessionDuration;
                 const avgResponse = avgDuration > 0 ? `${avgDuration} min` : '--';
                 avgResponseEl.textContent = avgResponse;
             }
@@ -424,15 +427,15 @@ class DashboardApp {
             // Format satisfaction rating (only if element exists)
             const satisfactionEl = document.getElementById('satisfaction');
             if (satisfactionEl) {
-                const satisfaction = data.summary.satisfaction;
+                const satisfaction = data.summary?.satisfaction;
                 const satisfactionText = satisfaction ? `${satisfaction}/5` : '--';
                 satisfactionEl.textContent = satisfactionText;
             }
             
             // Update navigation badges
-            setElementText('pending-chats', data.summary.activeChats || 0);
-            setElementText('total-sessions', data.summary.totalChats || 0);
-            setElementText('open-tickets', data.summary.openTickets || 0);
+            setElementText('pending-chats', data.summary?.activeChats || 0);
+            setElementText('total-sessions', data.summary?.totalChats || 0);
+            setElementText('open-tickets', data.summary?.openTickets || 0);
             
             // Render recent activity from real data
             this.renderRecentActivity(data.recentActivity || []);
