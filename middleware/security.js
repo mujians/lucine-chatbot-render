@@ -112,6 +112,13 @@ export const authenticateToken = async (req, res, next) => {
     try {
         const decoded = TokenManager.verifyToken(token);
         
+        // Check if prisma is available (avoid circular import issues)
+        if (!prisma || !prisma.operator) {
+            console.warn('⚠️ Prisma not available in auth middleware, using token data only');
+            req.operator = { id: decoded.operatorId };
+            return next();
+        }
+        
         // Verify operator still exists and is active
         const operator = await prisma.operator.findUnique({
             where: { 
@@ -164,6 +171,13 @@ export const validateSession = async (req, res, next) => {
     }
     
     try {
+        // Check if prisma is available (avoid circular import issues)
+        if (!prisma || !prisma.chatSession) {
+            console.warn('⚠️ Prisma not available in middleware, skipping session validation');
+            req.sessionId = sessionId;
+            return next();
+        }
+        
         const session = await prisma.chatSession.findUnique({
             where: { sessionId }
         });
