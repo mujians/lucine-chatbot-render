@@ -17,11 +17,35 @@ router.post('/login', loginLimiter, async (req, res) => {
   try {
     const { username, password } = req.body;
     
-    // Secure login with environment variable
-    if (username === 'admin' && password === process.env.ADMIN_PASSWORD) {
-      // Trova o crea operatore admin (con solo i campi che esistono)
-      let operator = await prisma.operator.findUnique({
-        where: { username: 'admin' },
+    // Find operator first
+    const operator = await prisma.operator.findUnique({
+      where: { username },
+      select: {
+        id: true,
+        username: true,
+        email: true,
+        name: true,
+        passwordHash: true,
+        isActive: true,
+        isOnline: true,
+        lastSeen: true,
+        createdAt: true
+      }
+    });
+
+    // If operator doesn't exist and it's admin, create it
+    if (!operator && username === 'admin') {
+      const hashedPassword = await TokenManager.hashPassword(process.env.ADMIN_PASSWORD || 'admin123');
+      
+      const newOperator = await prisma.operator.create({
+        data: {
+          username: 'admin',
+          email: 'supporto@lucinedinatale.it',
+          name: 'Lucy - Assistente Specializzato',
+          passwordHash: hashedPassword,
+          isActive: true,
+          isOnline: true
+        },
         select: {
           id: true,
           username: true,
@@ -35,41 +59,50 @@ router.post('/login', loginLimiter, async (req, res) => {
         }
       });
 
-      if (!operator) {
-        operator = await prisma.operator.create({
-          data: {
-            username: 'admin',
-            email: 'supporto@lucinedinatale.it',
-            name: 'Lucy - Assistente Specializzato',
-            passwordHash: 'demo', // In produzione usare bcrypt
-            isActive: true,
-            isOnline: true
-          },
-          select: {
-            id: true,
-            username: true,
-            email: true,
-            name: true,
-            passwordHash: true,
-            isActive: true,
-            isOnline: true,
-            lastSeen: true,
-            createdAt: true
-          }
-        });
-      } else {
-        // Update online status and activate
-        await prisma.operator.update({
-          where: { id: operator.id },
-          data: { 
-            isOnline: true,
-            isActive: true
-          },
-          select: {
-            id: true
-          }
-        });
-      }
+      // Generate JWT token for new operator
+      const token = TokenManager.generateToken({
+        operatorId: newOperator.id,
+        username: newOperator.username,
+        name: newOperator.name
+      });
+
+      res.json({
+        success: true,
+        token,
+        operator: {
+          id: newOperator.id,
+          username: newOperator.username,
+          name: newOperator.name,
+          avatar: '👤',
+          email: newOperator.email,
+          isOnline: true,
+          isActive: true
+        },
+        message: 'Admin account created and logged in'
+      });
+      return;
+    }
+
+    // Verify operator exists and is active
+    if (!operator || !operator.isActive) {
+      return res.status(401).json({ 
+        success: false,
+        message: 'Operatore non trovato o disattivato' 
+      });
+    }
+
+    // Verify password with bcrypt
+    const isValidPassword = await TokenManager.verifyPassword(password, operator.passwordHash);
+    
+    if (isValidPassword) {
+      // Update online status
+      await prisma.operator.update({
+        where: { id: operator.id },
+        data: { 
+          isOnline: true,
+          lastSeen: new Date()
+        }
+      });
 
       // Generate JWT token
       const token = TokenManager.generateToken({

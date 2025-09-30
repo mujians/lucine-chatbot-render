@@ -98,6 +98,109 @@ router.post('/', async (req, res) => {
   }
 });
 
+// Riapri chat da ticket
+router.post('/:ticketNumber/reopen-chat', async (req, res) => {
+  try {
+    const { ticketNumber } = req.params;
+    const { operatorId } = req.body;
+
+    // Trova ticket
+    const ticket = await prisma.ticket.findUnique({
+      where: { ticketNumber },
+      include: { session: true }
+    });
+
+    if (!ticket) {
+      return res.status(404).json({ error: 'Ticket not found' });
+    }
+
+    if (!ticket.sessionId) {
+      return res.status(400).json({ error: 'Ticket non collegato a una sessione chat' });
+    }
+
+    // Verifica che operatore esista
+    const operator = await prisma.operator.findUnique({
+      where: { id: operatorId, isActive: true }
+    });
+
+    if (!operator) {
+      return res.status(404).json({ error: 'Operator not found' });
+    }
+
+    // Riattiva sessione se terminata
+    if (ticket.session.status === 'ENDED') {
+      await prisma.chatSession.update({
+        where: { sessionId: ticket.sessionId },
+        data: { 
+          status: 'WITH_OPERATOR',
+          lastActivity: new Date()
+        }
+      });
+    }
+
+    // Crea nuovo OperatorChat se non esiste
+    const existingChat = await prisma.operatorChat.findFirst({
+      where: {
+        sessionId: ticket.sessionId,
+        endedAt: null
+      }
+    });
+
+    let operatorChat;
+    if (!existingChat) {
+      operatorChat = await prisma.operatorChat.create({
+        data: {
+          sessionId: ticket.sessionId,
+          operatorId
+        }
+      });
+    } else {
+      operatorChat = existingChat;
+    }
+
+    // Aggiorna ticket status
+    await prisma.ticket.update({
+      where: { id: ticket.id },
+      data: { 
+        status: 'IN_PROGRESS',
+        operatorId: operatorId
+      }
+    });
+
+    // Messaggio di sistema per riapertura
+    await prisma.message.create({
+      data: {
+        sessionId: ticket.sessionId,
+        sender: 'SYSTEM',
+        message: `🔄 Chat riaperta da ticket #${ticketNumber}\n👤 ${operator.name} è ora disponibile per assisterti`
+      }
+    });
+
+    // Notifica operatore via WebSocket
+    if (global.operatorConnections && global.operatorConnections.has(operatorId)) {
+      const ws = global.operatorConnections.get(operatorId);
+      ws.send(JSON.stringify({
+        type: 'chat_reopened',
+        sessionId: ticket.sessionId,
+        ticketNumber: ticket.ticketNumber,
+        timestamp: new Date().toISOString()
+      }));
+    }
+
+    res.json({
+      success: true,
+      sessionId: ticket.sessionId,
+      operatorChatId: operatorChat.id,
+      message: 'Chat riaperta con successo',
+      chatUrl: `/operators/chat/${ticket.sessionId}`
+    });
+
+  } catch (error) {
+    console.error('❌ Reopen chat error:', error);
+    res.status(500).json({ error: 'Failed to reopen chat from ticket' });
+  }
+});
+
 // Get ticket status
 router.get('/:ticketNumber', async (req, res) => {
   try {

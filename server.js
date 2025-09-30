@@ -14,6 +14,7 @@ import chatRouter from './routes/chat.js';
 import operatorRouter from './routes/operators.js';
 import ticketRouter from './routes/tickets.js';
 import analyticsRouter from './routes/analytics.js';
+import healthRouter from './routes/health.js';
 
 
 // Security & Monitoring Middleware
@@ -29,6 +30,11 @@ import {
 
 // API Response Standardization
 import { standardizeResponse } from './utils/api-response.js';
+
+// Services
+import { healthService } from './services/health-service.js';
+import { queueService } from './services/queue-service.js';
+import { slaService } from './services/sla-service.js';
 
 
 // Load environment variables
@@ -51,6 +57,9 @@ const wss = new WebSocketServer({ server });
 
 // Store active connections by operatorId
 export const operatorConnections = new Map();
+
+// Make WebSocket connections available globally for services
+global.operatorConnections = operatorConnections;
 
 // WebSocket connection handling
 wss.on('connection', (ws, req) => {
@@ -206,6 +215,7 @@ app.use('/api/chat', chatLimiter, chatRouter);
 app.use('/api/operators', apiLimiter, operatorRouter);
 app.use('/api/tickets', apiLimiter, ticketRouter);
 app.use('/api/analytics', apiLimiter, analyticsRouter);
+app.use('/api/health', apiLimiter, healthRouter);
 
 // Static dashboard - simplified configuration
 app.use('/dashboard', express.static('public/dashboard'));
@@ -270,6 +280,24 @@ async function startServer() {
 // Graceful shutdown
 process.on('SIGTERM', async () => {
   console.log('SIGTERM received, shutting down gracefully');
+  
+  // Cleanup services
+  await healthService.cleanup();
+  await queueService.cleanup();
+  await slaService.cleanup();
+  
+  await prisma.$disconnect();
+  process.exit(0);
+});
+
+process.on('SIGINT', async () => {
+  console.log('SIGINT received, shutting down gracefully');
+  
+  // Cleanup services
+  await healthService.cleanup();
+  await queueService.cleanup();
+  await slaService.cleanup();
+  
   await prisma.$disconnect();
   process.exit(0);
 });

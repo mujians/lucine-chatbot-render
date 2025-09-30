@@ -6,6 +6,7 @@
 import rateLimit from 'express-rate-limit';
 import jwt from 'jsonwebtoken';
 import crypto from 'crypto';
+import bcrypt from 'bcrypt';
 import { prisma } from '../server.js';
 
 // Environment variables validation
@@ -36,15 +37,13 @@ export class TokenManager {
         return crypto.randomBytes(32).toString('hex');
     }
     
-    static hashPassword(password) {
-        const salt = crypto.randomBytes(16).toString('hex');
-        const hash = crypto.pbkdf2Sync(password, salt, 10000, 64, 'sha512').toString('hex');
-        return { salt, hash };
+    static async hashPassword(password) {
+        const saltRounds = 12;
+        return await bcrypt.hash(password, saltRounds);
     }
     
-    static verifyPassword(password, salt, hash) {
-        const hashVerify = crypto.pbkdf2Sync(password, salt, 10000, 64, 'sha512').toString('hex');
-        return hash === hashVerify;
+    static async verifyPassword(password, hash) {
+        return await bcrypt.compare(password, hash);
     }
 }
 

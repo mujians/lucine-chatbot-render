@@ -21,6 +21,7 @@ model ChatSession {
   messages      Message[]
   tickets       Ticket[]
   operatorChats OperatorChat[]
+  queueEntries  QueueEntry[]
   
   @@index([status, lastActivity])
   @@index([sessionId])
@@ -109,11 +110,37 @@ model Operator {
   // Relations
   tickets       Ticket[]
   chats         OperatorChat[]
+  queueEntries  QueueEntry[]
   
   @@index([isOnline, isActive])
   @@index([username])
   @@index([isActive])
   @@index([lastSeen])
+}
+
+// Gestione Coda
+model QueueEntry {
+  id                   String    @id @default(uuid())
+  sessionId            String    @unique
+  priority             Priority  @default(MEDIUM)
+  requiredSkills       String[]
+  status               QueueStatus @default(WAITING)
+  enteredAt            DateTime  @default(now())
+  assignedAt           DateTime?
+  cancelledAt          DateTime?
+  assignedTo           String?
+  cancelReason         String?
+  estimatedWaitTime    Int       // in minutes
+  slaWarningNotified   Boolean   @default(false)
+  slaViolationNotified Boolean   @default(false)
+  
+  // Relations
+  session              ChatSession @relation(fields: [sessionId], references: [sessionId])
+  operator             Operator?   @relation(fields: [assignedTo], references: [id])
+  
+  @@index([status, priority, enteredAt])
+  @@index([enteredAt])
+  @@index([assignedTo])
 }
 
 // Chat live operatore
@@ -206,4 +233,11 @@ enum ContactMethod {
   PHONE
   WHATSAPP
   CHAT
+}
+
+enum QueueStatus {
+  WAITING
+  ASSIGNED
+  CANCELLED
+  TIMEOUT
 }
