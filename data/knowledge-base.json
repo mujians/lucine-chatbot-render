@@ -177,10 +177,8 @@
   "escape_routes": {
     "no_answer": [
       "Mi dispiace, non ho informazioni specifiche su questo argomento.",
-      "Per questa domanda è meglio contattare direttamente:",
-      "📧 Email: info@lucinedinatale.it",
-      "📱 WhatsApp: https://wa.me/393123456789",
-      "Ti risponderanno nel minor tempo possibile!"
+      "Posso metterti in contatto con un operatore specializzato che saprà aiutarti meglio!",
+      "🔄 **Vuoi parlare con un operatore?**"
     ],
     "error": [
       "Si è verificato un problema tecnico.",

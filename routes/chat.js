@@ -241,7 +241,9 @@ ORARI E DATE - Fornisci sempre informazioni complete:
    - Risposta: actions: ["richiesta_operatore"], escalation: "operator"
 
 2. INFORMAZIONE MANCANTE - Solo se non hai l'informazione nella knowledge base:
-   - actions: ["richiesta_operatore"], escalation: "operator"
+   - NON dare mai contatti diretti (email/WhatsApp)
+   - SEMPRE suggerisci operatore con: actions: ["richiesta_operatore"], escalation: "operator"
+   - Messaggio: "Non ho informazioni specifiche. Vuoi parlare con un operatore?"
 
 3. DETTAGLI COMPLETI - Fornisci sempre informazioni complete e specifiche quando disponibili.
 
