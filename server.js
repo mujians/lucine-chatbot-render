@@ -260,8 +260,17 @@ async function startServer() {
     await prisma.$connect();
     console.log('✅ Database connected');
     
-    // Initialize database monitoring
-    console.log('✅ Database monitoring initialized');
+    // Initialize services after database is ready
+    await healthService.init(prisma);
+    console.log('✅ Health monitoring initialized');
+    
+    await queueService.init(prisma);
+    console.log('✅ Queue service initialized');
+    
+    await slaService.init(prisma);
+    console.log('✅ SLA service initialized');
+    
+    console.log('✅ All services initialized');
     
     // Database ready for use
     

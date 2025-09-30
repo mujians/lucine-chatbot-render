@@ -5,7 +5,7 @@
 
 import express from 'express';
 import { healthService } from '../services/health-service.js';
-import { authenticateOperator } from '../middleware/security.js';
+import { authenticateToken } from '../middleware/security.js';
 
 const router = express.Router();
 
@@ -41,7 +41,7 @@ router.get('/status', async (req, res) => {
 /**
  * 📈 Metriche dettagliate (requires auth)
  */
-router.get('/metrics', authenticateOperator, async (req, res) => {
+router.get('/metrics', authenticateToken, async (req, res) => {
     try {
         const minutes = parseInt(req.query.minutes) || 60;
         const metricsHistory = healthService.getMetricsHistory(minutes);
@@ -62,7 +62,7 @@ router.get('/metrics', authenticateOperator, async (req, res) => {
 /**
  * 🚨 Alert attivi
  */
-router.get('/alerts', authenticateOperator, async (req, res) => {
+router.get('/alerts', authenticateToken, async (req, res) => {
     try {
         const healthStatus = healthService.getHealthStatus();
         const allAlerts = Array.from(healthService.alerts.values())
@@ -87,7 +87,7 @@ router.get('/alerts', authenticateOperator, async (req, res) => {
 /**
  * 🔧 Configurazione thresholds (admin only)
  */
-router.get('/config', authenticateOperator, async (req, res) => {
+router.get('/config', authenticateToken, async (req, res) => {
     try {
         res.json({
             thresholds: healthService.thresholds,
@@ -106,7 +106,7 @@ router.get('/config', authenticateOperator, async (req, res) => {
 /**
  * 🔧 Aggiorna thresholds (admin only)
  */
-router.put('/config', authenticateOperator, async (req, res) => {
+router.put('/config', authenticateToken, async (req, res) => {
     try {
         const { thresholds } = req.body;
         
@@ -142,7 +142,7 @@ router.put('/config', authenticateOperator, async (req, res) => {
 /**
  * 🔄 Force metrics collection
  */
-router.post('/collect', authenticateOperator, async (req, res) => {
+router.post('/collect', authenticateToken, async (req, res) => {
     try {
         await healthService.collectSystemMetrics();
         const latestMetrics = healthService.getLatestMetrics();
@@ -161,7 +161,7 @@ router.post('/collect', authenticateOperator, async (req, res) => {
 /**
  * 🧪 Test health checks
  */
-router.post('/test', authenticateOperator, async (req, res) => {
+router.post('/test', authenticateToken, async (req, res) => {
     try {
         const start = Date.now();
         

@@ -425,7 +425,7 @@ Vuoi ricevere la nostra guida "50 idee luminose per Natale"?`,
         const escalationCriteria = {
             highUrgency: intentAnalysis.urgency === 'HIGH',
             lowConfidence: intentAnalysis.confidence < 0.3,
-            negativeS sentiment: intentAnalysis.sentiment === 'NEGATIVE',
+            negativeSentiment: intentAnalysis.sentiment === 'NEGATIVE',
             complexQuery: context.messageCount > 3 && !context.resolved,
             explicitRequest: /operator|umano|persona|aiuto/i.test(context.lastMessage),
             technicalIssue: intentAnalysis.intent === 'TECHNICAL_SUPPORT' && context.triedTroubleshooting

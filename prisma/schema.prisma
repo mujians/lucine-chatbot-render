@@ -241,3 +241,31 @@ enum QueueStatus {
   CANCELLED
   TIMEOUT
 }
+
+// SLA Records
+model SLARecord {
+  id               String   @id @default(uuid())
+  entityId         String
+  entityType       String
+  priority         Priority @default(MEDIUM)
+  createdAt        DateTime @default(now())
+  responseDeadline DateTime
+  resolutionDeadline DateTime
+  firstResponseAt  DateTime?
+  resolvedAt       DateTime?
+  status           SLAStatus @default(ACTIVE)
+  violatedAt       DateTime?
+  escalatedAt      DateTime?
+  
+  @@index([entityId, entityType])
+  @@index([status, responseDeadline])
+  @@index([status, resolutionDeadline])
+}
+
+enum SLAStatus {
+  ACTIVE
+  RESPONSE_MET
+  RESOLUTION_MET
+  VIOLATED
+  ESCALATED
+}

@@ -3,7 +3,7 @@
  * Gestisce Service Level Agreements e escalation automatica
  */
 
-import { prisma } from '../server.js';
+// Import dinamico di this.prisma verrà fatto al momento dell'inizializzazione
 import { twilioService } from './twilio-service.js';
 import { notifyOperators } from '../server.js';
 
@@ -25,11 +25,13 @@ class SLAService {
 
         this.monitoringInterval = null;
         this.escalationRules = this.loadEscalationRules();
+        this.prisma = null; // Verrà assegnato durante l'init
         
-        this.init();
+        // L'init sarà chiamato manualmente dopo che this.prisma è pronto
     }
 
-    async init() {
+    async init(prisma) {
+        this.prisma = prisma;
         // Avvia monitoring SLA
         this.startSLAMonitoring();
         
@@ -48,7 +50,7 @@ class SLAService {
             const responseDeadline = new Date(now.getTime() + this.slaThresholds.RESPONSE_TIME[priority]);
             const resolutionDeadline = new Date(now.getTime() + this.slaThresholds.RESOLUTION_TIME[priority]);
 
-            const sla = await prisma.sLARecord.create({
+            const sla = await this.prisma.sLARecord.create({
                 data: {
                     entityId,
                     entityType, // 'SESSION' | 'TICKET'
@@ -81,7 +83,7 @@ class SLAService {
      */
     async markFirstResponse(entityId, entityType, operatorId) {
         try {
-            const sla = await prisma.sLARecord.findFirst({
+            const sla = await this.prisma.sLARecord.findFirst({
                 where: {
                     entityId,
                     entityType,
@@ -95,7 +97,7 @@ class SLAService {
             const responseTime = now - sla.createdAt;
             const wasOnTime = now <= sla.responseDeadline;
 
-            await prisma.sLARecord.update({
+            await this.prisma.sLARecord.update({
                 where: { id: sla.id },
                 data: {
                     firstResponseAt: now,
@@ -132,7 +134,7 @@ class SLAService {
      */
     async markResolved(entityId, entityType, operatorId, resolutionType = 'RESOLVED') {
         try {
-            const sla = await prisma.sLARecord.findFirst({
+            const sla = await this.prisma.sLARecord.findFirst({
                 where: {
                     entityId,
                     entityType,
@@ -146,7 +148,7 @@ class SLAService {
             const totalTime = now - sla.createdAt;
             const wasOnTime = now <= sla.resolutionDeadline;
 
-            await prisma.sLARecord.update({
+            await this.prisma.sLARecord.update({
                 where: { id: sla.id },
                 data: {
                     resolvedAt: now,
@@ -197,7 +199,7 @@ class SLAService {
             const now = new Date();
             
             // Check warning thresholds
-            const warningThresholdBreached = await prisma.sLARecord.findMany({
+            const warningThresholdBreached = await this.prisma.sLARecord.findMany({
                 where: {
                     status: 'ACTIVE',
                     warningThreshold: { lte: now },
@@ -207,14 +209,14 @@ class SLAService {
 
             for (const sla of warningThresholdBreached) {
                 await this.sendSLAWarning(sla);
-                await prisma.sLARecord.update({
+                await this.prisma.sLARecord.update({
                     where: { id: sla.id },
                     data: { warningNotified: true }
                 });
             }
 
             // Check response deadline violations
-            const responseViolations = await prisma.sLARecord.findMany({
+            const responseViolations = await this.prisma.sLARecord.findMany({
                 where: {
                     status: 'ACTIVE',
                     responseDeadline: { lte: now },
@@ -225,14 +227,14 @@ class SLAService {
 
             for (const sla of responseViolations) {
                 await this.handleResponseSLAViolation(sla);
-                await prisma.sLARecord.update({
+                await this.prisma.sLARecord.update({
                     where: { id: sla.id },
                     data: { responseViolationNotified: true }
                 });
             }
 
             // Check resolution deadline violations
-            const resolutionViolations = await prisma.sLARecord.findMany({
+            const resolutionViolations = await this.prisma.sLARecord.findMany({
                 where: {
                     status: 'ACTIVE',
                     resolutionDeadline: { lte: now },
@@ -243,7 +245,7 @@ class SLAService {
 
             for (const sla of resolutionViolations) {
                 await this.handleResolutionSLAViolation(sla);
-                await prisma.sLARecord.update({
+                await this.prisma.sLARecord.update({
                     where: { id: sla.id },
                     data: { resolutionViolationNotified: true }
                 });
@@ -262,7 +264,7 @@ class SLAService {
         const minutesRemaining = Math.round(timeRemaining / 60000);
 
         // Notifica operatori disponibili
-        const operators = await prisma.operator.findMany({
+        const operators = await this.prisma.operator.findMany({
             where: { isOnline: true, isActive: true }
         });
 
@@ -349,13 +351,13 @@ class SLAService {
         try {
             if (entityType === 'TICKET') {
                 // Upgrade priority del ticket
-                const ticket = await prisma.ticket.findUnique({
+                const ticket = await this.prisma.ticket.findUnique({
                     where: { id: entityId }
                 });
 
                 if (ticket) {
                     const newPriority = this.upgradePriority(ticket.priority);
-                    await prisma.ticket.update({
+                    await this.prisma.ticket.update({
                         where: { id: entityId },
                         data: { 
                             priority: newPriority,
@@ -385,7 +387,7 @@ class SLAService {
 
     async createEscalationTicket(sla, minutesLate) {
         try {
-            const ticket = await prisma.ticket.create({
+            const ticket = await this.prisma.ticket.create({
                 data: {
                     sessionId: sla.entityId,
                     subject: `🚨 ESCALATION SLA - Sessione ${sla.entityId.substr(-8)}`,
@@ -409,7 +411,7 @@ class SLAService {
      */
     async notifyManagement(violationType, sla, minutesLate) {
         // Trova manager/supervisori
-        const managers = await prisma.operator.findMany({
+        const managers = await this.prisma.operator.findMany({
             where: { 
                 role: { in: ['MANAGER', 'SUPERVISOR'] },
                 isActive: true 
@@ -446,7 +448,7 @@ class SLAService {
         const startDate = new Date();
         startDate.setDate(startDate.getDate() - days);
 
-        const slaRecords = await prisma.sLARecord.findMany({
+        const slaRecords = await this.prisma.sLARecord.findMany({
             where: {
                 createdAt: { gte: startDate },
                 status: 'COMPLETED'
@@ -514,7 +516,7 @@ class SLAService {
     }
 
     async loadExistingSLAs() {
-        const activeSLAs = await prisma.sLARecord.count({
+        const activeSLAs = await this.prisma.sLARecord.count({
             where: { status: 'ACTIVE' }
         });
         console.log(`📋 Found ${activeSLAs} active SLA records`);
@@ -529,7 +531,7 @@ class SLAService {
 
     async checkSpecificSLA(slaId) {
         // Check specifico per SLA singolo
-        const sla = await prisma.sLARecord.findUnique({
+        const sla = await this.prisma.sLARecord.findUnique({
             where: { id: slaId, status: 'ACTIVE' }
         });
 
@@ -540,7 +542,7 @@ class SLAService {
 
     async recordSLAEvent(eventType, slaId, eventData) {
         try {
-            await prisma.analytics.create({
+            await this.prisma.analytics.create({
                 data: {
                     eventType: `sla_${eventType}`,
                     eventData: {

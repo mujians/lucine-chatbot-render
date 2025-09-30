@@ -3,7 +3,7 @@
  * Sistema di coda persistente per gestione operatori
  */
 
-import { prisma } from '../server.js';
+// Import dinamico di this.prisma verrà fatto al momento dell'inizializzazione
 import { twilioService } from './twilio-service.js';
 
 class QueueService {
@@ -12,11 +12,13 @@ class QueueService {
         this.queueUpdateInterval = null;
         this.slaWarningThreshold = 15 * 60 * 1000; // 15 minuti
         this.slaViolationThreshold = 30 * 60 * 1000; // 30 minuti
+        this.prisma = null; // Verrà assegnato durante l'init
         
-        this.init();
+        // L'init sarà chiamato manualmente dopo che this.prisma è pronto
     }
 
-    async init() {
+    async init(prisma) {
+        this.prisma = prisma;
         // Carica code esistenti dal database al startup
         await this.loadQueuesFromDB();
         
@@ -31,7 +33,7 @@ class QueueService {
      */
     async addToQueue(sessionId, priority = 'MEDIUM', requiredSkills = []) {
         try {
-            const queueEntry = await prisma.queueEntry.create({
+            const queueEntry = await this.prisma.queueEntry.create({
                 data: {
                     sessionId,
                     priority,
@@ -79,7 +81,7 @@ class QueueService {
     async assignNextInQueue(operatorId, operatorSkills = []) {
         try {
             // Trova il prossimo in coda con priorità e skills matching
-            const nextEntry = await prisma.queueEntry.findFirst({
+            const nextEntry = await this.prisma.queueEntry.findFirst({
                 where: {
                     status: 'WAITING',
                     OR: [
@@ -98,7 +100,7 @@ class QueueService {
             }
 
             // Assegna a operatore
-            await prisma.queueEntry.update({
+            await this.prisma.queueEntry.update({
                 where: { id: nextEntry.id },
                 data: {
                     status: 'ASSIGNED',
@@ -108,7 +110,7 @@ class QueueService {
             });
 
             // Crea OperatorChat
-            const operatorChat = await prisma.operatorChat.create({
+            const operatorChat = await this.prisma.operatorChat.create({
                 data: {
                     sessionId: nextEntry.sessionId,
                     operatorId
@@ -116,7 +118,7 @@ class QueueService {
             });
 
             // Aggiorna sessione
-            await prisma.chatSession.update({
+            await this.prisma.chatSession.update({
                 where: { sessionId: nextEntry.sessionId },
                 data: { status: 'WITH_OPERATOR' }
             });
@@ -155,13 +157,13 @@ class QueueService {
      * 📊 Ottieni posizione in coda per sessione
      */
     async getQueuePosition(sessionId) {
-        const entry = await prisma.queueEntry.findFirst({
+        const entry = await this.prisma.queueEntry.findFirst({
             where: { sessionId, status: 'WAITING' }
         });
 
         if (!entry) return null;
 
-        const position = await prisma.queueEntry.count({
+        const position = await this.prisma.queueEntry.count({
             where: {
                 status: 'WAITING',
                 OR: [
@@ -182,7 +184,7 @@ class QueueService {
      */
     async calculateEstimatedWait(priority) {
         // Trova operatori online
-        const onlineOperators = await prisma.operator.count({
+        const onlineOperators = await this.prisma.operator.count({
             where: { isOnline: true, isActive: true }
         });
 
@@ -191,7 +193,7 @@ class QueueService {
         }
 
         // Conta code per priorità
-        const queueCounts = await prisma.queueEntry.groupBy({
+        const queueCounts = await this.prisma.queueEntry.groupBy({
             by: ['priority'],
             where: { status: 'WAITING' },
             _count: { priority: true }
@@ -217,7 +219,7 @@ class QueueService {
      * 🔄 Aggiorna posizioni coda
      */
     async updateQueuePositions() {
-        const entries = await prisma.queueEntry.findMany({
+        const entries = await this.prisma.queueEntry.findMany({
             where: { status: 'WAITING' },
             orderBy: [
                 { priority: 'desc' },
@@ -238,13 +240,13 @@ class QueueService {
      */
     async removeFromQueue(sessionId, reason = 'USER_CANCELLED') {
         try {
-            const entry = await prisma.queueEntry.findFirst({
+            const entry = await this.prisma.queueEntry.findFirst({
                 where: { sessionId, status: 'WAITING' }
             });
 
             if (!entry) return false;
 
-            await prisma.queueEntry.update({
+            await this.prisma.queueEntry.update({
                 where: { id: entry.id },
                 data: {
                     status: 'CANCELLED',
@@ -288,7 +290,7 @@ class QueueService {
         const now = new Date();
         
         // Trova code che si avvicinano al SLA
-        const warningEntries = await prisma.queueEntry.findMany({
+        const warningEntries = await this.prisma.queueEntry.findMany({
             where: {
                 status: 'WAITING',
                 enteredAt: {
@@ -302,14 +304,14 @@ class QueueService {
         // Notifica warning
         for (const entry of warningEntries) {
             await this.notifySLAWarning(entry);
-            await prisma.queueEntry.update({
+            await this.prisma.queueEntry.update({
                 where: { id: entry.id },
                 data: { slaWarningNotified: true }
             });
         }
 
         // Trova violazioni SLA
-        const violationEntries = await prisma.queueEntry.findMany({
+        const violationEntries = await this.prisma.queueEntry.findMany({
             where: {
                 status: 'WAITING',
                 enteredAt: { lt: new Date(now - this.slaViolationThreshold) },
@@ -320,7 +322,7 @@ class QueueService {
         // Escalation automatica
         for (const entry of violationEntries) {
             await this.escalateSLAViolation(entry);
-            await prisma.queueEntry.update({
+            await this.prisma.queueEntry.update({
                 where: { id: entry.id },
                 data: { 
                     slaViolationNotified: true,
@@ -335,7 +337,7 @@ class QueueService {
         const remainingTime = Math.round((this.slaViolationThreshold - (new Date() - queueEntry.enteredAt)) / 60000);
 
         // Notifica operatori disponibili
-        const operators = await prisma.operator.findMany({
+        const operators = await this.prisma.operator.findMany({
             where: { isOnline: true, isActive: true }
         });
 
@@ -357,7 +359,7 @@ class QueueService {
         const waitTime = Math.round((new Date() - queueEntry.enteredAt) / 60000);
 
         // Crea ticket automatico per escalation
-        const ticket = await prisma.ticket.create({
+        const ticket = await this.prisma.ticket.create({
             data: {
                 sessionId: queueEntry.sessionId,
                 subject: `SLA VIOLATION - Sessione in attesa ${waitTime} minuti`,
@@ -369,7 +371,7 @@ class QueueService {
         });
 
         // Notifica manager (tutti gli operatori attivi per ora)
-        const managers = await prisma.operator.findMany({
+        const managers = await this.prisma.operator.findMany({
             where: { isActive: true }
         });
 
@@ -390,7 +392,7 @@ class QueueService {
      * 🔔 Notifica operatori disponibili
      */
     async notifyAvailableOperators(queueEntry) {
-        const operators = await prisma.operator.findMany({
+        const operators = await this.prisma.operator.findMany({
             where: { 
                 isOnline: true, 
                 isActive: true,
@@ -415,19 +417,19 @@ class QueueService {
      * 📊 Statistiche coda
      */
     async getQueueStats() {
-        const stats = await prisma.queueEntry.aggregate({
+        const stats = await this.prisma.queueEntry.aggregate({
             where: { status: 'WAITING' },
             _count: { id: true },
             _avg: { estimatedWaitTime: true }
         });
 
-        const priorityBreakdown = await prisma.queueEntry.groupBy({
+        const priorityBreakdown = await this.prisma.queueEntry.groupBy({
             by: ['priority'],
             where: { status: 'WAITING' },
             _count: { priority: true }
         });
 
-        const oldestEntry = await prisma.queueEntry.findFirst({
+        const oldestEntry = await this.prisma.queueEntry.findFirst({
             where: { status: 'WAITING' },
             orderBy: { enteredAt: 'asc' }
         });
@@ -444,13 +446,13 @@ class QueueService {
     }
 
     async getQueueSize() {
-        return await prisma.queueEntry.count({
+        return await this.prisma.queueEntry.count({
             where: { status: 'WAITING' }
         });
     }
 
     async loadQueuesFromDB() {
-        const entries = await prisma.queueEntry.findMany({
+        const entries = await this.prisma.queueEntry.findMany({
             where: { status: 'WAITING' }
         });
 
@@ -466,7 +468,7 @@ class QueueService {
 
     async recordQueueAnalytics(eventType, eventData) {
         try {
-            await prisma.analytics.create({
+            await this.prisma.analytics.create({
                 data: {
                     eventType,
                     eventData,

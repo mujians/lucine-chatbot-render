@@ -3,7 +3,7 @@
  * Monitoraggio performance e salute del sistema
  */
 
-import { prisma } from '../server.js';
+// Import dinamico di this.prisma verrà fatto al momento dell'inizializzazione
 import { performance } from 'perf_hooks';
 
 class HealthService {
@@ -11,6 +11,7 @@ class HealthService {
         this.metrics = new Map();
         this.alerts = new Map();
         this.monitoringInterval = null;
+        this.prisma = null; // Verrà assegnato durante l'init
         
         // Thresholds configurabili
         this.thresholds = {
@@ -22,10 +23,11 @@ class HealthService {
             sessionTimeout: 30 * 60 * 1000 // 30 minuti
         };
         
-        this.init();
+        // L'init sarà chiamato manualmente dopo che this.prisma è pronto
     }
 
-    async init() {
+    async init(prisma) {
+        this.prisma = prisma;
         // Avvia monitoraggio continuo
         this.startContinuousMonitoring();
         
@@ -96,12 +98,12 @@ class HealthService {
         
         try {
             // Test query semplice
-            await prisma.chatSession.count();
+            await this.prisma.chatSession.count();
             const simpleQueryTime = performance.now() - start;
             
             // Test query complessa
             const complexStart = performance.now();
-            await prisma.chatSession.findMany({
+            await this.prisma.chatSession.findMany({
                 take: 10,
                 include: { 
                     messages: { take: 5 },
@@ -158,16 +160,16 @@ class HealthService {
                 recentMessages,
                 timeoutSessions
             ] = await Promise.all([
-                prisma.chatSession.count({
+                this.prisma.chatSession.count({
                     where: { status: { in: ['ACTIVE', 'WITH_OPERATOR'] } }
                 }),
-                prisma.chatSession.count({
+                this.prisma.chatSession.count({
                     where: { status: 'WITH_OPERATOR' }
                 }),
-                prisma.message.count({
+                this.prisma.message.count({
                     where: { timestamp: { gte: fifteenMinutesAgo } }
                 }),
-                prisma.chatSession.count({
+                this.prisma.chatSession.count({
                     where: {
                         status: 'ACTIVE',
                         lastActivity: { lt: new Date(now - this.thresholds.sessionTimeout) }
@@ -206,16 +208,16 @@ class HealthService {
                 longWaiting,
                 avgWaitTime
             ] = await Promise.all([
-                prisma.queueEntry.count({
+                this.prisma.queueEntry.count({
                     where: { status: 'WAITING' }
                 }),
-                prisma.queueEntry.count({
+                this.prisma.queueEntry.count({
                     where: {
                         status: 'WAITING',
                         enteredAt: { lt: new Date(now - this.thresholds.queueWaitTime) }
                     }
                 }),
-                prisma.queueEntry.aggregate({
+                this.prisma.queueEntry.aggregate({
                     where: { status: 'WAITING' },
                     _avg: { estimatedWaitTime: true }
                 })
@@ -249,16 +251,16 @@ class HealthService {
                 errorEvents,
                 criticalErrors
             ] = await Promise.all([
-                prisma.analytics.count({
+                this.prisma.analytics.count({
                     where: { timestamp: { gte: oneHourAgo } }
                 }),
-                prisma.analytics.count({
+                this.prisma.analytics.count({
                     where: {
                         timestamp: { gte: oneHourAgo },
                         successful: false
                     }
                 }),
-                prisma.analytics.count({
+                this.prisma.analytics.count({
                     where: {
                         timestamp: { gte: oneHourAgo },
                         eventType: { contains: 'error' }
@@ -375,7 +377,7 @@ class HealthService {
         console.log(`🚨 Health Alert [${alert.severity.toUpperCase()}] ${alert.type}: ${alert.message}`);
         
         // Persist nel database per analytics
-        await prisma.analytics.create({
+        await this.prisma.analytics.create({
             data: {
                 eventType: 'health_alert',
                 eventData: alert,
@@ -396,7 +398,7 @@ class HealthService {
     async notifyCriticalAlert(alert) {
         try {
             // Trova operatori/manager da notificare
-            const managers = await prisma.operator.findMany({
+            const managers = await this.prisma.operator.findMany({
                 where: { isActive: true },
                 select: { id: true, name: true, email: true }
             });
@@ -425,7 +427,7 @@ class HealthService {
      */
     async persistCriticalMetrics(metrics) {
         try {
-            await prisma.analytics.create({
+            await this.prisma.analytics.create({
                 data: {
                     eventType: 'health_metrics',
                     eventData: {

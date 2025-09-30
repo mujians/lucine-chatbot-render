@@ -13,13 +13,21 @@ class TwilioService {
         this.phoneNumber = process.env.TWILIO_PHONE_NUMBER;
         this.whatsappNumber = process.env.TWILIO_WHATSAPP_NUMBER;
         
-        if (this.accountSid && this.authToken) {
-            this.client = twilio(this.accountSid, this.authToken);
-            this.enabled = true;
-            console.log('✅ Twilio service initialized');
+        // Verifica che le credenziali siano valide
+        if (this.accountSid && this.authToken && 
+            this.accountSid.startsWith('AC') && 
+            this.accountSid !== 'your-twilio-account-sid') {
+            try {
+                this.client = twilio(this.accountSid, this.authToken);
+                this.enabled = true;
+                console.log('✅ Twilio service initialized');
+            } catch (error) {
+                this.enabled = false;
+                console.warn('⚠️ Twilio initialization failed:', error.message);
+            }
         } else {
             this.enabled = false;
-            console.warn('⚠️ Twilio credentials missing - notifications disabled');
+            console.warn('⚠️ Twilio credentials missing or invalid - notifications disabled');
         }
     }
 
