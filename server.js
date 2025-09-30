@@ -25,7 +25,8 @@ import {
   sanitizeInput,
   securityHeaders,
   securityLogger,
-  detectSuspiciousActivity
+  detectSuspiciousActivity,
+  setPrismaClient
 } from './middleware/security.js';
 
 // API Response Standardization
@@ -262,6 +263,9 @@ async function startServer() {
     // Test database connection
     await prisma.$connect();
     console.log('✅ Database connected');
+    
+    // Inject prisma into security middleware (avoid circular imports)
+    setPrismaClient(prisma);
     
     // Ensure all required tables exist
     await ensureTables();

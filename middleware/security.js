@@ -7,7 +7,14 @@ import rateLimit from 'express-rate-limit';
 import jwt from 'jsonwebtoken';
 import crypto from 'crypto';
 import bcrypt from 'bcrypt';
-import { prisma } from '../server.js';
+// Prisma will be injected at runtime to avoid circular imports
+let prisma = null;
+
+// Function to inject prisma client
+export const setPrismaClient = (prismaClient) => {
+    prisma = prismaClient;
+    console.log('🔗 Prisma client injected into security middleware');
+};
 
 // Environment variables validation
 const JWT_SECRET = process.env.JWT_SECRET || 'fallback-secret-change-in-production';
@@ -112,12 +119,7 @@ export const authenticateToken = async (req, res, next) => {
     try {
         const decoded = TokenManager.verifyToken(token);
         
-        // Check if prisma is available (avoid circular import issues)
-        if (!prisma || !prisma.operator) {
-            console.warn('⚠️ Prisma not available in auth middleware, using token data only');
-            req.operator = { id: decoded.operatorId };
-            return next();
-        }
+        // Prisma should be available now (injected at startup)
         
         // Verify operator still exists and is active
         const operator = await prisma.operator.findUnique({
@@ -171,12 +173,7 @@ export const validateSession = async (req, res, next) => {
     }
     
     try {
-        // Check if prisma is available (avoid circular import issues)
-        if (!prisma || !prisma.chatSession) {
-            console.warn('⚠️ Prisma not available in middleware, skipping session validation');
-            req.sessionId = sessionId;
-            return next();
-        }
+        // Prisma should be available now (injected at startup)
         
         const session = await prisma.chatSession.findUnique({
             where: { sessionId }
