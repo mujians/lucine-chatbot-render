@@ -262,6 +262,7 @@ ${JSON.stringify(knowledgeBase, null, 2)}
 {
   "reply": "Risposta completa e dettagliata con tutte le informazioni richieste",
   "actions": ["azione1", "azione2"],
+  "smartActions": [{"type": "primary", "icon": "👤", "text": "SÌ, CHIAMA OPERATORE", "description": "Ti connetto subito", "action": "request_operator"}],
   "escalation": "none|operator|ticket"
 }
 
@@ -271,6 +272,29 @@ Domanda prezzi:
 {
   "reply": "Ecco tutti i prezzi dei biglietti per le Lucine di Natale:\n\n🎫 **Biglietto Intero**: €9\nIngresso standard nella fascia oraria scelta\n\n🎫 **Biglietto Ridotto**: €7\nPer bambini 3-12 anni e disabili\n\n⚡ **Biglietto SALTAFILA**: €13\nAccesso prioritario senza code\n\n🌟 **Biglietto OPEN**: €25\nAccesso libero in qualsiasi momento\n\n👶 **GRATIS** per bambini sotto i 3 anni\n\nPuoi acquistare i tuoi biglietti direttamente sul nostro sito: [Acquista biglietti](https://lucinedinatale.it/products/biglietti)",
   "actions": ["biglietti_acquisto", "info_prezzi"],
+  "escalation": "none"
+}
+
+Informazione mancante:
+{
+  "reply": "Non ho informazioni specifiche su questo argomento. Vuoi parlare con un operatore?",
+  "actions": [],
+  "smartActions": [
+    {
+      "type": "primary",
+      "icon": "👤",
+      "text": "SÌ, CHIAMA OPERATORE",
+      "description": "Ti connetto subito con un operatore",
+      "action": "request_operator"
+    },
+    {
+      "type": "secondary",
+      "icon": "🔙",
+      "text": "NO, CONTINUA CON AI",
+      "description": "Rimani con l'assistente virtuale",
+      "action": "continue_ai"
+    }
+  ],
   "escalation": "none"
 }`;
 
@@ -451,6 +475,7 @@ Domanda prezzi:
       sessionId: session.sessionId,
       status: 'success',
       actions: parsedResponse.actions,
+      smartActions: parsedResponse.smartActions,
       escalation: parsedResponse.escalation,
       timestamp: new Date().toISOString()
     });
