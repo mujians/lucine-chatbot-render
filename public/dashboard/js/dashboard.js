@@ -1222,12 +1222,20 @@ class DashboardApp {
         
         // Browser notification (if permission granted)
         if ('Notification' in window && Notification.permission === 'granted') {
-            new Notification('🙋 Nuova richiesta supporto', {
-                body: notification.message || 'Un cliente ha richiesto assistenza',
-                icon: '/dashboard/icons/notification-icon.png',
-                requireInteraction: true,
-                tag: 'operator-request'
-            });
+            console.log('📢 Creating browser notification...');
+            try {
+                const notif = new Notification('🙋 Nuova richiesta supporto', {
+                    body: notification.message || 'Un cliente ha richiesto assistenza',
+                    requireInteraction: true,
+                    tag: 'operator-request',
+                    badge: '🔔'
+                });
+                console.log('✅ Browser notification created:', notif);
+            } catch (error) {
+                console.error('❌ Failed to create notification:', error);
+            }
+        } else {
+            console.log('⚠️ Notification not shown - permission:', Notification?.permission);
         }
     }
 
@@ -1276,7 +1284,6 @@ class DashboardApp {
                     // Test notification
                     new Notification('✅ Notifiche Attive', {
                         body: 'Riceverai notifiche per nuove richieste di supporto',
-                        icon: '/dashboard/icons/notification-icon.png',
                         tag: 'permission-granted'
                     });
                 } else {
@@ -1293,19 +1300,9 @@ class DashboardApp {
      * 🔊 Play notification sound
      */
     playNotificationSound() {
-        try {
-            // Try to play custom sound
-            const audio = new Audio('/dashboard/sounds/notification.mp3');
-            audio.volume = 0.5;
-            audio.play().catch(e => {
-                console.log('🔊 Custom sound failed, using system beep');
-                // Fallback: use Web Audio API to generate beep
-                this.playSystemBeep();
-            });
-        } catch (error) {
-            console.log('🔊 Notification sound not available');
-            this.playSystemBeep();
-        }
+        console.log('🔊 Playing notification beep...');
+        // Directly use system beep (no missing mp3 file)
+        this.playSystemBeep();
     }
 
     /**
