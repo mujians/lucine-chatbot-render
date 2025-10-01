@@ -244,9 +244,10 @@ class DashboardApp {
         
         // Connetti WebSocket
         this.connectWebSocket();
-        
-        // Notification system disabled
-        
+
+        // Request notification permission
+        this.requestNotificationPermission();
+
         // Carica sezione iniziale
         this.switchSection('overview');
     }
@@ -1247,15 +1248,83 @@ class DashboardApp {
     }
 
     /**
+     * 🔔 Request notification permission
+     */
+    async requestNotificationPermission() {
+        if (!('Notification' in window)) {
+            console.log('❌ Browser does not support notifications');
+            return;
+        }
+
+        if (Notification.permission === 'granted') {
+            console.log('✅ Notification permission already granted');
+            return;
+        }
+
+        if (Notification.permission !== 'denied') {
+            try {
+                const permission = await Notification.requestPermission();
+                if (permission === 'granted') {
+                    console.log('✅ Notification permission granted');
+                    this.showToast('🔔 Notifiche attivate! Riceverai avvisi per nuove richieste', 'success');
+
+                    // Test notification
+                    new Notification('✅ Notifiche Attive', {
+                        body: 'Riceverai notifiche per nuove richieste di supporto',
+                        icon: '/dashboard/icons/notification-icon.png',
+                        tag: 'permission-granted'
+                    });
+                } else {
+                    console.log('❌ Notification permission denied');
+                    this.showToast('⚠️ Notifiche disabilitate. Attivale nelle impostazioni del browser.', 'warning');
+                }
+            } catch (error) {
+                console.error('❌ Error requesting notification permission:', error);
+            }
+        }
+    }
+
+    /**
      * 🔊 Play notification sound
      */
     playNotificationSound() {
         try {
+            // Try to play custom sound
             const audio = new Audio('/dashboard/sounds/notification.mp3');
             audio.volume = 0.5;
-            audio.play().catch(e => console.log('🔊 Sound play failed:', e));
+            audio.play().catch(e => {
+                console.log('🔊 Custom sound failed, using system beep');
+                // Fallback: use Web Audio API to generate beep
+                this.playSystemBeep();
+            });
         } catch (error) {
             console.log('🔊 Notification sound not available');
+            this.playSystemBeep();
+        }
+    }
+
+    /**
+     * 🔔 Play system beep using Web Audio API
+     */
+    playSystemBeep() {
+        try {
+            const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+            const oscillator = audioContext.createOscillator();
+            const gainNode = audioContext.createGain();
+
+            oscillator.connect(gainNode);
+            gainNode.connect(audioContext.destination);
+
+            oscillator.frequency.value = 800; // 800 Hz beep
+            oscillator.type = 'sine';
+
+            gainNode.gain.setValueAtTime(0.3, audioContext.currentTime);
+            gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.5);
+
+            oscillator.start(audioContext.currentTime);
+            oscillator.stop(audioContext.currentTime + 0.5);
+        } catch (error) {
+            console.log('🔊 Beep sound not available');
         }
     }
 
