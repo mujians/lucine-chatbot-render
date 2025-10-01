@@ -30,12 +30,12 @@ class DashboardApp {
         this.setupEventListeners();
         this.checkAuthStatus();
         
-        // Auto refresh ogni 30 secondi (fallback se WebSocket non funziona)
+        // Auto refresh ogni 5 secondi (fallback se WebSocket non funziona)
         this.refreshInterval = setInterval(() => {
             if (this.currentOperator) {
                 this.refreshData();
             }
-        }, 30000);
+        }, 5000); // 5 secondi per notifiche più rapide
     }
 
     /**

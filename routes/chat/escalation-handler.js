@@ -59,7 +59,15 @@ export async function handleEscalation(message, session) {
         }
       });
 
-      // 🔔 Notify operator of new chat assignment
+      // 🔔 Notify ALL operators about new request
+      notifyOperators({
+        event: 'new_operator_request',
+        sessionId: session.sessionId,
+        title: 'Nuova Richiesta Supporto',
+        message: `Un cliente richiede assistenza: "${message.substring(0, 50)}${message.length > 50 ? '...' : ''}"`
+      });
+
+      // 🔔 Notify assigned operator specifically
       notifyOperators({
         event: 'new_chat_assigned',
         sessionId: session.sessionId,
@@ -99,6 +107,14 @@ export async function handleEscalation(message, session) {
       };
     } else {
       console.log('❌ NO OPERATORS AVAILABLE - Offering ticket');
+
+      // Notify ALL operators that there's a new request waiting
+      notifyOperators({
+        event: 'new_operator_request',
+        sessionId: session.sessionId,
+        title: 'Nuova Richiesta Supporto',
+        message: `Un cliente richiede assistenza: "${message.substring(0, 50)}${message.length > 50 ? '...' : ''}"`
+      });
 
       // Update session to track that we're in ticket flow
       await prisma.chatSession.update({
