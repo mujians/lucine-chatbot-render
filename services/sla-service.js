@@ -197,23 +197,6 @@ class SLAService {
     async checkAllSLAs() {
         try {
             const now = new Date();
-            
-            // Check warning thresholds
-            const warningThresholdBreached = await this.prisma.sLARecord.findMany({
-                where: {
-                    status: 'ACTIVE',
-                    warningThreshold: { lte: now },
-                    warningNotified: false
-                }
-            });
-
-            for (const sla of warningThresholdBreached) {
-                await this.sendSLAWarning(sla);
-                await this.prisma.sLARecord.update({
-                    where: { id: sla.id },
-                    data: { warningNotified: true }
-                });
-            }
 
             // Check response deadline violations
             const responseViolations = await this.prisma.sLARecord.findMany({
