@@ -9,17 +9,22 @@ import { WebSocketServer } from 'ws';
 import { createServer } from 'http';
 import path from 'path';
 
-// Routes
-import chatRouter from './routes/chat.js';
+// Dependency Injection Container
+import container from './config/container.js';
+
+// Constants
+import { ALLOWED_ORIGINS } from './config/constants.js';
+
+// Routes - chat.js ora è modulare in routes/chat/
+import chatRouter from './routes/chat/index.js';
 import operatorRouter from './routes/operators.js';
 import ticketRouter from './routes/tickets.js';
 import analyticsRouter from './routes/analytics.js';
 import healthRouter from './routes/health.js';
 import chatManagementRouter from './routes/chat-management.js';
 
-
 // Security & Monitoring Middleware
-import { 
+import {
   apiLimiter,
   chatLimiter,
   loginLimiter,
@@ -37,21 +42,21 @@ import { standardizeResponse } from './utils/api-response.js';
 import { healthService } from './services/health-service.js';
 import { queueService } from './services/queue-service.js';
 import { slaService } from './services/sla-service.js';
+import { timeoutService } from './services/timeout-service.js';
 
 // Database migration script
 import { ensureTables } from './scripts/ensure-tables.js';
-
-// Services
-import { timeoutService } from './services/timeout-service.js';
-
 
 // Load environment variables
 dotenv.config();
 
 // Initialize Prisma
-export const prisma = new PrismaClient({
+const prisma = new PrismaClient({
   log: ['query', 'error', 'warn'],
 });
+
+// Register Prisma in DI container (elimina export diretto)
+container.register('prisma', prisma);
 
 // Initialize Express
 const app = express();
@@ -64,9 +69,12 @@ const server = createServer(app);
 const wss = new WebSocketServer({ server });
 
 // Store active connections by operatorId
-export const operatorConnections = new Map();
+const operatorConnections = new Map();
 
-// Make WebSocket connections available globally for services
+// Register in DI container invece di export
+container.register('operatorConnections', operatorConnections);
+
+// Backward compatibility per services che usano global
 global.operatorConnections = operatorConnections;
 
 // WebSocket connection handling
@@ -109,33 +117,8 @@ wss.on('connection', (ws, req) => {
   });
 });
 
-// Utility function to notify operators
-export function notifyOperators(message, targetOperatorId = null) {
-  const notification = {
-    type: 'notification',
-    ...message,
-    timestamp: new Date().toISOString()
-  };
-  
-  if (targetOperatorId && operatorConnections.has(targetOperatorId)) {
-    // Send to specific operator
-    const ws = operatorConnections.get(targetOperatorId);
-    if (ws.readyState === ws.OPEN) {
-      ws.send(JSON.stringify(notification));
-      console.log(`🔔 Notification sent to operator ${targetOperatorId}`);
-    }
-  } else {
-    // Broadcast to all connected operators
-    let sentCount = 0;
-    operatorConnections.forEach((ws, operatorId) => {
-      if (ws.readyState === ws.OPEN) {
-        ws.send(JSON.stringify(notification));
-        sentCount++;
-      }
-    });
-    console.log(`📢 Notification broadcast to ${sentCount} operators`);
-  }
-}
+// ✅ notifyOperators è ora in utils/notifications.js
+// Eliminato export per evitare dipendenze circolari
 
 // Security & Monitoring Middleware
 app.use(securityHeaders);
@@ -158,19 +141,13 @@ app.use(standardizeResponse);
 app.use(sanitizeInput);
 app.use(detectSuspiciousActivity);
 
-// CORS configuration - permetti sia Shopify che dashboard
-const allowedOrigins = [
-  'https://lucinedinatale.it',
-  'https://lucine-chatbot.onrender.com',
-  'http://localhost:3000' // per sviluppo
-];
-
+// CORS configuration - usa constants.js
 app.use(cors({
   origin: (origin, callback) => {
     // Permetti richieste senza origin (Postman, mobile apps, etc.)
     if (!origin) return callback(null, true);
-    
-    if (allowedOrigins.includes(origin)) {
+
+    if (ALLOWED_ORIGINS.includes(origin)) {
       callback(null, true);
     } else {
       callback(null, false);
@@ -289,11 +266,16 @@ async function startServer() {
     // Start timeout service
     timeoutService.start();
     console.log('✅ Timeout service started');
-    
+
+    // Setup knowledge base auto-reload
+    const { setupAutoReload } = await import('./utils/knowledge.js');
+    setupAutoReload();
+    console.log('✅ Knowledge base auto-reload enabled');
+
     console.log('✅ All services initialized');
-    
+
     // Database ready for use
-    
+
     server.listen(PORT, '0.0.0.0', () => {
       console.log(`🚀 Server running on port ${PORT}`);
       console.log(`🌍 Environment: ${process.env.NODE_ENV}`);
