@@ -3,7 +3,10 @@ import container from '../config/container.js';
 import { StatusCodes, ErrorCodes } from '../utils/api-response.js';
 
 const router = express.Router();
-const prisma = container.get('prisma');
+
+// Helper to get prisma (lazy load)
+const getPrisma = () => container.get('prisma');
+// const prisma = container.get('prisma');
 
 // Simple test endpoint
 router.get('/test', (req, res) => {
@@ -19,16 +22,16 @@ router.get('/dashboard', async (req, res) => {
     console.log('📊 Fetching simplified dashboard analytics...');
 
     // Basic counts only
-    const totalChats = await prisma.chatSession.count();
-    const activeChats = await prisma.chatSession.count({ where: { status: 'ACTIVE' } });
-    const endedChats = await prisma.chatSession.count({ where: { status: 'ENDED' } });
-    const operatorChats = await prisma.chatSession.count({ where: { status: 'WITH_OPERATOR' } });
+    const totalChats = await getPrisma().chatSession.count();
+    const activeChats = await getPrisma().chatSession.count({ where: { status: 'ACTIVE' } });
+    const endedChats = await getPrisma().chatSession.count({ where: { status: 'ENDED' } });
+    const operatorChats = await getPrisma().chatSession.count({ where: { status: 'WITH_OPERATOR' } });
     
-    const totalMessages = await prisma.message.count();
-    const openTickets = await prisma.ticket.count({ where: { status: 'OPEN' } });
+    const totalMessages = await getPrisma().message.count();
+    const openTickets = await getPrisma().ticket.count({ where: { status: 'OPEN' } });
     
     // Recent activity - basic version
-    const recentActivity = await prisma.message.findMany({
+    const recentActivity = await getPrisma().message.findMany({
       take: 5,
       orderBy: { timestamp: 'desc' },
       include: {

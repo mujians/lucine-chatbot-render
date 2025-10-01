@@ -7,9 +7,10 @@ import {
   loginLimiter
 } from '../middleware/security.js';
 
-const prisma = container.get('prisma');
-
 const router = express.Router();
+
+// Helper to get prisma (lazy load)
+const getPrisma = () => container.get('prisma');
 
 
 
@@ -20,7 +21,7 @@ router.post('/login', loginLimiter, async (req, res) => {
     const { username, password } = req.body;
     
     // Find operator first
-    const operator = await prisma.operator.findUnique({
+    const operator = await getPrisma().operator.findUnique({
       where: { username },
       select: {
         id: true,
@@ -39,7 +40,7 @@ router.post('/login', loginLimiter, async (req, res) => {
     if (!operator && username === 'admin') {
       const hashedPassword = await TokenManager.hashPassword(process.env.ADMIN_PASSWORD || 'admin123');
       
-      const newOperator = await prisma.operator.create({
+      const newOperator = await getPrisma().operator.create({
         data: {
           username: 'admin',
           email: 'supporto@lucinedinatale.it',
@@ -98,7 +99,7 @@ router.post('/login', loginLimiter, async (req, res) => {
     
     if (isValidPassword) {
       // Update online status
-      await prisma.operator.update({
+      await getPrisma().operator.update({
         where: { id: operator.id },
         data: { 
           isOnline: true,
@@ -148,7 +149,7 @@ router.post('/login', loginLimiter, async (req, res) => {
 // Get pending chats (sessions that need operator attention)
 router.get('/pending-chats', async (req, res) => {
   try {
-    const pendingChats = await prisma.chatSession.findMany({
+    const pendingChats = await getPrisma().chatSession.findMany({
       where: {
         status: 'WITH_OPERATOR',
         operatorChats: {
@@ -199,7 +200,7 @@ router.post('/take-chat', authenticateToken, validateSession, async (req, res) =
     const { sessionId, operatorId } = req.body;
 
     // Verifica che la sessione esista
-    const sessionExists = await prisma.chatSession.findUnique({
+    const sessionExists = await getPrisma().chatSession.findUnique({
       where: { sessionId }
     });
 
@@ -209,7 +210,7 @@ router.post('/take-chat', authenticateToken, validateSession, async (req, res) =
     }
 
     // Check if chat already taken by ANOTHER operator
-    const existing = await prisma.operatorChat.findFirst({
+    const existing = await getPrisma().operatorChat.findFirst({
       where: {
         sessionId,
         endedAt: null
@@ -237,7 +238,7 @@ router.post('/take-chat', authenticateToken, validateSession, async (req, res) =
       }
     } else {
       // Create new operator chat
-      operatorChat = await prisma.operatorChat.create({
+      operatorChat = await getPrisma().operatorChat.create({
         data: {
           sessionId,
           operatorId
@@ -246,19 +247,19 @@ router.post('/take-chat', authenticateToken, validateSession, async (req, res) =
     }
 
     // Update session status
-    await prisma.chatSession.update({
+    await getPrisma().chatSession.update({
       where: { sessionId },
       data: { status: 'WITH_OPERATOR' }
     });
 
     // Get operator info
-    const operator = await prisma.operator.findUnique({
+    const operator = await getPrisma().operator.findUnique({
       where: { id: operatorId },
       select: { name: true }
     });
 
     // Add system message
-    await prisma.message.create({
+    await getPrisma().message.create({
       data: {
         sessionId,
         sender: 'SYSTEM',
@@ -309,7 +310,7 @@ router.get('/chat/:sessionId', authenticateToken, async (req, res) => {
     const { sessionId } = req.params;
     
     // Get session with messages
-    const session = await prisma.chatSession.findUnique({
+    const session = await getPrisma().chatSession.findUnique({
       where: { sessionId },
       include: {
         messages: {
@@ -362,7 +363,7 @@ router.post('/logout', authenticateToken, async (req, res) => {
     }
 
     // Check if operator exists
-    const existingOperator = await prisma.operator.findUnique({
+    const existingOperator = await getPrisma().operator.findUnique({
       where: { id: operatorId },
       select: { id: true, isActive: true }
     });
@@ -372,7 +373,7 @@ router.post('/logout', authenticateToken, async (req, res) => {
     }
 
     // Update to offline
-    await prisma.operator.update({
+    await getPrisma().operator.update({
       where: { id: operatorId },
       data: {
         isOnline: false,
@@ -413,7 +414,7 @@ router.put('/status', authenticateToken, async (req, res) => {
     }
 
     // Check if operator exists
-    const existingOperator = await prisma.operator.findUnique({
+    const existingOperator = await getPrisma().operator.findUnique({
       where: { id: operatorId },
       select: { id: true, isActive: true }
     });
@@ -423,7 +424,7 @@ router.put('/status', authenticateToken, async (req, res) => {
     }
 
     // Update status
-    const updatedOperator = await prisma.operator.update({
+    const updatedOperator = await getPrisma().operator.update({
       where: { id: operatorId },
       data: {
         isOnline,
@@ -479,7 +480,7 @@ router.post('/send-message', authenticateToken, validateSession, async (req, res
     }
 
     // Verify operator is assigned to this session
-    const operatorChat = await prisma.operatorChat.findFirst({
+    const operatorChat = await getPrisma().operatorChat.findFirst({
       where: {
         sessionId,
         operatorId,
@@ -501,7 +502,7 @@ router.post('/send-message', authenticateToken, validateSession, async (req, res
     }
 
     // Save operator message
-    const savedMessage = await prisma.message.create({
+    const savedMessage = await getPrisma().message.create({
       data: {
         sessionId,
         sender: 'OPERATOR',
@@ -514,7 +515,7 @@ router.post('/send-message', authenticateToken, validateSession, async (req, res
     });
 
     // Update session last activity
-    await prisma.chatSession.update({
+    await getPrisma().chatSession.update({
       where: { sessionId },
       data: { lastActivity: new Date() }
     });
@@ -551,7 +552,7 @@ router.get('/messages/:sessionId', authenticateToken, validateSession, async (re
     const since = req.query.since ? new Date(req.query.since) : new Date(Date.now() - 24 * 60 * 60 * 1000); // Last 24h default
     
     // Verify operator has access to this session
-    const operatorChat = await prisma.operatorChat.findFirst({
+    const operatorChat = await getPrisma().operatorChat.findFirst({
       where: {
         sessionId,
         operatorId: req.operator.id,
@@ -564,7 +565,7 @@ router.get('/messages/:sessionId', authenticateToken, validateSession, async (re
     }
     
     // Get messages since timestamp
-    const messages = await prisma.message.findMany({
+    const messages = await getPrisma().message.findMany({
       where: {
         sessionId,
         timestamp: { gte: since }

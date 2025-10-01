@@ -3,7 +3,10 @@ import container from '../config/container.js';
 import { StatusCodes, ErrorCodes } from '../utils/api-response.js';
 
 const router = express.Router();
-const prisma = container.get('prisma');
+
+// Helper to get prisma (lazy load)
+const getPrisma = () => container.get('prisma');
+// const prisma = container.get('prisma');
 
 // Create ticket
 router.post('/', async (req, res) => {
@@ -36,7 +39,7 @@ router.post('/', async (req, res) => {
       priority: 'MEDIUM'
     });
 
-    const ticket = await prisma.ticket.create({
+    const ticket = await getPrisma().ticket.create({
       data: {
         sessionId,
         subject: subject || 'Richiesta supporto',
@@ -50,7 +53,7 @@ router.post('/', async (req, res) => {
     });
 
     // Log analytics
-    await prisma.analytics.create({
+    await getPrisma().analytics.create({
       data: {
         eventType: 'ticket_created',
         sessionId,
@@ -106,7 +109,7 @@ router.post('/:ticketNumber/reopen-chat', async (req, res) => {
     const { operatorId } = req.body;
 
     // Trova ticket
-    const ticket = await prisma.ticket.findUnique({
+    const ticket = await getPrisma().ticket.findUnique({
       where: { ticketNumber },
       include: { session: true }
     });
@@ -120,7 +123,7 @@ router.post('/:ticketNumber/reopen-chat', async (req, res) => {
     }
 
     // Verifica che operatore esista
-    const operator = await prisma.operator.findUnique({
+    const operator = await getPrisma().operator.findUnique({
       where: { id: operatorId, isActive: true }
     });
 
@@ -130,7 +133,7 @@ router.post('/:ticketNumber/reopen-chat', async (req, res) => {
 
     // Riattiva sessione se terminata
     if (ticket.session.status === 'ENDED') {
-      await prisma.chatSession.update({
+      await getPrisma().chatSession.update({
         where: { sessionId: ticket.sessionId },
         data: { 
           status: 'WITH_OPERATOR',
@@ -140,7 +143,7 @@ router.post('/:ticketNumber/reopen-chat', async (req, res) => {
     }
 
     // Crea nuovo OperatorChat se non esiste
-    const existingChat = await prisma.operatorChat.findFirst({
+    const existingChat = await getPrisma().operatorChat.findFirst({
       where: {
         sessionId: ticket.sessionId,
         endedAt: null
@@ -149,7 +152,7 @@ router.post('/:ticketNumber/reopen-chat', async (req, res) => {
 
     let operatorChat;
     if (!existingChat) {
-      operatorChat = await prisma.operatorChat.create({
+      operatorChat = await getPrisma().operatorChat.create({
         data: {
           sessionId: ticket.sessionId,
           operatorId
@@ -160,7 +163,7 @@ router.post('/:ticketNumber/reopen-chat', async (req, res) => {
     }
 
     // Aggiorna ticket status
-    await prisma.ticket.update({
+    await getPrisma().ticket.update({
       where: { id: ticket.id },
       data: { 
         status: 'IN_PROGRESS',
@@ -169,7 +172,7 @@ router.post('/:ticketNumber/reopen-chat', async (req, res) => {
     });
 
     // Messaggio di sistema per riapertura
-    await prisma.message.create({
+    await getPrisma().message.create({
       data: {
         sessionId: ticket.sessionId,
         sender: 'SYSTEM',
@@ -205,7 +208,7 @@ router.post('/:ticketNumber/reopen-chat', async (req, res) => {
 // Get ticket status
 router.get('/:ticketNumber', async (req, res) => {
   try {
-    const ticket = await prisma.ticket.findUnique({
+    const ticket = await getPrisma().ticket.findUnique({
       where: { ticketNumber: req.params.ticketNumber },
       include: {
         notes: {
@@ -241,7 +244,7 @@ router.get('/', async (req, res) => {
   try {
     // TODO: Add authentication check
     
-    const tickets = await prisma.ticket.findMany({
+    const tickets = await getPrisma().ticket.findMany({
       orderBy: { createdAt: 'desc' },
       include: {
         assignedTo: {
@@ -272,7 +275,7 @@ router.put('/:ticketId', async (req, res) => {
     
     const { status, priority, operatorId, note } = req.body;
     
-    const ticket = await prisma.ticket.update({
+    const ticket = await getPrisma().ticket.update({
       where: { id: req.params.ticketId },
       data: {
         status,
@@ -283,7 +286,7 @@ router.put('/:ticketId', async (req, res) => {
     });
 
     if (note) {
-      await prisma.ticketNote.create({
+      await getPrisma().ticketNote.create({
         data: {
           ticketId: ticket.id,
           note,
@@ -327,7 +330,7 @@ router.post('/from-chat', async (req, res) => {
     }
 
     // Recupera la storia della conversazione per context
-    const session = await prisma.chatSession.findUnique({
+    const session = await getPrisma().chatSession.findUnique({
       where: { sessionId },
       include: {
         messages: {
@@ -341,7 +344,7 @@ router.post('/from-chat', async (req, res) => {
       ?.map(msg => `${msg.sender}: ${msg.message}`)
       ?.join('\n') || 'Nessun messaggio precedente';
 
-    const ticket = await prisma.ticket.create({
+    const ticket = await getPrisma().ticket.create({
       data: {
         sessionId,
         subject: `Supporto da Chat - Sessione ${sessionId.substring(0, 8)}`,
@@ -354,7 +357,7 @@ router.post('/from-chat', async (req, res) => {
     });
 
     // Log analytics
-    await prisma.analytics.create({
+    await getPrisma().analytics.create({
       data: {
         eventType: 'ticket_from_chat',
         sessionId,
