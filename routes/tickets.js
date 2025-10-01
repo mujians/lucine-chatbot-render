@@ -1,8 +1,9 @@
 import express from 'express';
-import { prisma } from '../server.js';
+import container from '../config/container.js';
 import { StatusCodes, ErrorCodes } from '../utils/api-response.js';
 
 const router = express.Router();
+const prisma = container.get('prisma');
 
 // Create ticket
 router.post('/', async (req, res) => {

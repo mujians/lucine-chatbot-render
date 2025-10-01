@@ -1,4 +1,4 @@
-import { prisma } from '../server.js';
+import container from '../config/container.js';
 
 /**
  * 🕒 SERVIZIO TIMEOUT CHAT - 10 minuti inattività cliente
@@ -37,11 +37,12 @@ class TimeoutService {
   }
 
   async checkInactiveChats() {
+    const prisma = container.get('prisma');
     try {
       console.log('🔍 Checking for inactive chats...');
-      
+
       const timeoutThreshold = new Date(Date.now() - this.TIMEOUT_MINUTES * 60 * 1000);
-      
+
       // Trova sessioni attive con operatore ma inattive da più di 10 minuti
       const inactiveSessions = await prisma.chatSession.findMany({
         where: {
@@ -196,6 +197,7 @@ class TimeoutService {
 
   // Metodo per riattivare chat in timeout quando utente scrive
   async reactivateChat(sessionId) {
+    const prisma = container.get('prisma');
     try {
       const session = await prisma.chatSession.findUnique({
         where: { sessionId },

@@ -4,7 +4,7 @@
  */
 
 import twilio from 'twilio';
-import { prisma } from '../server.js';
+import container from '../config/container.js';
 
 class TwilioService {
     constructor() {
@@ -249,6 +249,7 @@ Dashboard: https://lucine-chatbot.onrender.com/dashboard`;
      * 📝 Log notifiche per analytics
      */
     async logNotification(type, recipient, message, externalId, success, error = null) {
+        const prisma = container.get('prisma');
         try {
             await prisma.analytics.create({
                 data: {
@@ -288,6 +289,7 @@ Dashboard: https://lucine-chatbot.onrender.com/dashboard`;
      * 📊 Ottieni statistiche notifiche
      */
     async getNotificationStats(days = 7) {
+        const prisma = container.get('prisma');
         const startDate = new Date();
         startDate.setDate(startDate.getDate() - days);
 

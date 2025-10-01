@@ -1,8 +1,9 @@
 import express from 'express';
-import { prisma } from '../server.js';
+import container from '../config/container.js';
 import { authenticateToken, validateSession } from '../middleware/security.js';
 
 const router = express.Router();
+const prisma = container.get('prisma');
 
 /**
  * 📋 GESTIONE STATI CHAT - Endpoint per operatori

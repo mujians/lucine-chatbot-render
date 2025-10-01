@@ -1,11 +1,13 @@
 import express from 'express';
-import { prisma } from '../server.js';
-import { 
-  authenticateToken, 
-  validateSession, 
+import container from '../config/container.js';
+import {
+  authenticateToken,
+  validateSession,
   TokenManager,
   loginLimiter
 } from '../middleware/security.js';
+
+const prisma = container.get('prisma');
 
 const router = express.Router();
 
