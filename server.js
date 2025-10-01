@@ -22,6 +22,7 @@ import ticketRouter from './routes/tickets.js';
 import analyticsRouter from './routes/analytics.js';
 import healthRouter from './routes/health.js';
 import chatManagementRouter from './routes/chat-management.js';
+import usersRouter from './routes/users.js';
 
 // Security & Monitoring Middleware
 import {
@@ -227,6 +228,7 @@ app.use('/api/tickets', apiLimiter, ticketRouter);
 app.use('/api/analytics', apiLimiter, analyticsRouter);
 app.use('/api/health', apiLimiter, healthRouter);
 app.use('/api/chat-management', apiLimiter, chatManagementRouter);
+app.use('/api/users', apiLimiter, usersRouter);
 
 // Static dashboard - simplified configuration
 app.use('/dashboard', express.static('public/dashboard'));

@@ -100,23 +100,25 @@ model Operator {
   email         String    @unique
   name          String
   displayName   String?
-  avatar        String?
+  avatar        String?   // URL or emoji
   specialization String?
+  role          String    @default("OPERATOR") // ADMIN or OPERATOR
   passwordHash  String
   isActive      Boolean   @default(true)
   isOnline      Boolean   @default(false)
   lastSeen      DateTime?
   createdAt     DateTime  @default(now())
-  
+
   // Relations
   tickets       Ticket[]
   chats         OperatorChat[]
   queueEntries  QueueEntry[]
   internalNotes InternalNote[]
-  
+
   @@index([isOnline, isActive])
   @@index([username])
   @@index([isActive])
+  @@index([role])
   @@index([lastSeen])
 }
 
