@@ -87,7 +87,7 @@ export async function handleEscalation(message, session) {
 
       return {
         success: true,
-        reply: `🟢 Ti sto connettendo con ${availableOperator.name}...\n\n👤 Ti risponderò personalmente per aiutarti!`,
+        reply: `🟢 Perfetto! Ti sto connettendo con un operatore...\n\n⏱️ ${availableOperator.name} ti risponderà a breve. Attendi un momento.`,
         sessionId: session.sessionId,
         status: 'connecting_operator',
         operator: {
