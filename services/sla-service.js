@@ -5,7 +5,7 @@
 
 // Import dinamico di this.prisma verrà fatto al momento dell'inizializzazione
 import { twilioService } from './twilio-service.js';
-import { notifyOperators } from '../server.js';
+import { notifyOperators } from '../utils/notifications.js';
 
 class SLAService {
     constructor() {
