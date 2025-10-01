@@ -61,15 +61,24 @@ export async function handleEscalation(message, session) {
         }
       });
 
-      // 📊 Create SLA record for tracking response time
+      // 📊 Create SLA record for tracking response time (dynamic priority)
+      const sessionAgeForSLA = Date.now() - new Date(session.createdAt).getTime();
+      const minutesWaitingForSLA = Math.floor(sessionAgeForSLA / 60000);
+      let slaPriority = 'LOW';
+      if (minutesWaitingForSLA > 15) {
+        slaPriority = 'HIGH';
+      } else if (minutesWaitingForSLA > 5) {
+        slaPriority = 'MEDIUM';
+      }
+
       try {
         await slaService.createSLA(
           session.sessionId,
           'SESSION',
-          'MEDIUM', // Default priority
+          slaPriority,
           'OPERATOR_ESCALATION'
         );
-        console.log('✅ SLA record created for operator chat');
+        console.log(`✅ SLA record created for operator chat (priority: ${slaPriority})`);
       } catch (error) {
         console.error('⚠️ Failed to create SLA record:', error);
         // Non blocking - continue with escalation
@@ -124,12 +133,25 @@ export async function handleEscalation(message, session) {
     } else {
       console.log('❌ NO OPERATORS AVAILABLE - Adding to queue');
 
-      // 📋 Add to queue with priority MEDIUM
+      // 📊 Calculate priority based on session wait time
+      const sessionAge = Date.now() - new Date(session.createdAt).getTime();
+      const minutesWaiting = Math.floor(sessionAge / 60000);
+
+      let priority = 'LOW';
+      if (minutesWaiting > 15) {
+        priority = 'HIGH';
+      } else if (minutesWaiting > 5) {
+        priority = 'MEDIUM';
+      }
+
+      console.log(`📊 Session age: ${minutesWaiting} min → Priority: ${priority}`);
+
+      // 📋 Add to queue with dynamic priority
       let queueInfo = null;
       try {
         queueInfo = await queueService.addToQueue(
           session.sessionId,
-          'MEDIUM', // priority
+          priority,
           [] // requiredSkills
         );
         console.log('✅ Session added to queue:', queueInfo);
@@ -144,15 +166,15 @@ export async function handleEscalation(message, session) {
         data: { status: SESSION_STATUS.WAITING_OPERATOR }
       });
 
-      // 📊 Create SLA for queue waiting time
+      // 📊 Create SLA for queue waiting time (with dynamic priority)
       try {
         await slaService.createSLA(
           session.sessionId,
           'SESSION',
-          'MEDIUM',
+          priority, // Use calculated priority
           'QUEUE_WAITING'
         );
-        console.log('✅ SLA record created for queue entry');
+        console.log(`✅ SLA record created for queue entry (priority: ${priority})`);
       } catch (error) {
         console.error('⚠️ Failed to create SLA for queue:', error);
       }

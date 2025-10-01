@@ -274,14 +274,30 @@ router.post('/take-chat', authenticateToken, validateSession, async (req, res) =
     // 📊 Create SLA record if not already exists (for manually taken chats)
     if (!existing) {
       try {
+        // Calculate dynamic priority based on session age
+        const session = await getPrisma().chatSession.findUnique({
+          where: { sessionId },
+          select: { createdAt: true }
+        });
+
+        const sessionAge = Date.now() - new Date(session.createdAt).getTime();
+        const minutesWaiting = Math.floor(sessionAge / 60000);
+
+        let slaPriority = 'LOW';
+        if (minutesWaiting > 15) {
+          slaPriority = 'HIGH';
+        } else if (minutesWaiting > 5) {
+          slaPriority = 'MEDIUM';
+        }
+
         const { slaService } = await import('../services/sla-service.js');
         await slaService.createSLA(
           sessionId,
           'SESSION',
-          'MEDIUM',
+          slaPriority,
           'OPERATOR_ASSIGNED'
         );
-        console.log('✅ SLA record created when operator took chat');
+        console.log(`✅ SLA record created when operator took chat (priority: ${slaPriority})`);
       } catch (error) {
         console.error('⚠️ Failed to create SLA:', error);
         // Non-blocking
