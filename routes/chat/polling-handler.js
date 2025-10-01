@@ -5,6 +5,7 @@
 
 import container from '../../config/container.js';
 import { MESSAGE_SENDER, SESSION_STATUS } from '../../config/constants.js';
+import { queueService } from '../../services/queue-service.js';
 
 /**
  * Polling endpoint per ricevere messaggi da operatore
@@ -51,10 +52,28 @@ export async function handlePolling(sessionId) {
     const activeOperatorChat = session.operatorChats[0];
 
     if (!activeOperatorChat) {
+      // Check if session is waiting in queue
+      let queueInfo = null;
+      if (session.status === SESSION_STATUS.WAITING_OPERATOR) {
+        try {
+          const position = await queueService.getQueuePosition(sessionId);
+          if (position) {
+            const queueStats = await queueService.getQueueStats();
+            queueInfo = {
+              position,
+              estimatedWait: Math.round(queueStats.avgWaitTime || 5) // minutes
+            };
+          }
+        } catch (error) {
+          console.error('⚠️ Failed to get queue info for polling:', error);
+        }
+      }
+
       return {
-        status: 'no_operator',
+        status: session.status === SESSION_STATUS.WAITING_OPERATOR ? 'waiting_in_queue' : 'no_operator',
         sessionId,
-        messages: []
+        messages: [],
+        queueInfo // Include queue position and wait time
       };
     }
 

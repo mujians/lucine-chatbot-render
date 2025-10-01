@@ -114,6 +114,24 @@ router.post('/login', loginLimiter, async (req, res) => {
         name: operator.name
       });
 
+      // 📋 Try to auto-assign chat from queue on login
+      let assignedChat = null;
+      if (operator.isActive) {
+        try {
+          const { queueService } = await import('../services/queue-service.js');
+          const result = await queueService.assignNextInQueue(operator.id, []);
+          if (result.assigned) {
+            console.log('✅ Auto-assigned chat from queue on login:', result.sessionId);
+            assignedChat = {
+              sessionId: result.sessionId,
+              waitTime: result.waitTime
+            };
+          }
+        } catch (error) {
+          console.error('⚠️ Failed to auto-assign from queue on login:', error);
+        }
+      }
+
       res.json({
         success: true,
         token,
@@ -126,7 +144,8 @@ router.post('/login', loginLimiter, async (req, res) => {
           isOnline: true,
           isActive: true
         },
-        message: 'Login successful'
+        message: 'Login successful',
+        autoAssigned: assignedChat // Chat auto-assigned from queue
       });
 
     } else {
@@ -251,6 +270,23 @@ router.post('/take-chat', authenticateToken, validateSession, async (req, res) =
       where: { sessionId },
       data: { status: 'WITH_OPERATOR' }
     });
+
+    // 📊 Create SLA record if not already exists (for manually taken chats)
+    if (!existing) {
+      try {
+        const { slaService } = await import('../services/sla-service.js');
+        await slaService.createSLA(
+          sessionId,
+          'SESSION',
+          'MEDIUM',
+          'OPERATOR_ASSIGNED'
+        );
+        console.log('✅ SLA record created when operator took chat');
+      } catch (error) {
+        console.error('⚠️ Failed to create SLA:', error);
+        // Non-blocking
+      }
+    }
 
     // Get operator info
     const operator = await getPrisma().operator.findUnique({
@@ -442,14 +478,45 @@ router.put('/status', authenticateToken, async (req, res) => {
 
     console.log('✅ Status updated successfully:', updatedOperator.name, isOnline ? 'ONLINE' : 'OFFLINE');
 
-    res.json({ 
+    // 📋 If operator went online, try to assign next chat from queue
+    let assignedChat = null;
+    if (isOnline && updatedOperator.isActive) {
+      try {
+        const { queueService } = await import('../services/queue-service.js');
+        const result = await queueService.assignNextInQueue(operatorId, []);
+        if (result.assigned) {
+          console.log('✅ Auto-assigned chat from queue:', result.sessionId);
+          assignedChat = {
+            sessionId: result.sessionId,
+            waitTime: result.waitTime
+          };
+
+          // Notify operator about auto-assignment
+          const { notifyOperators } = await import('../utils/notifications.js');
+          notifyOperators({
+            event: 'chat_auto_assigned',
+            sessionId: result.sessionId,
+            title: 'Chat Assegnata Automaticamente',
+            message: `Chat dalla coda assegnata: ${result.sessionId}`
+          }, operatorId);
+        } else {
+          console.log('ℹ️ No chats in queue to assign');
+        }
+      } catch (error) {
+        console.error('⚠️ Failed to auto-assign from queue:', error);
+        // Non-blocking error
+      }
+    }
+
+    res.json({
       success: true,
       operator: {
         id: updatedOperator.id,
         name: updatedOperator.name,
         isOnline: updatedOperator.isOnline,
         lastSeen: updatedOperator.lastSeen
-      }
+      },
+      autoAssigned: assignedChat // Include info if chat was auto-assigned
     });
 
   } catch (error) {
@@ -501,6 +568,16 @@ router.post('/send-message', authenticateToken, validateSession, async (req, res
       return res.status(403).json({ error: 'Operator not assigned to this session' });
     }
 
+    // Check if this is the first operator message (for SLA tracking)
+    const previousOperatorMessages = await getPrisma().message.count({
+      where: {
+        sessionId,
+        sender: 'OPERATOR'
+      }
+    });
+
+    const isFirstResponse = previousOperatorMessages === 0;
+
     // Save operator message
     const savedMessage = await getPrisma().message.create({
       data: {
@@ -509,10 +586,23 @@ router.post('/send-message', authenticateToken, validateSession, async (req, res
         message: sanitizedMessage,
         metadata: {
           operatorId,
-          operatorName: operatorChat.operator.name
+          operatorName: operatorChat.operator.name,
+          isFirstResponse
         }
       }
     });
+
+    // 📊 Mark first response in SLA if this is the first message
+    if (isFirstResponse) {
+      try {
+        const { slaService } = await import('../services/sla-service.js');
+        await slaService.markFirstResponse(sessionId, 'SESSION', operatorId);
+        console.log('✅ First response SLA marked for session', sessionId);
+      } catch (error) {
+        console.error('⚠️ Failed to mark first response SLA:', error);
+        // Non-blocking error
+      }
+    }
 
     // Update session last activity
     await getPrisma().chatSession.update({
@@ -520,8 +610,8 @@ router.post('/send-message', authenticateToken, validateSession, async (req, res
       data: { lastActivity: new Date() }
     });
 
-    console.log(`✅ Operator message saved to DB for session ${sessionId}: "${sanitizedMessage}"`);
-    
+    console.log(`✅ Operator message saved to DB for session ${sessionId}: "${sanitizedMessage}"${isFirstResponse ? ' (FIRST RESPONSE)' : ''}`);
+
     // TODO: Add user notification system here if needed
     // For now, user should receive message via polling on their chat endpoint
 
