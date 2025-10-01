@@ -6,10 +6,12 @@
 import { PrismaClient } from '@prisma/client';
 import bcrypt from 'bcrypt';
 
-const prisma = new PrismaClient();
-
-export async function ensureAdminExists() {
+export async function ensureAdminExists(prismaInstance = null) {
     try {
+        // Use provided prisma instance or create new one
+        const prisma = prismaInstance || new PrismaClient();
+        const shouldDisconnect = !prismaInstance; // Only disconnect if we created it
+
         const adminPassword = process.env.ADMIN_PASSWORD || 'lucine2025admin';
 
         console.log('🔐 Checking admin user...');
@@ -59,8 +61,14 @@ export async function ensureAdminExists() {
             console.log(`   Password: ${adminPassword}`);
         }
 
+        // Cleanup if we created our own connection
+        if (shouldDisconnect) {
+            await prisma.$disconnect();
+        }
+
     } catch (error) {
         console.error('❌ Error ensuring admin exists:', error.message);
+        throw error; // Re-throw to prevent server startup if admin setup fails
     }
 }
 

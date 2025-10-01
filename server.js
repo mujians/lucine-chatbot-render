@@ -255,7 +255,7 @@ async function startServer() {
     console.log('✅ Database tables verified');
 
     // Ensure admin user exists with correct password
-    await ensureAdminExists();
+    await ensureAdminExists(prisma);
     console.log('✅ Admin user verified');
     
     // Initialize services after database is ready
