@@ -6,7 +6,7 @@
 import express from 'express';
 import bcrypt from 'bcryptjs';
 import container from '../config/container.js';
-import { authenticateToken } from '../middleware/auth.js';
+import { authenticateToken } from '../middleware/security.js';
 import checkAdmin from '../middleware/check-admin.js';
 
 const router = express.Router();
