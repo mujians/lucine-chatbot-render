@@ -1176,11 +1176,15 @@ class DashboardApp {
      */
     handleNotification(notification) {
         console.log('🔔 WebSocket notification received:', notification);
-        
-        switch (notification.notificationType || notification.type) {
+
+        // Backend sends: { type: 'notification', event: 'new_operator_request', ... }
+        const eventType = notification.event || notification.notificationType || notification.type;
+
+        switch (eventType) {
             case 'new_operator_request':
                 this.handleNewOperatorRequest(notification);
                 break;
+            case 'new_chat_assigned':
             case 'chat_assigned':
                 this.handleChatAssigned(notification);
                 break;
@@ -1188,6 +1192,7 @@ class DashboardApp {
                 this.handleNewMessage(notification);
                 break;
             default:
+                console.log('⚠️ Unknown notification event:', eventType);
                 // Show generic notification
                 if (notification.title && notification.message) {
                     this.showToast(`${notification.title}: ${notification.message}`, 'info');
