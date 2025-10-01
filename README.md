@@ -1,10 +1,12 @@
-# 🎄 Lucine di Natale - Chatbot System v2.7
+# 🎄 Lucine di Natale - Chatbot System v2.8
 
 **Sistema Customer Support AI Enterprise** per Lucine di Natale di Leggiuno
 
 [![Production](https://img.shields.io/badge/status-production-success)]()
 [![Node](https://img.shields.io/badge/node-18.x-green)]()
 [![Database](https://img.shields.io/badge/database-PostgreSQL-blue)]()
+[![Widget](https://img.shields.io/badge/widget-v2.8-brightgreen)]()
+[![Fixes](https://img.shields.io/badge/issues-10%2F10%20fixed-success)]()
 
 ## 🎯 Overview
 
@@ -19,6 +21,13 @@ Sistema completo di customer support con AI (GPT-3.5) che gestisce:
 - **Widget**: https://lucinedinatale.it/?chatbot=test
 - **Dashboard**: https://lucine-chatbot.onrender.com/dashboard
 
+### 📚 Complete Documentation
+- **[SYSTEM-MAP.md](SYSTEM-MAP.md)** - Complete architecture, API map, database schema
+- **[FRONTEND-BACKEND-FLOW.md](FRONTEND-BACKEND-FLOW.md)** - Flow analysis, debugging guide
+- **[WIDGET-FIXES-SUMMARY.md](WIDGET-FIXES-SUMMARY.md)** - Widget v2.8 fixes details
+- **[ANALYSIS-SUMMARY.md](ANALYSIS-SUMMARY.md)** - Executive summary, metrics
+- **[COMPLETE-FIXES-REPORT.md](COMPLETE-FIXES-REPORT.md)** - Final report (10/10 problems fixed)
+
 ---
 
 ## 🏗️ Architettura
@@ -27,10 +36,11 @@ Sistema completo di customer support con AI (GPT-3.5) che gestisce:
 ┌─────────────────────────────────────────────────────────┐
 │  FRONTEND (Shopify)          BACKEND (Render)           │
 ├─────────────────────────────────────────────────────────┤
-│  Widget v2.7                 Express.js + Node 18       │
+│  Widget v2.8 ✅              Express.js + Node 18       │
 │  - Vanilla JS                - OpenAI GPT-3.5-turbo     │
-│  - Polling 3s                - JWT Authentication       │
-│  - SmartActions UI           - PostgreSQL + Prisma      │
+│  - 10s timeout               - JWT Authentication       │
+│  - Server-side session       - PostgreSQL + Prisma      │
+│  - SmartActions UI           - DI Container pattern     │
 └─────────────────────────────────────────────────────────┘
 ```
 
