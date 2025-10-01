@@ -189,7 +189,7 @@ class QueueService {
         });
 
         if (onlineOperators === 0) {
-            return 60; // 60 minuti se nessun operatore
+            return 30; // 30 minuti se nessun operatore
         }
 
         // Conta code per priorità
@@ -201,18 +201,18 @@ class QueueService {
 
         let estimatedMinutes = 0;
 
-        // Calcola based su priorità
+        // Calcola based su priorità (tempi medi per chat)
         for (const queueCount of queueCounts) {
             if (priority === 'HIGH' && queueCount.priority === 'HIGH') {
-                estimatedMinutes += (queueCount._count.priority / onlineOperators) * 3;
+                estimatedMinutes += (queueCount._count.priority / onlineOperators) * 2;
             } else if (priority === 'MEDIUM' && ['HIGH', 'MEDIUM'].includes(queueCount.priority)) {
-                estimatedMinutes += (queueCount._count.priority / onlineOperators) * 5;
+                estimatedMinutes += (queueCount._count.priority / onlineOperators) * 3;
             } else if (priority === 'LOW') {
-                estimatedMinutes += (queueCount._count.priority / onlineOperators) * 8;
+                estimatedMinutes += (queueCount._count.priority / onlineOperators) * 5;
             }
         }
 
-        return Math.max(2, Math.round(estimatedMinutes)); // Minimo 2 minuti
+        return Math.max(1, Math.round(estimatedMinutes)); // Minimo 1 minuto
     }
 
     /**
