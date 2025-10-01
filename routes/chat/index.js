@@ -95,8 +95,9 @@ router.post('/', async (req, res) => {
 
     // Check if in live chat with operator
     if (isWithOperator(session)) {
+      // Don't send confirmation - widget already shows message
       return res.json({
-        reply: `💬 Messaggio inviato all'operatore. Attendi la risposta...`,
+        reply: null, // No bot reply when with operator
         sessionId: session.sessionId,
         status: 'with_operator',
         operatorConnected: true
