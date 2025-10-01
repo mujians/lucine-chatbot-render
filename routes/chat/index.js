@@ -95,6 +95,23 @@ router.post('/', async (req, res) => {
 
     // Check if in live chat with operator
     if (isWithOperator(session)) {
+      // 📨 Notify operator about new user message (real-time)
+      const activeOperatorChat = session.operatorChats.find(chat => !chat.endedAt);
+      if (activeOperatorChat) {
+        const { notifyOperators } = await import('../../utils/notifications.js');
+        notifyOperators({
+          event: 'new_message',
+          sessionId: session.sessionId,
+          message: sanitizedMessage,
+          sender: 'USER',
+          timestamp: new Date().toISOString(),
+          title: 'Nuovo messaggio utente',
+          operatorChatId: activeOperatorChat.id
+        }, activeOperatorChat.operatorId); // Notify only assigned operator
+
+        console.log(`📨 Notified operator ${activeOperatorChat.operatorId} of new user message`);
+      }
+
       // Don't send confirmation - widget already shows message
       return res.json({
         reply: null, // No bot reply when with operator

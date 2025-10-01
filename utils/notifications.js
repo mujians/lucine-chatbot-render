@@ -55,8 +55,56 @@ export function getConnectedOperators() {
   return Array.from(operatorConnections.keys());
 }
 
+/**
+ * Invia notifica a widget via WebSocket
+ * @param {string} sessionId - Session ID del widget
+ * @param {Object} message - Messaggio da inviare
+ */
+export function notifyWidget(sessionId, message) {
+  const widgetConnections = container.get('widgetConnections');
+
+  if (!widgetConnections.has(sessionId)) {
+    console.log(`⚠️ Widget ${sessionId} not connected via WebSocket`);
+    return false;
+  }
+
+  const ws = widgetConnections.get(sessionId);
+  if (ws.readyState === 1) { // WebSocket.OPEN
+    const notification = {
+      type: 'notification',
+      ...message,
+      timestamp: new Date().toISOString()
+    };
+
+    ws.send(JSON.stringify(notification));
+    console.log(`📱 Notification sent to widget ${sessionId}`);
+    return true;
+  }
+
+  return false;
+}
+
+/**
+ * Controlla se un widget è connesso via WebSocket
+ */
+export function isWidgetConnected(sessionId) {
+  const widgetConnections = container.get('widgetConnections');
+  return widgetConnections.has(sessionId);
+}
+
+/**
+ * Ottieni tutti i widget connessi
+ */
+export function getConnectedWidgets() {
+  const widgetConnections = container.get('widgetConnections');
+  return Array.from(widgetConnections.keys());
+}
+
 export default {
   notifyOperators,
   isOperatorConnected,
-  getConnectedOperators
+  getConnectedOperators,
+  notifyWidget,
+  isWidgetConnected,
+  getConnectedWidgets
 };

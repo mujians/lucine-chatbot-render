@@ -628,8 +628,50 @@ router.post('/send-message', authenticateToken, validateSession, async (req, res
 
     console.log(`✅ Operator message saved to DB for session ${sessionId}: "${sanitizedMessage}"${isFirstResponse ? ' (FIRST RESPONSE)' : ''}`);
 
-    // TODO: Add user notification system here if needed
-    // For now, user should receive message via polling on their chat endpoint
+    // 📱 Send message to widget via WebSocket (real-time delivery)
+    try {
+      const { notifyWidget } = await import('../utils/notifications.js');
+      const sent = notifyWidget(sessionId, {
+        event: 'new_operator_message',
+        message: {
+          id: savedMessage.id,
+          sender: 'OPERATOR',
+          message: sanitizedMessage,
+          timestamp: savedMessage.timestamp,
+          operatorName: operatorChat.operator.name,
+          operatorId: operatorChat.operator.id,
+          isFirstResponse
+        }
+      });
+
+      if (sent) {
+        console.log(`📱 Message sent to widget via WebSocket`);
+      } else {
+        console.log(`⚠️ Widget not connected, user will receive via polling`);
+      }
+    } catch (error) {
+      console.error('⚠️ Failed to notify widget:', error);
+      // Non-blocking - user will get message via polling fallback
+    }
+
+    // 📊 Record analytics for operator message
+    try {
+      await getPrisma().analytics.create({
+        data: {
+          eventType: 'operator_message_sent',
+          sessionId,
+          eventData: {
+            operatorId,
+            operatorName: operatorChat.operator.name,
+            messageLength: sanitizedMessage.length,
+            isFirstResponse
+          },
+          successful: true
+        }
+      });
+    } catch (error) {
+      console.error('⚠️ Failed to log analytics:', error);
+    }
 
     res.json({
       success: true,

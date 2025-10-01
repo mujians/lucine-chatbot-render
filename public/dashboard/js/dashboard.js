@@ -1243,13 +1243,53 @@ class DashboardApp {
      * 💬 Gestione nuovo messaggio in chat attiva
      */
     handleNewMessage(notification) {
-        // Se la chat è aperta, aggiorna i messaggi (functionality simplified)
+        console.log('💬 New message notification:', notification);
+
+        // Se la chat è aperta, ricarica i messaggi automaticamente
         if (this.activeChat && this.activeChat.sessionId === notification.sessionId) {
-            console.log('New message for active chat, manual refresh required');
+            console.log('🔄 Reloading active chat messages...');
+
+            // Ricarica la conversazione per mostrare il nuovo messaggio
+            this.loadChatMessages(notification.sessionId);
+
+            // Play subtle notification sound
+            this.playSystemBeep();
+        } else {
+            // Chat non aperta - mostra badge "nuovo messaggio"
+            this.updateChatBadge(notification.sessionId, 'new');
+
+            // Play notification sound
+            this.playNotificationSound();
+
+            // Toast notification
+            const shortSessionId = notification.sessionId.substring(0, 8) + '...';
+            this.showToast(`💬 Nuovo messaggio da ${shortSessionId}`, 'info');
         }
-        
-        // Toast notification per nuovi messaggi
-        this.showToast(`💬 Nuovo messaggio da ${notification.sessionId}`, 'info');
+
+        // Ricarica lista chat per aggiornare preview ultimo messaggio
+        this.loadChatsData();
+    }
+
+    /**
+     * 🔔 Update chat badge (nuovo messaggio)
+     */
+    updateChatBadge(sessionId, badgeType = 'new') {
+        // Find chat in DOM and add badge indicator
+        const chatElements = document.querySelectorAll(`[data-session-id="${sessionId}"]`);
+        chatElements.forEach(el => {
+            // Add or update badge
+            let badge = el.querySelector('.chat-badge');
+            if (!badge) {
+                badge = document.createElement('span');
+                badge.className = 'chat-badge badge bg-danger ms-2';
+                badge.textContent = '1';
+                el.appendChild(badge);
+            } else {
+                // Increment count
+                const count = parseInt(badge.textContent) || 0;
+                badge.textContent = count + 1;
+            }
+        });
     }
 
     /**

@@ -227,10 +227,39 @@ class QueueService {
             ]
         });
 
+        // Import notification utility
+        let notifyWidget;
+        try {
+            const notifications = await import('../utils/notifications.js');
+            notifyWidget = notifications.notifyWidget;
+        } catch (error) {
+            console.error('⚠️ Failed to import notifications:', error);
+        }
+
         for (let i = 0; i < entries.length; i++) {
             const entry = entries[i];
+            const newPosition = i + 1;
+            const oldPosition = this.queues.has(entry.sessionId) ?
+                this.queues.get(entry.sessionId).position : null;
+
+            // Update cache
             if (this.queues.has(entry.sessionId)) {
-                this.queues.get(entry.sessionId).position = i + 1;
+                this.queues.get(entry.sessionId).position = newPosition;
+            }
+
+            // 📱 Notify widget if position changed
+            if (oldPosition && oldPosition !== newPosition && notifyWidget) {
+                const estimatedWait = await this.calculateEstimatedWait(entry.priority);
+                notifyWidget(entry.sessionId, {
+                    event: 'queue_update',
+                    position: newPosition,
+                    oldPosition,
+                    estimatedWait,
+                    priority: entry.priority,
+                    message: newPosition < oldPosition ?
+                        `🎉 Sei salito in coda! Ora sei al ${newPosition}° posto` :
+                        `Posizione aggiornata: ${newPosition}° in coda`
+                });
             }
         }
     }

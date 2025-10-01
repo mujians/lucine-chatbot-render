@@ -72,11 +72,16 @@ const wss = new WebSocketServer({ server });
 // Store active connections by operatorId
 const operatorConnections = new Map();
 
+// Store active widget connections by sessionId
+const widgetConnections = new Map();
+
 // Register in DI container invece di export
 container.register('operatorConnections', operatorConnections);
+container.register('widgetConnections', widgetConnections);
 
 // Backward compatibility per services che usano global
 global.operatorConnections = operatorConnections;
+global.widgetConnections = widgetConnections;
 
 // WebSocket connection handling
 wss.on('connection', (ws, req) => {
@@ -86,18 +91,33 @@ wss.on('connection', (ws, req) => {
     try {
       const data = JSON.parse(message);
       console.log('📨 WebSocket message:', data);
-      
+
       if (data.type === 'operator_auth') {
         // Associate connection with operator
         ws.operatorId = data.operatorId;
+        ws.clientType = 'operator';
         operatorConnections.set(data.operatorId, ws);
-        
+
         console.log(`👤 Operator ${data.operatorId} connected via WebSocket`);
-        
+
         // Send confirmation
         ws.send(JSON.stringify({
           type: 'auth_success',
           operatorId: data.operatorId,
+          timestamp: new Date().toISOString()
+        }));
+      } else if (data.type === 'widget_auth') {
+        // Associate connection with widget sessionId
+        ws.sessionId = data.sessionId;
+        ws.clientType = 'widget';
+        widgetConnections.set(data.sessionId, ws);
+
+        console.log(`🤖 Widget ${data.sessionId} connected via WebSocket`);
+
+        // Send confirmation
+        ws.send(JSON.stringify({
+          type: 'auth_success',
+          sessionId: data.sessionId,
           timestamp: new Date().toISOString()
         }));
       }
@@ -110,6 +130,10 @@ wss.on('connection', (ws, req) => {
     if (ws.operatorId) {
       operatorConnections.delete(ws.operatorId);
       console.log(`👋 Operator ${ws.operatorId} disconnected`);
+    }
+    if (ws.sessionId) {
+      widgetConnections.delete(ws.sessionId);
+      console.log(`👋 Widget ${ws.sessionId} disconnected`);
     }
   });
   
