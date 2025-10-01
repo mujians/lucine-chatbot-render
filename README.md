@@ -1,11 +1,11 @@
-# 🎄 Lucine di Natale - Chatbot System v2.8
+# 🎄 Lucine di Natale - Chatbot System v2.9
 
 **Sistema Customer Support AI Enterprise** per Lucine di Natale di Leggiuno
 
 [![Production](https://img.shields.io/badge/status-production-success)]()
 [![Node](https://img.shields.io/badge/node-18.x-green)]()
 [![Database](https://img.shields.io/badge/database-PostgreSQL-blue)]()
-[![Widget](https://img.shields.io/badge/widget-v2.8-brightgreen)]()
+[![Widget](https://img.shields.io/badge/widget-v2.9-brightgreen)]()
 [![Fixes](https://img.shields.io/badge/issues-10%2F10%20fixed-success)]()
 
 ## 🎯 Overview
@@ -27,6 +27,7 @@ Sistema completo di customer support con AI (GPT-3.5) che gestisce:
 - **[WIDGET-FIXES-SUMMARY.md](WIDGET-FIXES-SUMMARY.md)** - Widget v2.8 fixes details
 - **[ANALYSIS-SUMMARY.md](ANALYSIS-SUMMARY.md)** - Executive summary, metrics
 - **[COMPLETE-FIXES-REPORT.md](COMPLETE-FIXES-REPORT.md)** - Final report (10/10 problems fixed)
+- **[DEBUG-JWT-TOKEN.md](DEBUG-JWT-TOKEN.md)** - JWT token 403 debugging guide
 
 ---
 
@@ -36,11 +37,12 @@ Sistema completo di customer support con AI (GPT-3.5) che gestisce:
 ┌─────────────────────────────────────────────────────────┐
 │  FRONTEND (Shopify)          BACKEND (Render)           │
 ├─────────────────────────────────────────────────────────┤
-│  Widget v2.8 ✅              Express.js + Node 18       │
+│  Widget v2.9 ✅              Express.js + Node 18       │
 │  - Vanilla JS                - OpenAI GPT-3.5-turbo     │
 │  - 10s timeout               - JWT Authentication       │
 │  - Server-side session       - PostgreSQL + Prisma      │
 │  - SmartActions UI           - DI Container pattern     │
+│  - Hidden commands ✨        - Improved UX messages ✨  │
 └─────────────────────────────────────────────────────────┘
 ```
 
