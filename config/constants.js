@@ -111,6 +111,7 @@ export const SMART_ACTION_TYPES = {
 // 🌐 CORS ORIGINS
 export const ALLOWED_ORIGINS = [
   'https://lucinedinatale.it',
+  'https://www.lucinedinatale.it',
   'https://lucine-chatbot.onrender.com',
   'http://localhost:3000',
   'http://localhost:8000'
