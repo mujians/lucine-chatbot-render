@@ -255,8 +255,9 @@ async function startServer() {
     console.log('✅ Database tables verified');
 
     // Ensure admin user exists with correct password
-    await ensureAdminExists(prisma);
-    console.log('✅ Admin user verified');
+    // TEMPORARILY DISABLED - Will re-enable after migration is applied
+    // await ensureAdminExists(prisma);
+    console.log('⏭️ Admin check skipped (migration pending)');
     
     // Initialize services after database is ready
     await healthService.init(prisma);
