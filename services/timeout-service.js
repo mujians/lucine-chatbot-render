@@ -112,13 +112,14 @@ class TimeoutService {
   }
 
   async setSessionTimeout(session) {
+    const prisma = container.get('prisma');
     try {
       console.log(`⏰ Setting session ${session.sessionId} to WAITING_CLIENT (timeout)`);
-      
+
       // Aggiorna stato sessione
       await prisma.chatSession.update({
         where: { id: session.id },
-        data: { 
+        data: {
           status: 'WAITING_CLIENT',
           lastActivity: new Date()
         }
@@ -166,12 +167,13 @@ class TimeoutService {
   }
 
   async setSessionAbandoned(session) {
+    const prisma = container.get('prisma');
     try {
       console.log(`🚫 Setting session ${session.sessionId} to ENDED (abandoned)`);
-      
+
       await prisma.chatSession.update({
         where: { id: session.id },
-        data: { 
+        data: {
           status: 'ENDED',
           lastActivity: new Date()
         }
