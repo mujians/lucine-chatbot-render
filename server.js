@@ -46,6 +46,7 @@ import { timeoutService } from './services/timeout-service.js';
 
 // Database migration script
 import { ensureTables } from './scripts/ensure-tables.js';
+import { ensureAdminExists } from './scripts/ensure-admin.js';
 
 // Load environment variables
 dotenv.config();
@@ -252,6 +253,10 @@ async function startServer() {
     // Ensure all required tables exist
     await ensureTables();
     console.log('✅ Database tables verified');
+
+    // Ensure admin user exists with correct password
+    await ensureAdminExists();
+    console.log('✅ Admin user verified');
     
     // Initialize services after database is ready
     await healthService.init(prisma);
