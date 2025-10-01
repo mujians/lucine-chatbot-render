@@ -235,13 +235,21 @@ class DashboardApp {
     showDashboard() {
         document.getElementById('login-screen').classList.add('hidden');
         document.getElementById('dashboard-container').classList.remove('hidden');
-        
+
         // Aggiorna info operatore
         const operatorName = document.getElementById('operator-name');
         if (operatorName && this.currentOperator) {
-            operatorName.textContent = this.currentOperator.name || this.currentOperator.username;
+            operatorName.textContent = this.currentOperator.displayName || this.currentOperator.name || this.currentOperator.username;
         }
-        
+
+        // 👑 Show admin menu if user is ADMIN
+        if (this.currentOperator && this.currentOperator.role === 'ADMIN') {
+            const adminSection = document.getElementById('admin-section');
+            if (adminSection) {
+                adminSection.style.display = 'block';
+            }
+        }
+
         // Connetti WebSocket
         this.connectWebSocket();
 
