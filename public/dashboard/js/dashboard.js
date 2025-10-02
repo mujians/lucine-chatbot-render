@@ -102,6 +102,17 @@ class DashboardApp {
         if (saveUserBtn) {
             saveUserBtn.addEventListener('click', () => this.saveUser());
         }
+
+        // Modal close buttons
+        document.querySelectorAll('[data-bs-dismiss="modal"]').forEach(btn => {
+            btn.addEventListener('click', () => {
+                const modal = document.getElementById('user-modal');
+                if (modal) {
+                    modal.style.display = 'none';
+                    modal.classList.remove('show');
+                }
+            });
+        });
     }
 
     /**
@@ -1545,7 +1556,7 @@ class DashboardApp {
             this.renderUsers(users);
         } catch (error) {
             console.error('Error loading users:', error);
-            this.showNotification('Errore nel caricamento degli utenti', 'error');
+            this.showToast('Errore nel caricamento degli utenti', 'error');
         }
     }
 
@@ -1610,9 +1621,10 @@ class DashboardApp {
         document.getElementById('user-id').value = '';
         document.getElementById('user-modal-title').textContent = 'Nuovo Operatore';
 
-        // Show modal
-        const modal = new bootstrap.Modal(document.getElementById('user-modal'));
-        modal.show();
+        // Show modal (without bootstrap, use display)
+        const modal = document.getElementById('user-modal');
+        modal.style.display = 'block';
+        modal.classList.add('show');
     }
 
     async editUser(userId) {
@@ -1642,11 +1654,12 @@ class DashboardApp {
             document.getElementById('user-modal-title').textContent = 'Modifica Operatore';
 
             // Show modal
-            const modal = new bootstrap.Modal(document.getElementById('user-modal'));
-            modal.show();
+            const modal = document.getElementById('user-modal');
+            modal.style.display = 'block';
+            modal.classList.add('show');
         } catch (error) {
             console.error('Error loading user:', error);
-            this.showNotification('Errore nel caricamento dell\'operatore', 'error');
+            this.showToast('Errore nel caricamento dell\'operatore', 'error');
         }
     }
 
@@ -1664,13 +1677,13 @@ class DashboardApp {
 
         // Validate required fields
         if (!userData.username || !userData.email || !userData.name) {
-            this.showNotification('Compila tutti i campi obbligatori', 'error');
+            this.showToast('Compila tutti i campi obbligatori', 'error');
             return;
         }
 
         // Password required for new users
         if (!userId && !userData.password) {
-            this.showNotification('La password è obbligatoria per nuovi operatori', 'error');
+            this.showToast('La password è obbligatoria per nuovi operatori', 'error');
             return;
         }
 
@@ -1698,16 +1711,17 @@ class DashboardApp {
             }
 
             // Close modal
-            const modal = bootstrap.Modal.getInstance(document.getElementById('user-modal'));
-            modal.hide();
+            const modal = document.getElementById('user-modal');
+            modal.style.display = 'none';
+            modal.classList.remove('show');
 
             // Reload users
             await this.loadUsers();
 
-            this.showNotification(userId ? 'Operatore aggiornato' : 'Operatore creato', 'success');
+            this.showToast(userId ? 'Operatore aggiornato' : 'Operatore creato', 'success');
         } catch (error) {
             console.error('Error saving user:', error);
-            this.showNotification(error.message || 'Errore nel salvataggio', 'error');
+            this.showToast(error.message || 'Errore nel salvataggio', 'error');
         }
     }
 
@@ -1729,10 +1743,10 @@ class DashboardApp {
             }
 
             await this.loadUsers();
-            this.showNotification('Operatore disattivato', 'success');
+            this.showToast('Operatore disattivato', 'success');
         } catch (error) {
             console.error('Error deactivating user:', error);
-            this.showNotification('Errore nella disattivazione', 'error');
+            this.showToast('Errore nella disattivazione', 'error');
         }
     }
 
