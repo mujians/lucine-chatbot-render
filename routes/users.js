@@ -37,7 +37,7 @@ router.get('/', authenticateToken, checkAdmin, async (req, res) => {
       orderBy: { createdAt: 'desc' }
     });
 
-    res.json({ success: true, users: operators });
+    res.json(operators);
   } catch (error) {
     console.error('❌ Error fetching users:', error);
     res.status(500).json({ error: 'Failed to fetch users' });

@@ -1643,12 +1643,9 @@ class DashboardApp {
 
             // Populate form
             document.getElementById('user-id').value = user.id;
-            document.getElementById('user-username').value = user.username;
+            document.getElementById('user-username').value = user.displayName || user.username;
             document.getElementById('user-email').value = user.email;
-            document.getElementById('user-name').value = user.name;
-            document.getElementById('user-displayName').value = user.displayName || '';
             document.getElementById('user-avatar').value = user.avatar || '';
-            document.getElementById('user-specialization').value = user.specialization || '';
             document.getElementById('user-password').value = ''; // Don't populate password
 
             document.getElementById('user-modal-title').textContent = 'Modifica Operatore';
@@ -1665,18 +1662,18 @@ class DashboardApp {
 
     async saveUser() {
         const userId = document.getElementById('user-id').value;
+        const username = document.getElementById('user-username').value;
         const userData = {
-            username: document.getElementById('user-username').value,
+            username: username.toLowerCase().replace(/\s+/g, ''), // username senza spazi
             email: document.getElementById('user-email').value,
-            name: document.getElementById('user-name').value,
-            displayName: document.getElementById('user-displayName').value || null,
+            name: username, // nome = username
+            displayName: username, // displayName = username
             avatar: document.getElementById('user-avatar').value || null,
-            specialization: document.getElementById('user-specialization').value || null,
             password: document.getElementById('user-password').value || undefined
         };
 
         // Validate required fields
-        if (!userData.username || !userData.email || !userData.name) {
+        if (!username || !userData.email) {
             this.showToast('Compila tutti i campi obbligatori', 'error');
             return;
         }

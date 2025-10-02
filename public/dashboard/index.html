@@ -416,8 +416,9 @@
                         <input type="hidden" id="user-id">
 
                         <div class="mb-3">
-                            <label class="form-label">Username *</label>
-                            <input type="text" class="form-control" id="user-username" required autocomplete="username">
+                            <label class="form-label">Username (Nome Display) *</label>
+                            <input type="text" class="form-control" id="user-username" required autocomplete="username" placeholder="Es: Mario">
+                            <small class="text-muted">Nome mostrato nelle chat</small>
                         </div>
 
                         <div class="mb-3">
@@ -426,35 +427,14 @@
                         </div>
 
                         <div class="mb-3">
-                            <label class="form-label">Nome Completo *</label>
-                            <input type="text" class="form-control" id="user-name" required autocomplete="name">
-                        </div>
-
-                        <div class="mb-3">
-                            <label class="form-label">Nome Display</label>
-                            <input type="text" class="form-control" id="user-displayName" placeholder="Es: Mario">
-                            <small class="text-muted">Nome mostrato nelle chat</small>
-                        </div>
-
-                        <div class="mb-3">
                             <label class="form-label">Avatar (Emoji o URL)</label>
                             <input type="text" class="form-control" id="user-avatar" placeholder="Es: 😊 o https://...">
-                        </div>
-
-                        <div class="mb-3">
-                            <label class="form-label">Specializzazione</label>
-                            <input type="text" class="form-control" id="user-specialization" placeholder="Es: Assistenza tecnica">
                         </div>
 
                         <div class="mb-3">
                             <label class="form-label">Password <span id="password-required">*</span></label>
                             <input type="password" class="form-control" id="user-password" autocomplete="new-password">
                             <small class="text-muted" id="password-hint" style="display: none;">Lascia vuoto per non cambiare</small>
-                        </div>
-
-                        <div class="mb-3 form-check">
-                            <input type="checkbox" class="form-check-input" id="user-isActive" checked>
-                            <label class="form-check-label" for="user-isActive">Attivo</label>
                         </div>
                     </form>
                 </div>

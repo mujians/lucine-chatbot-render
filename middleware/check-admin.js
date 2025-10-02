@@ -7,15 +7,14 @@ import container from '../config/container.js';
 
 export async function checkAdmin(req, res, next) {
   try {
-    const operatorId = req.operatorId; // Set by authenticateToken middleware
-
-    if (!operatorId) {
+    // req.operator is set by authenticateToken middleware
+    if (!req.operator) {
       return res.status(401).json({ error: 'Unauthorized' });
     }
 
     const prisma = container.get('prisma');
     const operator = await prisma.operator.findUnique({
-      where: { id: operatorId },
+      where: { id: req.operator.id },
       select: { role: true, username: true }
     });
 
