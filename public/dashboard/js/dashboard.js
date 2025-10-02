@@ -304,11 +304,22 @@ class DashboardApp {
             });
             
             if (response.ok) {
+                const data = await response.json();
+                console.log('✅ Status updated:', data);
+
+                // Update local state
                 this.currentOperator.isOnline = newStatus;
+
+                // Update localStorage
+                localStorage.setItem('operator_session', JSON.stringify(this.currentOperator));
+
+                // Update UI
                 this.updateStatusUI();
+
                 this.showToast(`Status: ${newStatus ? 'Online' : 'Offline'}`, 'success');
             } else {
-                throw new Error('Failed to update status');
+                const error = await response.json();
+                throw new Error(error.message || 'Failed to update status');
             }
             
         } catch (error) {
@@ -321,15 +332,14 @@ class DashboardApp {
      * 🎨 Aggiorna UI status
      */
     updateStatusUI() {
-        const statusDot = document.getElementById('status-dot');
-        const statusText = document.getElementById('operator-status');
-        
+        const statusIndicator = document.getElementById('status-indicator');
+
+        if (!statusIndicator) return;
+
         if (this.currentOperator && this.currentOperator.isOnline) {
-            statusDot.className = 'status-dot online';
-            statusText.textContent = 'Online';
+            statusIndicator.className = 'status-indicator online';
         } else {
-            statusDot.className = 'status-dot offline';
-            statusText.textContent = 'Offline';
+            statusIndicator.className = 'status-indicator offline';
         }
     }
 
