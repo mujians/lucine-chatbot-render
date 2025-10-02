@@ -148,15 +148,17 @@
 
         // Check auth on load
         window.onload = async () => {
-            const storedData = localStorage.getItem('currentOperator');
-            if (!storedData) {
+            // Get operator data from localStorage (saved by dashboard.js)
+            const operatorData = localStorage.getItem('operator_session');
+            const authToken = localStorage.getItem('auth_token');
+
+            if (!operatorData || !authToken) {
                 window.location.href = '/dashboard/';
                 return;
             }
 
-            const data = JSON.parse(storedData);
-            token = data.token;
-            currentUser = data.operator;
+            currentUser = JSON.parse(operatorData);
+            token = authToken;
 
             // Check if user is admin
             if (currentUser.role !== 'ADMIN') {

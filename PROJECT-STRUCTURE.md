@@ -33,23 +33,51 @@ git remote -v
 lucine-chatbot-render/
 ├── routes/              # API endpoints
 │   ├── chat/           # Chat logic (modularized)
-│   ├── operators.js    # Operator auth & messaging
+│   │   ├── index.js           # Main router
+│   │   ├── ai-handler.js      # OpenAI integration
+│   │   ├── escalation-handler.js  # Queue + SLA integration
+│   │   ├── ticket-handler.js  # Ticket creation
+│   │   ├── session-handler.js # Session management
+│   │   └── polling-handler.js # Operator message polling
+│   ├── operators.js    # Operator auth, messaging, auto-assign
+│   ├── users.js        # 👑 User management (ADMIN only)
 │   ├── tickets.js      # Ticket management
+│   ├── chat-management.js  # Chat states & notes
 │   └── analytics.js    # Analytics & stats
 ├── services/           # Business logic services
+│   ├── queue-service.js      # Dynamic priority queue
+│   ├── sla-service.js        # SLA monitoring & tracking
+│   ├── timeout-service.js    # 10min inactivity handler
+│   └── health-service.js     # System health checks
 ├── middleware/         # Security, auth, rate limiting
+│   ├── security.js           # JWT auth, rate limiting
+│   └── check-admin.js        # 👑 Admin-only middleware
+├── utils/              # Helper functions
+│   ├── knowledge.js          # Knowledge base (cached)
+│   ├── notifications.js      # WebSocket notifications
+│   └── security.js           # Input sanitization
+├── config/             # Configuration
+│   └── container.js          # Dependency injection
 ├── prisma/            # Database schema & migrations
+│   ├── schema.prisma         # Database schema
+│   └── migrations/           # Migration history
 ├── public/dashboard/  # Operator dashboard (static)
-├── scripts/           # Utility scripts (admin reset, etc)
+│   ├── index.html            # Main dashboard
+│   ├── users.html            # 👑 User management UI
+│   ├── css/
+│   └── js/
+├── scripts/           # Utility scripts
 ├── data/              # Knowledge base JSON
-└── server.js          # Main entry point
+└── server.js          # Main entry point + WebSocket
 ```
 
-### **Key Files**
-- `server.js` - Main application
-- `prisma/schema.prisma` - Database schema
-- `.env` - Environment variables (LOCAL ONLY - never commit)
-- `package.json` - Dependencies
+### **Key Features**
+- ✅ **WebSocket Real-time**: Bidirectional operator-user communication
+- ✅ **Dynamic Priority Queue**: Based on wait time (0-5min=LOW, 5-15min=MEDIUM, 15+min=HIGH)
+- ✅ **SLA Tracking**: First response + resolution deadlines
+- ✅ **User Management**: Role-based access (ADMIN, OPERATOR)
+- ✅ **Auto-assignment**: Queue-based operator assignment
+- ✅ **Server-side Sessions**: Crypto-secure session IDs
 
 ---
 
@@ -60,31 +88,21 @@ lucine-chatbot-render/
 /Users/brnobtt/Desktop/lucine-minimal/
 ```
 
-### **Git Remote**
-```bash
-cd /Users/brnobtt/Desktop/lucine-minimal
-git remote -v
-# origin  https://github.com/[shopify-theme-repo].git (o Shopify CLI)
-```
-
 ### **Deployment**
 - **Platform**: Shopify Theme
-- **Deploy Method**: Git push → Shopify auto-sync
 - **Live URL**: https://lucinedinatale.it/?chatbot=test
 
 ### **Struttura Cartelle**
 ```
 lucine-minimal/
 ├── snippets/
-│   └── chatbot-popup.liquid  # ⭐ WIDGET PRINCIPALE
+│   └── chatbot-popup.liquid  # ⭐ WIDGET v3.0 (WebSocket enabled)
 ├── layout/
 │   └── theme.liquid          # Include widget snippet
 ├── assets/
 │   ├── theme.js
 │   └── theme.css
-├── sections/
-├── templates/
-└── config/
+└── ...
 ```
 
 ### **Widget File**
@@ -94,49 +112,41 @@ lucine-minimal/
 
 **Activation**: Widget si attiva solo con URL param `?chatbot=test`
 
+**Key Features (v3.0)**:
+- ✅ WebSocket connection for instant messages
+- ✅ Auto-reconnect with exponential backoff
+- ✅ Queue position updates
+- ✅ Polling fallback when WebSocket unavailable
+
 ---
 
-## 📚 DOCUMENTAZIONE - QUALI FILE LEGGERE
+## 📚 DOCUMENTAZIONE
 
-### **Per capire il SISTEMA COMPLETO**
+### **File Principali**
 Leggi in QUESTO ORDINE:
 
-1. **README.md** (lucine-chatbot-render)
+1. **README.md**
    - Overview architettura
    - Stack tecnologico
    - Quick start guide
    - Production URLs
 
-2. **SYSTEM-MAP.md** (lucine-chatbot-render)
+2. **SYSTEM-MAP.md**
    - Mappa completa API endpoints
    - Database schema dettagliato
    - Relazioni tra entità
    - Flussi operativi
 
-3. **FRONTEND-BACKEND-FLOW.md** (lucine-chatbot-render)
+3. **FRONTEND-BACKEND-FLOW.md**
    - Comunicazione widget ↔ backend
-   - Analisi richieste/risposte
-   - Debug flow completo
+   - WebSocket flow
+   - Polling fallback
    - Session management
 
-4. **WIDGET-FIXES-SUMMARY.md** (lucine-chatbot-render)
-   - Changelog widget v2.8
-   - Fix applicati
-   - Problemi risolti
-
-### **Per DEBUG e TROUBLESHOOTING**
-
-- **DEBUG-JWT-TOKEN.md** - JWT 403 errors, token verification
-- **COMPLETE-FIXES-REPORT.md** - Report finale 10/10 fix
-- **ANALYSIS-SUMMARY.md** - Executive summary, metriche
-
-### **File Tecnici Specifici**
-
-- **prisma/schema.prisma** - Database schema completo
-- **routes/chat/index.js** - Main chat logic
-- **routes/chat/escalation-handler.js** - Escalation a operatori
-- **middleware/security.js** - JWT auth, rate limiting
-- **snippets/chatbot-popup.liquid** - Widget frontend
+4. **PROJECT-STRUCTURE.md** (questo file)
+   - Struttura repository
+   - File locations
+   - Workflow sviluppo
 
 ---
 
@@ -173,6 +183,21 @@ git push origin main
 # 4. Test on: https://lucinedinatale.it/?chatbot=test
 ```
 
+### **Database Changes**
+```bash
+cd /Users/brnobtt/Desktop/lucine-chatbot-render
+
+# 1. Edit prisma/schema.prisma
+# 2. Create migration (dev only)
+npx prisma migrate dev --name migration_name
+
+# 3. For production (Render shell)
+psql $DATABASE_URL -c "SQL COMMANDS HERE"
+
+# Example: Add role field
+psql $DATABASE_URL -c "ALTER TABLE \"Operator\" ADD COLUMN IF NOT EXISTS \"role\" TEXT NOT NULL DEFAULT 'OPERATOR';"
+```
+
 ---
 
 ## 🔑 ENVIRONMENT VARIABLES
@@ -193,34 +218,45 @@ PORT=3000                          # Server port
 Nessuna env var - tutto hardcoded nel file `.liquid`:
 ```javascript
 const BACKEND_URL = 'https://lucine-chatbot.onrender.com/api/chat';
+const WS_URL = 'wss://lucine-chatbot.onrender.com';
 ```
 
 ---
 
 ## 🚨 COSE IMPORTANTI DA SAPERE
 
-### **NON lavoriamo in locale**
-⚠️ **IMPORTANTE**: Questo progetto NON usa `localhost`
-- Backend gira SOLO su Render
-- Frontend gira SOLO su Shopify
-- Database è SOLO su Render PostgreSQL
-
 ### **Session ID Server-Side**
 - Widget invia `sessionId: null` alla prima richiesta
 - Backend genera ID sicuro con crypto
 - Widget salva ID dalla risposta backend
 
-### **Polling Operatore**
-- Polling ogni 3 secondi: `GET /api/chat/poll/{sessionId}`
-- Widget traccia messaggi già mostrati con `Set()`
-- Evita duplicati controllando `msg.id`
+### **WebSocket Real-time**
+- wss://lucine-chatbot.onrender.com
+- Autenticazione con `widget_auth` per utenti
+- Autenticazione con `operator_auth` per operatori
+- Auto-reconnect con exponential backoff (max 30s)
+
+### **Dynamic Priority Queue**
+- Priorità calcolata in base a tempo di attesa:
+  - 0-5 min → LOW priority (2min wait estimate)
+  - 5-15 min → MEDIUM priority (3min wait estimate)
+  - 15+ min → HIGH priority (5min wait estimate)
+- Auto-assignment quando operatore disponibile
 
 ### **Escalation Flow**
 1. AI non sa rispondere → Inietta pulsanti YES/NO automatici
 2. User clicca YES → `sendMessage('request_operator')`
-3. Backend check operatori online
-4. Se disponibile → Connessione diretta
-5. Se offline → Ticket form automatico
+3. Backend verifica operatori disponibili
+4. Se nessun operatore → Aggiungi a coda + crea SLA record
+5. Quando operatore diventa disponibile → Auto-assignment
+6. Notifica real-time tramite WebSocket
+
+### **User Management (ADMIN only)**
+- Solo utenti con role='ADMIN' possono:
+  - Creare nuovi operatori
+  - Modificare avatar e displayName
+  - Disattivare operatori
+- Accesso: https://lucine-chatbot.onrender.com/dashboard/users.html
 
 ---
 
@@ -252,6 +288,7 @@ const BACKEND_URL = 'https://lucine-chatbot.onrender.com/api/chat';
 - Backend API: https://lucine-chatbot.onrender.com
 - Widget Live: https://lucinedinatale.it/?chatbot=test
 - Dashboard: https://lucine-chatbot.onrender.com/dashboard
+- User Management: https://lucine-chatbot.onrender.com/dashboard/users.html
 
 ---
 
@@ -264,6 +301,7 @@ const BACKEND_URL = 'https://lucine-chatbot.onrender.com/api/chat';
 | Widget chatbot | `/Users/brnobtt/Desktop/lucine-minimal/snippets/chatbot-popup.liquid` |
 | Backend server | `/Users/brnobtt/Desktop/lucine-chatbot-render/server.js` |
 | Chat logic | `/Users/brnobtt/Desktop/lucine-chatbot-render/routes/chat/` |
+| User management | `/Users/brnobtt/Desktop/lucine-chatbot-render/routes/users.js` |
 | Database schema | `/Users/brnobtt/Desktop/lucine-chatbot-render/prisma/schema.prisma` |
 | Operator dashboard | `/Users/brnobtt/Desktop/lucine-chatbot-render/public/dashboard/` |
 | Documentazione | `/Users/brnobtt/Desktop/lucine-chatbot-render/*.md` |
@@ -281,4 +319,5 @@ cd ~/Desktop/lucine-minimal && git add . && git commit -m "fix: ..." && git push
 ---
 
 **Last Updated**: 2025-10-01
-**Versione Sistema**: Backend 2.7 | Widget 2.9
+**Versione Sistema**: Backend 3.0 | Widget 3.0
+**Features**: WebSocket, Dynamic Queue, SLA Tracking, User Management
