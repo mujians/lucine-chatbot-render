@@ -198,39 +198,47 @@ class SLAService {
         try {
             const now = new Date();
 
-            // Check response deadline violations
+            // Check response deadline violations (not yet responded and past deadline)
             const responseViolations = await this.prisma.sLARecord.findMany({
                 where: {
                     status: 'ACTIVE',
                     responseDeadline: { lte: now },
                     firstResponseAt: null,
-                    responseViolationNotified: false
+                    violatedAt: null  // Only get ones not already marked as violated
                 }
             });
 
             for (const sla of responseViolations) {
                 await this.handleResponseSLAViolation(sla);
+                // Mark as violated
                 await this.prisma.sLARecord.update({
                     where: { id: sla.id },
-                    data: { responseViolationNotified: true }
+                    data: {
+                        violatedAt: now,
+                        status: 'VIOLATED'
+                    }
                 });
             }
 
-            // Check resolution deadline violations
+            // Check resolution deadline violations (not yet resolved and past deadline)
             const resolutionViolations = await this.prisma.sLARecord.findMany({
                 where: {
                     status: 'ACTIVE',
                     resolutionDeadline: { lte: now },
                     resolvedAt: null,
-                    resolutionViolationNotified: false
+                    violatedAt: null  // Only get ones not already marked as violated
                 }
             });
 
             for (const sla of resolutionViolations) {
                 await this.handleResolutionSLAViolation(sla);
+                // Mark as violated
                 await this.prisma.sLARecord.update({
                     where: { id: sla.id },
-                    data: { resolutionViolationNotified: true }
+                    data: {
+                        violatedAt: now,
+                        status: 'VIOLATED'
+                    }
                 });
             }
 
