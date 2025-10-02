@@ -91,6 +91,17 @@ class DashboardApp {
         if (statusFilter) {
             statusFilter.addEventListener('change', () => this.loadAllChatsData());
         }
+
+        // User Management
+        const createUserBtn = document.getElementById('create-user-btn');
+        if (createUserBtn) {
+            createUserBtn.addEventListener('click', () => this.showCreateUserModal());
+        }
+
+        const saveUserBtn = document.getElementById('save-user-btn');
+        if (saveUserBtn) {
+            saveUserBtn.addEventListener('click', () => this.saveUser());
+        }
     }
 
     /**
@@ -364,6 +375,9 @@ class DashboardApp {
             case 'analytics':
                 this.loadAnalyticsData();
                 break;
+            case 'users':
+                this.loadUsers();
+                break;
         }
     }
 
@@ -386,6 +400,9 @@ class DashboardApp {
                 break;
             case 'analytics':
                 await this.loadAnalyticsData();
+                break;
+            case 'users':
+                await this.loadUsers();
                 break;
         }
     }
@@ -1500,15 +1517,223 @@ class DashboardApp {
         const now = new Date();
         const diff = now - date;
         const minutes = Math.floor(diff / 60000);
-        
+
         if (minutes < 1) return 'ora';
         if (minutes < 60) return `${minutes} min fa`;
-        
+
         const hours = Math.floor(minutes / 60);
         if (hours < 24) return `${hours}h fa`;
-        
+
         const days = Math.floor(hours / 24);
         return `${days}g fa`;
+    }
+
+    // 👑 User Management Functions
+    async loadUsers() {
+        try {
+            const response = await fetch('/api/users', {
+                headers: {
+                    'Authorization': `Bearer ${this.authToken}`
+                }
+            });
+
+            if (!response.ok) {
+                throw new Error('Failed to load users');
+            }
+
+            const users = await response.json();
+            this.renderUsers(users);
+        } catch (error) {
+            console.error('Error loading users:', error);
+            this.showNotification('Errore nel caricamento degli utenti', 'error');
+        }
+    }
+
+    renderUsers(users) {
+        const usersGrid = document.getElementById('users-grid');
+
+        if (!users || users.length === 0) {
+            usersGrid.innerHTML = `
+                <div class="col-12">
+                    <div class="alert alert-info">
+                        <i class="fas fa-info-circle"></i> Nessun operatore trovato
+                    </div>
+                </div>
+            `;
+            return;
+        }
+
+        usersGrid.innerHTML = users.map(user => `
+            <div class="col-md-6 col-lg-4">
+                <div class="card user-card">
+                    <div class="card-body">
+                        <div class="d-flex align-items-start mb-3">
+                            <img src="${user.avatar || '/dashboard/images/default-avatar.png'}"
+                                 alt="${user.displayName || user.name}"
+                                 class="rounded-circle me-3"
+                                 width="50" height="50">
+                            <div class="flex-grow-1">
+                                <h5 class="mb-1">${user.displayName || user.name}</h5>
+                                <small class="text-muted">@${user.username}</small>
+                                <div>
+                                    <span class="badge ${user.role === 'ADMIN' ? 'bg-danger' : 'bg-primary'}">${user.role}</span>
+                                    <span class="badge ${user.isActive ? 'bg-success' : 'bg-secondary'}">${user.isActive ? 'Attivo' : 'Disattivato'}</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="mb-2">
+                            <small class="text-muted d-block"><i class="fas fa-envelope"></i> ${user.email}</small>
+                            ${user.specialization ? `<small class="text-muted d-block"><i class="fas fa-tag"></i> ${user.specialization}</small>` : ''}
+                        </div>
+
+                        <div class="d-flex gap-2 mt-3">
+                            <button class="btn btn-sm btn-outline-primary flex-grow-1" onclick="window.dashboardApp.editUser('${user.id}')">
+                                <i class="fas fa-edit"></i> Modifica
+                            </button>
+                            ${user.isActive ? `
+                                <button class="btn btn-sm btn-outline-danger" onclick="window.dashboardApp.deactivateUser('${user.id}', '${user.username}')">
+                                    <i class="fas fa-ban"></i> Disattiva
+                                </button>
+                            ` : ''}
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `).join('');
+    }
+
+    showCreateUserModal() {
+        // Reset form
+        const form = document.getElementById('user-form');
+        form.reset();
+        document.getElementById('user-id').value = '';
+        document.getElementById('user-modal-title').textContent = 'Nuovo Operatore';
+
+        // Show modal
+        const modal = new bootstrap.Modal(document.getElementById('user-modal'));
+        modal.show();
+    }
+
+    async editUser(userId) {
+        try {
+            const response = await fetch(`/api/users/${userId}`, {
+                headers: {
+                    'Authorization': `Bearer ${this.authToken}`
+                }
+            });
+
+            if (!response.ok) {
+                throw new Error('Failed to load user');
+            }
+
+            const user = await response.json();
+
+            // Populate form
+            document.getElementById('user-id').value = user.id;
+            document.getElementById('user-username').value = user.username;
+            document.getElementById('user-email').value = user.email;
+            document.getElementById('user-name').value = user.name;
+            document.getElementById('user-displayName').value = user.displayName || '';
+            document.getElementById('user-avatar').value = user.avatar || '';
+            document.getElementById('user-specialization').value = user.specialization || '';
+            document.getElementById('user-password').value = ''; // Don't populate password
+
+            document.getElementById('user-modal-title').textContent = 'Modifica Operatore';
+
+            // Show modal
+            const modal = new bootstrap.Modal(document.getElementById('user-modal'));
+            modal.show();
+        } catch (error) {
+            console.error('Error loading user:', error);
+            this.showNotification('Errore nel caricamento dell\'operatore', 'error');
+        }
+    }
+
+    async saveUser() {
+        const userId = document.getElementById('user-id').value;
+        const userData = {
+            username: document.getElementById('user-username').value,
+            email: document.getElementById('user-email').value,
+            name: document.getElementById('user-name').value,
+            displayName: document.getElementById('user-displayName').value || null,
+            avatar: document.getElementById('user-avatar').value || null,
+            specialization: document.getElementById('user-specialization').value || null,
+            password: document.getElementById('user-password').value || undefined
+        };
+
+        // Validate required fields
+        if (!userData.username || !userData.email || !userData.name) {
+            this.showNotification('Compila tutti i campi obbligatori', 'error');
+            return;
+        }
+
+        // Password required for new users
+        if (!userId && !userData.password) {
+            this.showNotification('La password è obbligatoria per nuovi operatori', 'error');
+            return;
+        }
+
+        // Remove password if not provided (for updates)
+        if (!userData.password) {
+            delete userData.password;
+        }
+
+        try {
+            const url = userId ? `/api/users/${userId}` : '/api/users';
+            const method = userId ? 'PUT' : 'POST';
+
+            const response = await fetch(url, {
+                method,
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${this.authToken}`
+                },
+                body: JSON.stringify(userData)
+            });
+
+            if (!response.ok) {
+                const error = await response.json();
+                throw new Error(error.message || 'Failed to save user');
+            }
+
+            // Close modal
+            const modal = bootstrap.Modal.getInstance(document.getElementById('user-modal'));
+            modal.hide();
+
+            // Reload users
+            await this.loadUsers();
+
+            this.showNotification(userId ? 'Operatore aggiornato' : 'Operatore creato', 'success');
+        } catch (error) {
+            console.error('Error saving user:', error);
+            this.showNotification(error.message || 'Errore nel salvataggio', 'error');
+        }
+    }
+
+    async deactivateUser(userId, username) {
+        if (!confirm(`Sei sicuro di voler disattivare l'operatore ${username}?`)) {
+            return;
+        }
+
+        try {
+            const response = await fetch(`/api/users/${userId}`, {
+                method: 'DELETE',
+                headers: {
+                    'Authorization': `Bearer ${this.authToken}`
+                }
+            });
+
+            if (!response.ok) {
+                throw new Error('Failed to deactivate user');
+            }
+
+            await this.loadUsers();
+            this.showNotification('Operatore disattivato', 'success');
+        } catch (error) {
+            console.error('Error deactivating user:', error);
+            this.showNotification('Errore nella disattivazione', 'error');
+        }
     }
 
 }

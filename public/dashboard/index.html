@@ -102,10 +102,10 @@
                 <!-- Admin Section - Only for ADMIN role -->
                 <div class="nav-section" id="admin-section" style="display: none;">
                     <h3 class="nav-section-title">👑 Amministrazione</h3>
-                    <a href="/dashboard/users.html" class="nav-item" style="text-decoration: none; color: inherit;">
+                    <button class="nav-item" data-section="users">
                         <div class="nav-icon"><i class="fas fa-users"></i></div>
                         <span>Gestione Utenti</span>
-                    </a>
+                    </button>
                 </div>
             </nav>
         </aside>
@@ -331,6 +331,23 @@
                         </div>
                     </div>
                 </section>
+
+                <!-- Users Management Section (ADMIN ONLY) -->
+                <section id="users-section" class="content-section">
+                    <div class="card">
+                        <div class="card-header">
+                            <h2 class="card-title">👑 Gestione Utenti</h2>
+                            <button class="btn btn-primary" id="create-user-btn">
+                                <i class="fas fa-plus"></i> Nuovo Operatore
+                            </button>
+                        </div>
+                        <div class="card-content">
+                            <div id="users-grid" class="row g-4">
+                                <!-- Users will be populated by JavaScript -->
+                            </div>
+                        </div>
+                    </div>
+                </section>
             </div>
         </main>
     </div>
@@ -385,6 +402,69 @@
             </div>
         </div>
     </template>
+
+    <!-- User Management Modal -->
+    <div class="modal fade" id="user-modal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="user-modal-title">Nuovo Operatore</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <form id="user-form">
+                        <input type="hidden" id="user-id">
+
+                        <div class="mb-3">
+                            <label class="form-label">Username *</label>
+                            <input type="text" class="form-control" id="user-username" required autocomplete="username">
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label">Email *</label>
+                            <input type="email" class="form-control" id="user-email" required autocomplete="email">
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label">Nome Completo *</label>
+                            <input type="text" class="form-control" id="user-name" required autocomplete="name">
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label">Nome Display</label>
+                            <input type="text" class="form-control" id="user-displayName" placeholder="Es: Mario">
+                            <small class="text-muted">Nome mostrato nelle chat</small>
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label">Avatar (Emoji o URL)</label>
+                            <input type="text" class="form-control" id="user-avatar" placeholder="Es: 😊 o https://...">
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label">Specializzazione</label>
+                            <input type="text" class="form-control" id="user-specialization" placeholder="Es: Assistenza tecnica">
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label">Password <span id="password-required">*</span></label>
+                            <input type="password" class="form-control" id="user-password" autocomplete="new-password">
+                            <small class="text-muted" id="password-hint" style="display: none;">Lascia vuoto per non cambiare</small>
+                        </div>
+
+                        <div class="mb-3 form-check">
+                            <input type="checkbox" class="form-check-input" id="user-isActive" checked>
+                            <label class="form-check-label" for="user-isActive">Attivo</label>
+                        </div>
+                    </form>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Annulla</button>
+                    <button type="button" class="btn btn-primary" id="save-user-btn">Salva</button>
+                </div>
+            </div>
+        </div>
+    </div>
 
     <script src="js/dashboard.js"></script>
 </body>
