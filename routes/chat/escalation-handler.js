@@ -30,8 +30,8 @@ export async function handleEscalation(message, session) {
     });
     console.log('📊 ALL operators in database:', allOperators);
 
-    // Check operator availability
-    const availableOperator = await prisma.operator.findFirst({
+    // Check for online operators
+    const onlineOperators = await prisma.operator.findMany({
       where: {
         isOnline: true,
         isActive: true
@@ -44,9 +44,34 @@ export async function handleEscalation(message, session) {
       }
     });
 
-    console.log('🎯 Available operator found:', availableOperator);
+    console.log('🎯 Online operators found:', onlineOperators.length);
 
-    if (availableOperator) {
+    // Find operators not currently in active chats
+    let availableOperator = null;
+    if (onlineOperators.length > 0) {
+      for (const operator of onlineOperators) {
+        const activeChats = await prisma.operatorChat.count({
+          where: {
+            operatorId: operator.id,
+            endedAt: null // Still active
+          }
+        });
+
+        console.log(`👤 Operator ${operator.name}: ${activeChats} active chats`);
+
+        if (activeChats === 0) {
+          availableOperator = operator;
+          break;
+        }
+      }
+    }
+
+    const hasOnlineOperators = onlineOperators.length > 0;
+    const hasAvailableOperator = availableOperator !== null;
+
+    console.log(`📊 Summary: ${onlineOperators.length} online, ${hasAvailableOperator ? 'available' : 'all busy'}`);
+
+    if (hasAvailableOperator) {
       // Update session status
       await prisma.chatSession.update({
         where: { id: session.id },
@@ -201,43 +226,74 @@ export async function handleEscalation(message, session) {
         }
       });
 
-      // Build reply with queue position and estimated wait
-      const queueMessage = queueInfo
-        ? `📊 **Posizione in coda**: ${queueInfo.position}\n⏱️ **Attesa stimata**: ~${queueInfo.estimatedWait} minuti\n\n`
-        : '';
+      // Different messages based on scenario
+      let reply, smartActions;
 
-      // Return queue info instead of immediate ticket
-      return {
-        success: false,
-        reply: `⏰ **Al momento tutti i nostri operatori sono occupati**\n\n${queueMessage}🔔 Sei in **coda prioritaria**!\n\n💡 Un operatore ti risponderà appena disponibile.\n\n🎫 **Preferisci aprire un ticket?**\nScrivi il tuo contatto (email o telefono) per ricevere assistenza via:\n📧 **Email**: Risposta in 2-4 ore\n📱 **WhatsApp**: Risposta più rapida`,
-        sessionId: session.sessionId,
-        status: 'waiting_in_queue',
-        needsContact: false, // Optional - user can wait or provide contact
-        queueId: queueInfo?.queueId,
-        position: queueInfo?.position,
-        estimatedWait: queueInfo?.estimatedWait,
-        smartActions: [
+      if (!hasOnlineOperators) {
+        // SCENARIO 1: No operators online at all
+        reply = `⏰ **Non ci sono operatori online al momento**\n\nGli operatori potrebbero essere offline perché:\n• Fuori orario lavorativo\n• Pausa o riunione\n• Fine turno\n\n🎫 **Ti consigliamo di aprire un ticket**\nLascia il tuo contatto e ti risponderemo appena disponibili:\n📧 **Email** o 📱 **WhatsApp**\n\n💡 Oppure continua con l'assistente AI`;
+
+        smartActions = [
+          {
+            type: 'primary',
+            icon: '🎫',
+            text: 'Apri Ticket',
+            description: 'Lascia il tuo contatto per assistenza',
+            action: 'request_ticket'
+          },
+          {
+            type: 'secondary',
+            icon: '🤖',
+            text: 'Continua con AI',
+            description: 'Torna all\'assistente automatico',
+            action: 'continue_ai'
+          }
+        ];
+      } else {
+        // SCENARIO 2: Operators online but all busy
+        const queueMessage = queueInfo
+          ? `📊 **Posizione in coda**: ${queueInfo.position}\n⏱️ **Attesa stimata**: ~${queueInfo.estimatedWait} minuti\n\n`
+          : '';
+
+        reply = `⏰ **Tutti gli operatori sono occupati**\n\n${queueMessage}${onlineOperators.length} operator${onlineOperators.length > 1 ? 'i' : 'e'} online ma al momento impegnat${onlineOperators.length > 1 ? 'i' : 'o'} in altre chat.\n\n🔔 **Sei in coda** - ti risponderemo appena possibile!\n\n💡 Oppure apri un ticket per ricevere assistenza via email/WhatsApp`;
+
+        smartActions = [
           {
             type: 'info',
             icon: '📊',
-            text: `In coda: posizione ${queueInfo?.position || '?'}`,
-            description: `Attesa ~${queueInfo?.estimatedWait || '?'} min`
+            text: queueInfo ? `Posizione: ${queueInfo.position}°` : 'In coda',
+            description: queueInfo ? `Attesa ~${queueInfo.estimatedWait} min` : 'Attendi...'
           },
           {
             type: 'secondary',
             icon: '🎫',
             text: 'Apri Ticket',
-            description: 'Ricevi assistenza via email/WhatsApp',
+            description: 'Assistenza via email/WhatsApp',
             action: 'request_ticket'
           },
           {
             type: 'secondary',
-            icon: '🔙',
-            text: 'Torna alla Chat',
-            description: 'Continua con assistente AI',
+            icon: '🤖',
+            text: 'Continua con AI',
+            description: 'Torna all\'assistente automatico',
             action: 'continue_ai'
           }
-        ]
+        ];
+      }
+
+      // Return queue info instead of immediate ticket
+      return {
+        success: false,
+        reply,
+        sessionId: session.sessionId,
+        status: hasOnlineOperators ? 'waiting_in_queue' : 'no_operators_online',
+        needsContact: false,
+        queueId: queueInfo?.queueId,
+        position: queueInfo?.position,
+        estimatedWait: queueInfo?.estimatedWait,
+        hasOnlineOperators,
+        onlineOperatorsCount: onlineOperators.length,
+        smartActions
       };
     }
   } catch (error) {
