@@ -303,6 +303,13 @@ class DashboardApp {
                 })
             });
             
+            if (response.status === 403 || response.status === 401) {
+                console.warn('⚠️ Token expired or invalid - logging out');
+                alert('Sessione scaduta. Effettua nuovamente il login.');
+                this.handleLogout();
+                return;
+            }
+
             if (response.ok) {
                 const data = await response.json();
                 console.log('✅ Status updated:', data);
@@ -1568,6 +1575,13 @@ class DashboardApp {
                     'Authorization': `Bearer ${this.authToken}`
                 }
             });
+
+            if (response.status === 403 || response.status === 401) {
+                console.warn('⚠️ Token expired or invalid - logging out');
+                alert('Sessione scaduta. Effettua nuovamente il login.');
+                this.handleLogout();
+                return;
+            }
 
             if (!response.ok) {
                 throw new Error('Failed to load users');
