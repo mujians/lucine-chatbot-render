@@ -646,20 +646,35 @@ class DashboardApp {
     async loadChatsData() {
         try {
             console.log('💬 Loading chats data...');
-            
+
             const response = await fetch(`${this.apiBase}/operators/pending-chats`, {
                 headers: {
                     'Authorization': `Bearer ${localStorage.getItem('auth_token')}`
                 }
             });
-            
+
             if (response.ok) {
                 const data = await response.json();
                 console.log('✅ Chats data loaded:', data);
-                
-                this.renderPendingChats(data.pending || []);
-                
-                // Update badge and remove pulse animation (operator has viewed)
+
+                // Render waiting chats (in queue, not yet assigned)
+                this.renderWaitingChats(data.waiting || []);
+
+                // Render active chats (assigned to operators)
+                this.renderActiveChats(data.active || []);
+
+                // Update badges
+                const waitingBadge = document.getElementById('waiting-count-badge');
+                if (waitingBadge) {
+                    waitingBadge.textContent = data.waitingCount || 0;
+                }
+
+                const activeBadge = document.getElementById('active-count-badge');
+                if (activeBadge) {
+                    activeBadge.textContent = data.activeCount || 0;
+                }
+
+                // Update sidebar badge and remove pulse animation (operator has viewed)
                 const pendingChatsEl = document.getElementById('pending-chats');
                 if (pendingChatsEl) {
                     pendingChatsEl.textContent = data.count || 0;
@@ -669,7 +684,7 @@ class DashboardApp {
                 console.error('❌ Failed to load chats:', response.status);
                 this.showToast('Errore nel caricamento delle chat', 'error');
             }
-            
+
         } catch (error) {
             console.error('❌ Failed to load chats:', error);
             this.showToast('Errore nel caricamento delle chat', 'error');
@@ -677,18 +692,18 @@ class DashboardApp {
     }
 
     /**
-     * 🎨 Render chat pendenti
+     * 🎨 Render chat in attesa (queue)
      */
-    renderPendingChats(sessions) {
-        const chatList = document.getElementById('pending-chat-list');
+    renderWaitingChats(sessions) {
+        const chatList = document.getElementById('waiting-chat-list');
         if (!chatList) return;
-        
+
         if (sessions.length === 0) {
             chatList.innerHTML = `
                 <div class="empty-state">
                     <div class="empty-icon">💬</div>
                     <h3>Nessuna chat in attesa</h3>
-                    <p>Le richieste di supporto appariranno qui automaticamente</p>
+                    <p>Le richieste in coda appariranno qui</p>
                 </div>
             `;
             return;
@@ -741,6 +756,81 @@ class DashboardApp {
                             <i class="fas fa-headset"></i>
                             <span>${isUrgent ? 'GESTISCI URGENTE' : 'Prendi in carico'}</span>
                         </button>
+                    </div>
+                </div>
+            `;
+        }).join('');
+    }
+
+    /**
+     * 🎨 Render chat attive (assigned to operators)
+     */
+    renderActiveChats(sessions) {
+        const chatList = document.getElementById('active-chat-list');
+        if (!chatList) return;
+
+        if (sessions.length === 0) {
+            chatList.innerHTML = `
+                <div class="empty-state">
+                    <div class="empty-icon">👥</div>
+                    <h3>Nessuna chat attiva</h3>
+                    <p>Le chat gestite dagli operatori appariranno qui</p>
+                </div>
+            `;
+            return;
+        }
+
+        chatList.innerHTML = sessions.map(session => {
+            const waitTime = this.formatWaitingTime(session.timeWaiting || 0);
+            const lastMessage = session.lastMessage || 'Chat in corso';
+            const userLastSeen = this.formatTimeAgo(new Date(session.userLastSeen));
+            const operatorName = session.assignedOperator?.name || 'Operatore';
+            const isMyChat = session.assignedOperator?.id === this.currentOperator?.id;
+
+            return `
+                <div class="chat-card active ${isMyChat ? 'my-chat' : ''}" data-session-id="${session.sessionId}">
+                    <div class="card-header">
+                        <div class="session-info">
+                            <span class="session-id">ID: ${session.sessionId.substr(-6).toUpperCase()}</span>
+                            <div class="urgency-badge active">
+                                ${isMyChat ? 'TUA CHAT' : 'IN CORSO'}
+                            </div>
+                        </div>
+                        <div class="time-badge">
+                            <i class="fas fa-clock"></i>
+                            <span>${waitTime}</span>
+                        </div>
+                    </div>
+
+                    <div class="card-body">
+                        <div class="message-preview">
+                            <p>${lastMessage}</p>
+                        </div>
+
+                        <div class="user-info">
+                            <div class="info-item">
+                                <i class="fas fa-user-check"></i>
+                                <span>Operatore: ${operatorName}</span>
+                            </div>
+                            <div class="info-item">
+                                <i class="fas fa-clock"></i>
+                                <span>Ultima attività: ${userLastSeen}</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="card-footer">
+                        ${isMyChat ?
+                            `<button class="btn-primary"
+                                    onclick="dashboardApp.openChatWindow('${session.sessionId}')">
+                                <i class="fas fa-comments"></i>
+                                <span>Apri Chat</span>
+                            </button>` :
+                            `<button class="btn-secondary" disabled>
+                                <i class="fas fa-lock"></i>
+                                <span>Gestita da ${operatorName}</span>
+                            </button>`
+                        }
                     </div>
                 </div>
             `;

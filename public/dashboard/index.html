@@ -212,10 +212,12 @@
 
                 <!-- Chat Live Section -->
                 <section id="chats-section" class="content-section">
+                    <!-- Chat in Attesa (Queue) -->
                     <div class="card">
                         <div class="card-header">
-                            <h2 class="card-title">Chat in Attesa</h2>
+                            <h2 class="card-title">🕐 Chat in Attesa</h2>
                             <div class="header-actions">
+                                <span id="waiting-count-badge" class="badge">0</span>
                                 <button class="btn-refresh" id="refresh-chats">
                                     <i class="fas fa-sync-alt"></i>
                                     Aggiorna
@@ -223,12 +225,32 @@
                             </div>
                         </div>
                         <div class="card-content">
-                            <div id="pending-chat-list" class="pending-chats-grid">
-                                <!-- Chat items will be populated by JavaScript -->
+                            <div id="waiting-chat-list" class="pending-chats-grid">
+                                <!-- Waiting chat items will be populated by JavaScript -->
                                 <div class="empty-state">
                                     <div class="empty-icon">💬</div>
                                     <h3>Nessuna chat in attesa</h3>
-                                    <p>Le richieste di supporto appariranno qui automaticamente</p>
+                                    <p>Le richieste in coda appariranno qui</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Chat Attive (With Operators) -->
+                    <div class="card" style="margin-top: 1.5rem;">
+                        <div class="card-header">
+                            <h2 class="card-title">✅ Chat Attive</h2>
+                            <div class="header-actions">
+                                <span id="active-count-badge" class="badge">0</span>
+                            </div>
+                        </div>
+                        <div class="card-content">
+                            <div id="active-chat-list" class="pending-chats-grid">
+                                <!-- Active chat items will be populated by JavaScript -->
+                                <div class="empty-state">
+                                    <div class="empty-icon">👥</div>
+                                    <h3>Nessuna chat attiva</h3>
+                                    <p>Le chat gestite dagli operatori appariranno qui</p>
                                 </div>
                             </div>
                         </div>

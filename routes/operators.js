@@ -178,15 +178,34 @@ router.post('/login', loginLimiter, async (req, res) => {
   }
 });
 
-// Get pending chats (sessions that need operator attention)
+// Get pending chats (sessions that need operator attention) AND active operator chats
 router.get('/pending-chats', async (req, res) => {
   try {
-    const pendingChats = await getPrisma().chatSession.findMany({
+    // 1. Fetch sessions WAITING_OPERATOR (in queue)
+    const waitingChats = await getPrisma().chatSession.findMany({
+      where: {
+        status: 'WAITING_OPERATOR'
+      },
+      include: {
+        messages: {
+          orderBy: { timestamp: 'desc' },
+          take: 5
+        },
+        queueEntries: {
+          where: { status: 'WAITING' },
+          select: { priority: true, enteredAt: true }
+        }
+      },
+      orderBy: { lastActivity: 'desc' }
+    });
+
+    // 2. Fetch sessions WITH_OPERATOR (assigned and active)
+    const activeChats = await getPrisma().chatSession.findMany({
       where: {
         status: 'WITH_OPERATOR',
         operatorChats: {
           some: {
-            endedAt: null // Has active operator chat but not taken yet
+            endedAt: null // Has active operator chat
           }
         }
       },
@@ -208,20 +227,46 @@ router.get('/pending-chats', async (req, res) => {
     });
 
     res.json({
-      pending: pendingChats.map(chat => ({
+      // Waiting chats (in queue, not yet assigned)
+      waiting: waitingChats.map(chat => ({
+        sessionId: chat.sessionId,
+        startedAt: chat.startedAt,
+        lastActivity: chat.lastActivity,
+        lastMessage: chat.messages[0]?.message,
+        status: 'waiting',
+        priority: chat.queueEntries[0]?.priority || 'MEDIUM',
+        timeWaiting: Date.now() - new Date(chat.lastActivity).getTime(),
+        userLastSeen: chat.lastActivity
+      })),
+      // Active chats (assigned to operators)
+      active: activeChats.map(chat => ({
+        sessionId: chat.sessionId,
+        startedAt: chat.startedAt,
+        lastActivity: chat.lastActivity,
+        lastMessage: chat.messages[0]?.message,
+        status: 'active',
+        assignedOperator: chat.operatorChats[0]?.operator,
+        operatorChatId: chat.operatorChats[0]?.id,
+        timeWaiting: Date.now() - new Date(chat.lastActivity).getTime(),
+        userLastSeen: chat.lastActivity
+      })),
+      // Legacy: "pending" for backwards compatibility (waiting chats only)
+      pending: waitingChats.map(chat => ({
         sessionId: chat.sessionId,
         startedAt: chat.startedAt,
         lastActivity: chat.lastActivity,
         lastMessage: chat.messages[0]?.message,
         operatorRequested: true,
-        assignedOperator: chat.operatorChats[0]?.operator,
         timeWaiting: Date.now() - new Date(chat.lastActivity).getTime(),
         userLastSeen: chat.lastActivity
       })),
-      count: pendingChats.length
+      count: waitingChats.length + activeChats.length,
+      waitingCount: waitingChats.length,
+      activeCount: activeChats.length
     });
 
   } catch (error) {
+    console.error('❌ Failed to fetch chats:', error);
     res.status(500).json({ error: 'Failed to fetch pending chats' });
   }
 });

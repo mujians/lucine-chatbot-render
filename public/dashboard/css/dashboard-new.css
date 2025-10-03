@@ -661,6 +661,19 @@ body {
     box-shadow: 0 0 20px rgba(239, 68, 68, 0.2);
 }
 
+.chat-card.active {
+    border-left: 4px solid var(--success-color);
+}
+
+.chat-card.my-chat {
+    border: 2px solid var(--primary-color);
+    box-shadow: 0 0 20px rgba(79, 70, 229, 0.15);
+}
+
+.chat-card.my-chat .card-header {
+    background: linear-gradient(135deg, rgba(79, 70, 229, 0.1), rgba(99, 102, 241, 0.05));
+}
+
 /* Card Header */
 .chat-card .card-header {
     background: linear-gradient(135deg, var(--gray-50), var(--gray-100));
