@@ -83,13 +83,20 @@ class DashboardApp {
         
         const refreshAllChatsBtn = document.getElementById('refresh-all-chats');
         if (refreshAllChatsBtn) {
-            refreshAllChatsBtn.addEventListener('click', () => this.loadAllChatsData());
+            refreshAllChatsBtn.addEventListener('click', () => {
+                const statusFilter = document.getElementById('status-filter');
+                const selectedStatus = statusFilter ? statusFilter.value : '';
+                this.loadChatsHistory(selectedStatus);
+            });
         }
         
         // Status Filter
         const statusFilter = document.getElementById('status-filter');
         if (statusFilter) {
-            statusFilter.addEventListener('change', () => this.loadAllChatsData());
+            statusFilter.addEventListener('change', () => {
+                const selectedStatus = statusFilter.value;
+                this.loadChatsHistory(selectedStatus);
+            });
         }
 
         // User Management
@@ -395,7 +402,7 @@ class DashboardApp {
                 this.loadChatsData();
                 break;
             case 'all-chats':
-                this.showEmptyChatsHistory();
+                this.loadChatsHistory();
                 break;
             case 'tickets':
                 this.showEmptyTickets();
@@ -421,7 +428,7 @@ class DashboardApp {
                 await this.loadChatsData();
                 break;
             case 'all-chats':
-                this.showEmptyChatsHistory();
+                await this.loadChatsHistory();
                 break;
             case 'tickets':
                 this.showEmptyTickets();
@@ -655,11 +662,52 @@ class DashboardApp {
     }
 
     /**
-     * 📜 Show empty chat history state
+     * 📜 Load chat history with filters
      */
-    showEmptyChatsHistory() {
+    async loadChatsHistory(statusFilter = '') {
+        try {
+            console.log('📜 Loading chat history...', { statusFilter });
+
+            const params = new URLSearchParams();
+            if (statusFilter) params.append('status', statusFilter);
+            params.append('limit', '50');
+
+            const response = await fetch(`${this.apiBase}/operators/chat-history?${params}`, {
+                headers: {
+                    'Authorization': `Bearer ${localStorage.getItem('auth_token')}`
+                }
+            });
+
+            if (response.ok) {
+                const data = await response.json();
+                console.log('✅ Chat history loaded:', data);
+
+                this.renderChatsHistory(data.sessions || []);
+
+                // Update badge
+                const totalSessionsEl = document.getElementById('total-sessions');
+                if (totalSessionsEl) {
+                    totalSessionsEl.textContent = data.total || 0;
+                }
+            } else {
+                console.error('❌ Failed to load chat history:', response.status);
+                this.showToast('Errore nel caricamento dello storico', 'error');
+            }
+
+        } catch (error) {
+            console.error('❌ Failed to load chat history:', error);
+            this.showToast('Errore nel caricamento dello storico', 'error');
+        }
+    }
+
+    /**
+     * 🎨 Render chat history
+     */
+    renderChatsHistory(sessions) {
         const container = document.getElementById('all-chats-container');
-        if (container) {
+        if (!container) return;
+
+        if (sessions.length === 0) {
             container.innerHTML = `
                 <div class="empty-state">
                     <div class="empty-icon">💬</div>
@@ -667,13 +715,87 @@ class DashboardApp {
                     <p>Lo storico delle chat apparirà qui man mano che vengono gestite</p>
                 </div>
             `;
+            return;
         }
-        
-        // Reset badge
-        const totalSessionsEl = document.getElementById('total-sessions');
-        if (totalSessionsEl) {
-            totalSessionsEl.textContent = '0';
-        }
+
+        container.innerHTML = sessions.map(session => {
+            const statusBadge = this.getStatusBadge(session.status);
+            const duration = session.endedAt
+                ? this.formatDuration(new Date(session.startedAt), new Date(session.endedAt))
+                : 'In corso';
+            const lastActivity = this.formatTimeAgo(new Date(session.lastActivity));
+            const operators = session.operators && session.operators.length > 0
+                ? session.operators.map(op => op.name).join(', ')
+                : 'Nessun operatore';
+
+            return `
+                <div class="history-item" data-session-id="${session.sessionId}">
+                    <div class="history-header">
+                        <div class="history-session-info">
+                            <i class="fas fa-comments"></i>
+                            <span class="history-session-id">ID: ${session.sessionId.substr(-8).toUpperCase()}</span>
+                            ${statusBadge}
+                        </div>
+                        <div class="history-time">
+                            <i class="fas fa-clock"></i>
+                            <span>${lastActivity}</span>
+                        </div>
+                    </div>
+
+                    <div class="history-body">
+                        <p class="history-message">${session.lastMessage}</p>
+                        <div class="history-meta">
+                            <span><i class="fas fa-calendar"></i> ${new Date(session.startedAt).toLocaleDateString('it-IT')}</span>
+                            <span><i class="fas fa-stopwatch"></i> ${duration}</span>
+                            <span><i class="fas fa-user-headset"></i> ${operators}</span>
+                        </div>
+                    </div>
+
+                    <div class="history-footer">
+                        <button class="btn-secondary" onclick="dashboardApp.viewSession('${session.sessionId}')">
+                            <i class="fas fa-eye"></i>
+                            Visualizza
+                        </button>
+                    </div>
+                </div>
+            `;
+        }).join('');
+    }
+
+    /**
+     * Get status badge HTML
+     */
+    getStatusBadge(status) {
+        const badges = {
+            'ACTIVE': '<span class="status-badge active">Attiva</span>',
+            'WITH_OPERATOR': '<span class="status-badge with-operator">Con Operatore</span>',
+            'WAITING_OPERATOR': '<span class="status-badge waiting">In Attesa</span>',
+            'ENDED': '<span class="status-badge ended">Terminata</span>',
+            'RESOLVED': '<span class="status-badge resolved">Risolta</span>',
+            'NOT_RESOLVED': '<span class="status-badge not-resolved">Non Risolta</span>',
+            'CANCELLED': '<span class="status-badge cancelled">Cancellata</span>'
+        };
+        return badges[status] || `<span class="status-badge">${status}</span>`;
+    }
+
+    /**
+     * Format duration between two dates
+     */
+    formatDuration(start, end) {
+        const diff = end - start;
+        const minutes = Math.floor(diff / 60000);
+        if (minutes < 60) return `${minutes} min`;
+        const hours = Math.floor(minutes / 60);
+        const remainingMinutes = minutes % 60;
+        return `${hours}h ${remainingMinutes}m`;
+    }
+
+    /**
+     * View session details (placeholder)
+     */
+    viewSession(sessionId) {
+        console.log('📋 View session:', sessionId);
+        this.showToast('Funzionalità in sviluppo', 'info');
     }
 
     /**

@@ -271,6 +271,65 @@ router.get('/pending-chats', async (req, res) => {
   }
 });
 
+// Get chat history with filters
+router.get('/chat-history', async (req, res) => {
+  try {
+    const { status, limit = 50, offset = 0 } = req.query;
+
+    // Build filter
+    const where = {};
+    if (status) {
+      where.status = status;
+    }
+
+    const sessions = await getPrisma().chatSession.findMany({
+      where,
+      include: {
+        messages: {
+          orderBy: { timestamp: 'desc' },
+          take: 1 // Just last message for preview
+        },
+        operatorChats: {
+          include: {
+            operator: {
+              select: { id: true, name: true }
+            }
+          },
+          orderBy: { startedAt: 'desc' }
+        }
+      },
+      orderBy: { lastActivity: 'desc' },
+      take: parseInt(limit),
+      skip: parseInt(offset)
+    });
+
+    // Count total for pagination
+    const total = await getPrisma().chatSession.count({ where });
+
+    res.json({
+      sessions: sessions.map(session => ({
+        sessionId: session.sessionId,
+        status: session.status,
+        startedAt: session.startedAt,
+        endedAt: session.endedAt,
+        lastActivity: session.lastActivity,
+        lastMessage: session.messages[0]?.message || 'Nessun messaggio',
+        messageCount: session.messages.length,
+        operators: session.operatorChats.map(oc => oc.operator),
+        hasOperator: session.operatorChats.length > 0
+      })),
+      total,
+      limit: parseInt(limit),
+      offset: parseInt(offset),
+      hasMore: (parseInt(offset) + parseInt(limit)) < total
+    });
+
+  } catch (error) {
+    console.error('❌ Failed to fetch chat history:', error);
+    res.status(500).json({ error: 'Failed to fetch chat history' });
+  }
+});
+
 // Take chat
 router.post('/take-chat', authenticateToken, validateSession, async (req, res) => {
   try {
