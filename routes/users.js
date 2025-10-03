@@ -45,6 +45,39 @@ router.get('/', authenticateToken, checkAdmin, async (req, res) => {
 });
 
 /**
+ * GET /api/users/me - Get current operator info
+ * IMPORTANT: This must come BEFORE /:id route
+ */
+router.get('/me', authenticateToken, async (req, res) => {
+  try {
+    const operator = await getPrisma().operator.findUnique({
+      where: { id: req.operatorId },
+      select: {
+        id: true,
+        username: true,
+        email: true,
+        name: true,
+        displayName: true,
+        avatar: true,
+        specialization: true,
+        role: true,
+        isActive: true,
+        isOnline: true
+      }
+    });
+
+    if (!operator) {
+      return res.status(404).json({ error: 'Operator not found' });
+    }
+
+    res.json({ success: true, user: operator });
+  } catch (error) {
+    console.error('❌ Error fetching current user:', error);
+    res.status(500).json({ error: 'Failed to fetch user' });
+  }
+});
+
+/**
  * GET /api/users/:id - Get single operator (ADMIN only)
  */
 router.get('/:id', authenticateToken, checkAdmin, async (req, res) => {
@@ -243,38 +276,6 @@ router.delete('/:id', authenticateToken, checkAdmin, async (req, res) => {
   } catch (error) {
     console.error('❌ Error deleting user:', error);
     res.status(500).json({ error: 'Failed to delete user' });
-  }
-});
-
-/**
- * GET /api/users/me - Get current operator info
- */
-router.get('/me', authenticateToken, async (req, res) => {
-  try {
-    const operator = await getPrisma().operator.findUnique({
-      where: { id: req.operatorId },
-      select: {
-        id: true,
-        username: true,
-        email: true,
-        name: true,
-        displayName: true,
-        avatar: true,
-        specialization: true,
-        role: true,
-        isActive: true,
-        isOnline: true
-      }
-    });
-
-    if (!operator) {
-      return res.status(404).json({ error: 'Operator not found' });
-    }
-
-    res.json({ success: true, user: operator });
-  } catch (error) {
-    console.error('❌ Error fetching current user:', error);
-    res.status(500).json({ error: 'Failed to fetch user' });
   }
 });
 
