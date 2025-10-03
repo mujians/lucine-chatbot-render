@@ -26,16 +26,79 @@ class DashboardApp {
     init() {
         console.log('🚀 Dashboard App inizializzato');
         console.log('📡 API Base:', this.apiBase);
-        
+
         this.setupEventListeners();
         this.checkAuthStatus();
-        
+
         // Auto refresh ogni 5 secondi (fallback se WebSocket non funziona)
         this.refreshInterval = setInterval(() => {
             if (this.currentOperator) {
                 this.refreshData();
             }
         }, 5000); // 5 secondi per notifiche più rapide
+    }
+
+    /**
+     * 🔔 Centralized Badge Update Function
+     * Updates all sidebar badges from a single data source
+     */
+    async updateAllBadges() {
+        try {
+            // Fetch all counts in parallel
+            const [chatsResponse, ticketsResponse, historyResponse] = await Promise.all([
+                fetch(`${this.apiBase}/operators/pending-chats`, {
+                    headers: { 'Authorization': `Bearer ${localStorage.getItem('auth_token')}` }
+                }),
+                fetch(`${this.apiBase}/tickets`, {
+                    headers: { 'Authorization': `Bearer ${localStorage.getItem('auth_token')}` }
+                }),
+                fetch(`${this.apiBase}/operators/chat-history?limit=1`, {
+                    headers: { 'Authorization': `Bearer ${localStorage.getItem('auth_token')}` }
+                })
+            ]);
+
+            let pendingCount = 0;
+            let openTicketsCount = 0;
+            let totalSessionsCount = 0;
+
+            if (chatsResponse.ok) {
+                const chatsData = await chatsResponse.json();
+                pendingCount = (chatsData.waitingCount || 0) + (chatsData.activeCount || 0);
+            }
+
+            if (ticketsResponse.ok) {
+                const ticketsData = await ticketsResponse.json();
+                openTicketsCount = ticketsData.stats?.open || 0;
+            }
+
+            if (historyResponse.ok) {
+                const historyData = await historyResponse.json();
+                totalSessionsCount = historyData.total || 0;
+            }
+
+            // Update all badges
+            this.setBadge('pending-chats', pendingCount);
+            this.setBadge('open-tickets', openTicketsCount);
+            this.setBadge('total-sessions', totalSessionsCount);
+
+            console.log('✅ Badges updated:', { pendingCount, openTicketsCount, totalSessionsCount });
+
+        } catch (error) {
+            console.error('❌ Failed to update badges:', error);
+        }
+    }
+
+    /**
+     * 🏷️ Helper: Set badge value
+     */
+    setBadge(elementId, value) {
+        const element = document.getElementById(elementId);
+        if (element) {
+            element.textContent = value;
+            if (value > 0 && elementId === 'pending-chats') {
+                element.classList.add('has-pending');
+            }
+        }
     }
 
     /**
@@ -420,6 +483,9 @@ class DashboardApp {
      * 🔄 Refresh tutti i dati
      */
     async refreshData() {
+        // Always update badges on every refresh
+        this.updateAllBadges();
+
         switch (this.currentSection) {
             case 'overview':
                 await this.loadOverviewData();
@@ -493,10 +559,8 @@ class DashboardApp {
                 satisfactionEl.textContent = satisfactionText;
             }
             
-            // Update navigation badges
-            setElementText('pending-chats', data.summary?.activeChats || 0);
-            setElementText('total-sessions', data.summary?.totalChats || 0);
-            setElementText('open-tickets', data.summary?.openTickets || 0);
+            // Update navigation badges using centralized function
+            this.updateAllBadges();
             
             // Render recent activity from real data
             this.renderRecentActivity(data.recentActivity || []);
@@ -658,11 +722,8 @@ class DashboardApp {
 
                 this.renderTickets(data.tickets || []);
 
-                // Update badges
-                const openTicketsEl = document.getElementById('open-tickets');
-                if (openTicketsEl) {
-                    openTicketsEl.textContent = data.stats?.open || 0;
-                }
+                // Update all badges using centralized function
+                this.updateAllBadges();
             } else {
                 console.error('❌ Failed to load tickets:', response.status);
                 this.showToast('Errore nel caricamento dei ticket', 'error');
@@ -805,11 +866,8 @@ class DashboardApp {
 
                 this.renderChatsHistory(data.sessions || []);
 
-                // Update badge
-                const totalSessionsEl = document.getElementById('total-sessions');
-                if (totalSessionsEl) {
-                    totalSessionsEl.textContent = data.total || 0;
-                }
+                // Update all badges using centralized function
+                this.updateAllBadges();
             } else {
                 console.error('❌ Failed to load chat history:', response.status);
                 this.showToast('Errore nel caricamento dello storico', 'error');
@@ -953,10 +1011,12 @@ class DashboardApp {
                     activeBadge.textContent = data.activeCount || 0;
                 }
 
-                // Update sidebar badge and remove pulse animation (operator has viewed)
+                // Update all badges using centralized function
+                this.updateAllBadges();
+
+                // Remove pulse animation when operator views the chats section
                 const pendingChatsEl = document.getElementById('pending-chats');
                 if (pendingChatsEl) {
-                    pendingChatsEl.textContent = data.count || 0;
                     pendingChatsEl.classList.remove('has-pending');
                 }
             } else {
@@ -1747,15 +1807,14 @@ class DashboardApp {
         this.playNotificationSound();
         setTimeout(() => this.playNotificationSound(), 500);
 
-        // Update badge with pulse animation
+        // Add pulse animation to badge
         const badge = document.getElementById('pending-chats');
         if (badge) {
-            const currentCount = parseInt(badge.textContent) || 0;
-            badge.textContent = currentCount + 1;
             badge.classList.add('has-pending');
         }
 
-        // Update pending chats count and reload
+        // Update all badges and reload chats
+        this.updateAllBadges();
         this.loadChatsData();
 
         // If on overview, refresh data
