@@ -223,13 +223,15 @@ model InternalNote {
 // Enums
 enum SessionStatus {
   ACTIVE
-  IDLE  
+  IDLE
   ENDED
   WITH_OPERATOR
+  WAITING_OPERATOR
   RESOLVED
   NOT_RESOLVED
   WAITING_CLIENT
   CANCELLED
+  REQUESTING_TICKET
 }
 
 enum SenderType {
