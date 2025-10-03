@@ -231,7 +231,7 @@ export async function handleEscalation(message, session) {
 
       if (!hasOnlineOperators) {
         // SCENARIO 1: No operators online at all
-        reply = `⏰ Non ci sono operatori online al momento\n\nGli operatori potrebbero essere offline perché:\n• Fuori orario lavorativo\n• Pausa o riunione\n• Fine turno\n\n💡 Puoi aprire un ticket o continuare con l'assistente AI`;
+        reply = `⏰ Non ci sono operatori disponibili al momento\n\n💡 Puoi aprire un ticket o continuare con l'assistente AI`;
 
         smartActions = [
           {
