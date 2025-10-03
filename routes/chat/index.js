@@ -139,9 +139,9 @@ router.post('/', async (req, res) => {
         data: { status: SESSION_STATUS.REQUESTING_TICKET }
       });
 
-      // Return message asking for contact
+      // Return message asking for name (first step)
       return res.json({
-        reply: '🎫 Perfetto! Per aprire un ticket ho bisogno del tuo contatto.\n\nInviami la tua 📧 **email** oppure il tuo 📱 **numero di telefono**:',
+        reply: '🎫 **Perfetto! Creiamo un ticket di supporto.**\n\nUn operatore ti ricontatterà appena disponibile per riprendere la conversazione.\n\n👤 **Per iniziare, come ti chiami?**\n\n💡 _Scrivi "annulla" in qualsiasi momento per tornare alla chat_',
         sessionId: session.sessionId,
         status: 'requesting_ticket',
         smartActions: []
