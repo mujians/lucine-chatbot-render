@@ -804,19 +804,396 @@ class DashboardApp {
     }
 
     /**
-     * View ticket details (placeholder)
+     * 📋 View ticket details
      */
-    viewTicket(ticketId, ticketNumber) {
-        console.log('📋 View ticket:', ticketId, ticketNumber);
-        this.showToast(`Visualizzazione ticket #${ticketNumber}`, 'info');
+    async viewTicket(ticketId, ticketNumber) {
+        try {
+            console.log('📋 Loading ticket details:', ticketId);
+
+            const response = await fetch(`${this.apiBase}/tickets/${ticketNumber}`, {
+                headers: { 'Authorization': `Bearer ${localStorage.getItem('auth_token')}` }
+            });
+
+            if (!response.ok) {
+                throw new Error('Failed to load ticket');
+            }
+
+            const ticket = await response.json();
+            this.showTicketModal(ticket);
+
+        } catch (error) {
+            console.error('❌ Failed to load ticket:', error);
+            this.showToast('Errore nel caricamento del ticket', 'error');
+        }
     }
 
     /**
-     * Assign ticket to operator (placeholder)
+     * 🎫 Show ticket modal
+     */
+    showTicketModal(ticket) {
+        const modal = document.getElementById('ticket-modal');
+        const modalBody = document.getElementById('ticket-modal-body');
+
+        if (!modal || !modalBody) return;
+
+        // Get list of operators for assignment
+        this.loadOperatorsForAssignment(ticket);
+
+        const createdDate = new Date(ticket.createdAt).toLocaleString('it-IT');
+        const resolvedDate = ticket.resolvedAt ? new Date(ticket.resolvedAt).toLocaleString('it-IT') : null;
+
+        modalBody.innerHTML = `
+            <div class="ticket-detail">
+                <div class="ticket-detail-header">
+                    <div>
+                        <h2>#${ticket.ticketNumber}</h2>
+                        ${this.getTicketStatusBadge(ticket.status)}
+                        ${this.getPriorityBadge(ticket.priority)}
+                    </div>
+                    <div class="ticket-actions">
+                        ${ticket.status === 'OPEN' ?
+                            `<button class="btn-primary" onclick="dashboardApp.updateTicketStatus('${ticket.ticketNumber}', 'IN_PROGRESS')">
+                                <i class="fas fa-play"></i> Inizia Lavorazione
+                            </button>` : ''
+                        }
+                        ${ticket.status === 'IN_PROGRESS' ?
+                            `<button class="btn-success" onclick="dashboardApp.updateTicketStatus('${ticket.ticketNumber}', 'RESOLVED')">
+                                <i class="fas fa-check"></i> Risolvi
+                            </button>` : ''
+                        }
+                        ${ticket.sessionId ?
+                            `<button class="btn-secondary" onclick="dashboardApp.reopenChatFromTicket('${ticket.ticketNumber}')">
+                                <i class="fas fa-comments"></i> Riapri Chat
+                            </button>` : ''
+                        }
+                    </div>
+                </div>
+
+                <div class="ticket-info-grid">
+                    <div class="info-item">
+                        <label><i class="fas fa-calendar"></i> Creato</label>
+                        <span>${createdDate}</span>
+                    </div>
+                    ${resolvedDate ? `
+                        <div class="info-item">
+                            <label><i class="fas fa-check-circle"></i> Risolto</label>
+                            <span>${resolvedDate}</span>
+                        </div>
+                    ` : ''}
+                    <div class="info-item">
+                        <label><i class="fas fa-user"></i> Assegnato a</label>
+                        <select id="ticket-operator-select" class="operator-select" onchange="dashboardApp.assignTicketToOperator('${ticket.ticketNumber}', this.value)">
+                            <option value="">Non assegnato</option>
+                            <!-- Will be populated by loadOperatorsForAssignment -->
+                        </select>
+                    </div>
+                    <div class="info-item">
+                        <label><i class="fas fa-exclamation-circle"></i> Priorità</label>
+                        <select id="ticket-priority-select" class="priority-select" onchange="dashboardApp.updateTicketPriority('${ticket.ticketNumber}', this.value)">
+                            <option value="LOW" ${ticket.priority === 'LOW' ? 'selected' : ''}>Bassa</option>
+                            <option value="MEDIUM" ${ticket.priority === 'MEDIUM' ? 'selected' : ''}>Media</option>
+                            <option value="HIGH" ${ticket.priority === 'HIGH' ? 'selected' : ''}>Alta</option>
+                            <option value="URGENT" ${ticket.priority === 'URGENT' ? 'selected' : ''}>Urgente</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="ticket-section">
+                    <h3><i class="fas fa-align-left"></i> Oggetto</h3>
+                    <p>${ticket.subject}</p>
+                </div>
+
+                <div class="ticket-section">
+                    <h3><i class="fas fa-file-alt"></i> Descrizione</h3>
+                    <div class="ticket-description">${ticket.description}</div>
+                </div>
+
+                <div class="ticket-section">
+                    <h3><i class="fas fa-envelope"></i> Contatti</h3>
+                    <div class="contact-info">
+                        ${ticket.userEmail ? `<div><i class="fas fa-envelope"></i> ${ticket.userEmail}</div>` : ''}
+                        ${ticket.userPhone ? `<div><i class="fas fa-phone"></i> ${ticket.userPhone}</div>` : ''}
+                        <div><i class="fas fa-${ticket.contactMethod === 'EMAIL' ? 'envelope' : 'phone'}"></i> Metodo preferito: ${ticket.contactMethod}</div>
+                    </div>
+                </div>
+
+                ${ticket.notes && ticket.notes.length > 0 ? `
+                    <div class="ticket-section">
+                        <h3><i class="fas fa-sticky-note"></i> Note</h3>
+                        <div class="notes-list">
+                            ${ticket.notes.map(note => `
+                                <div class="note-item ${note.isPublic ? 'public' : 'private'}">
+                                    <div class="note-header">
+                                        <span>${note.isPublic ? '👁️ Pubblica' : '🔒 Privata'}</span>
+                                        <span>${new Date(note.createdAt).toLocaleString('it-IT')}</span>
+                                    </div>
+                                    <p>${note.note}</p>
+                                </div>
+                            `).join('')}
+                        </div>
+                    </div>
+                ` : ''}
+
+                <div class="ticket-section">
+                    <h3><i class="fas fa-plus-circle"></i> Aggiungi Nota</h3>
+                    <textarea id="new-note-text" placeholder="Scrivi una nota..." rows="3"></textarea>
+                    <div class="note-actions">
+                        <label>
+                            <input type="checkbox" id="note-is-public"> Nota pubblica (visibile al cliente)
+                        </label>
+                        <button class="btn-primary" onclick="dashboardApp.addTicketNote('${ticket.ticketNumber}')">
+                            <i class="fas fa-save"></i> Salva Nota
+                        </button>
+                    </div>
+                </div>
+            </div>
+        `;
+
+        modal.style.display = 'flex';
+    }
+
+    /**
+     * 👥 Load operators for assignment dropdown
+     */
+    async loadOperatorsForAssignment(ticket) {
+        try {
+            const response = await fetch(`${this.apiBase}/operators/list`, {
+                headers: { 'Authorization': `Bearer ${localStorage.getItem('auth_token')}` }
+            });
+
+            if (response.ok) {
+                const operators = await response.json();
+                const select = document.getElementById('ticket-operator-select');
+
+                if (select) {
+                    // Add operators to dropdown
+                    operators.forEach(op => {
+                        const option = document.createElement('option');
+                        option.value = op.id;
+                        option.textContent = op.name;
+                        option.selected = ticket.assignedTo?.id === op.id;
+                        select.appendChild(option);
+                    });
+                }
+            }
+        } catch (error) {
+            console.error('❌ Failed to load operators:', error);
+        }
+    }
+
+    /**
+     * 🔄 Update ticket status
+     */
+    async updateTicketStatus(ticketNumber, newStatus) {
+        try {
+            // Find ticket by number to get ID
+            const ticketsResponse = await fetch(`${this.apiBase}/tickets`, {
+                headers: { 'Authorization': `Bearer ${localStorage.getItem('auth_token')}` }
+            });
+
+            if (!ticketsResponse.ok) throw new Error('Failed to fetch tickets');
+
+            const ticketsData = await ticketsResponse.json();
+            const ticket = ticketsData.tickets.find(t => t.ticketNumber === ticketNumber);
+
+            if (!ticket) throw new Error('Ticket not found');
+
+            const response = await fetch(`${this.apiBase}/tickets/${ticket.id}`, {
+                method: 'PUT',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${localStorage.getItem('auth_token')}`
+                },
+                body: JSON.stringify({ status: newStatus })
+            });
+
+            if (response.ok) {
+                this.showToast(`Ticket ${ticketNumber} aggiornato a ${newStatus}`, 'success');
+                this.closeTicketModal();
+                this.loadTickets();
+            } else {
+                throw new Error('Failed to update ticket');
+            }
+        } catch (error) {
+            console.error('❌ Failed to update ticket status:', error);
+            this.showToast('Errore nell\'aggiornamento del ticket', 'error');
+        }
+    }
+
+    /**
+     * 👤 Assign ticket to operator
+     */
+    async assignTicketToOperator(ticketNumber, operatorId) {
+        if (!operatorId) return;
+
+        try {
+            const ticketsResponse = await fetch(`${this.apiBase}/tickets`, {
+                headers: { 'Authorization': `Bearer ${localStorage.getItem('auth_token')}` }
+            });
+
+            if (!ticketsResponse.ok) throw new Error('Failed to fetch tickets');
+
+            const ticketsData = await ticketsResponse.json();
+            const ticket = ticketsData.tickets.find(t => t.ticketNumber === ticketNumber);
+
+            if (!ticket) throw new Error('Ticket not found');
+
+            const response = await fetch(`${this.apiBase}/tickets/${ticket.id}`, {
+                method: 'PUT',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${localStorage.getItem('auth_token')}`
+                },
+                body: JSON.stringify({ operatorId })
+            });
+
+            if (response.ok) {
+                this.showToast('Ticket assegnato con successo', 'success');
+                this.loadTickets();
+            } else {
+                throw new Error('Failed to assign ticket');
+            }
+        } catch (error) {
+            console.error('❌ Failed to assign ticket:', error);
+            this.showToast('Errore nell\'assegnazione del ticket', 'error');
+        }
+    }
+
+    /**
+     * 🎯 Update ticket priority
+     */
+    async updateTicketPriority(ticketNumber, newPriority) {
+        try {
+            const ticketsResponse = await fetch(`${this.apiBase}/tickets`, {
+                headers: { 'Authorization': `Bearer ${localStorage.getItem('auth_token')}` }
+            });
+
+            if (!ticketsResponse.ok) throw new Error('Failed to fetch tickets');
+
+            const ticketsData = await ticketsResponse.json();
+            const ticket = ticketsData.tickets.find(t => t.ticketNumber === ticketNumber);
+
+            if (!ticket) throw new Error('Ticket not found');
+
+            const response = await fetch(`${this.apiBase}/tickets/${ticket.id}`, {
+                method: 'PUT',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${localStorage.getItem('auth_token')}`
+                },
+                body: JSON.stringify({ priority: newPriority })
+            });
+
+            if (response.ok) {
+                this.showToast('Priorità aggiornata', 'success');
+                this.loadTickets();
+            } else {
+                throw new Error('Failed to update priority');
+            }
+        } catch (error) {
+            console.error('❌ Failed to update priority:', error);
+            this.showToast('Errore nell\'aggiornamento della priorità', 'error');
+        }
+    }
+
+    /**
+     * 📝 Add note to ticket
+     */
+    async addTicketNote(ticketNumber) {
+        const noteText = document.getElementById('new-note-text');
+        const isPublic = document.getElementById('note-is-public');
+
+        if (!noteText || !noteText.value.trim()) {
+            this.showToast('Inserisci il testo della nota', 'warning');
+            return;
+        }
+
+        try {
+            const ticketsResponse = await fetch(`${this.apiBase}/tickets`, {
+                headers: { 'Authorization': `Bearer ${localStorage.getItem('auth_token')}` }
+            });
+
+            if (!ticketsResponse.ok) throw new Error('Failed to fetch tickets');
+
+            const ticketsData = await ticketsResponse.json();
+            const ticket = ticketsData.tickets.find(t => t.ticketNumber === ticketNumber);
+
+            if (!ticket) throw new Error('Ticket not found');
+
+            const response = await fetch(`${this.apiBase}/tickets/${ticket.id}`, {
+                method: 'PUT',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${localStorage.getItem('auth_token')}`
+                },
+                body: JSON.stringify({
+                    note: noteText.value,
+                    isPublic: isPublic?.checked || false,
+                    operatorId: this.currentOperator.id
+                })
+            });
+
+            if (response.ok) {
+                this.showToast('Nota aggiunta con successo', 'success');
+                noteText.value = '';
+                if (isPublic) isPublic.checked = false;
+                // Reload ticket details
+                this.viewTicket(ticket.id, ticketNumber);
+            } else {
+                throw new Error('Failed to add note');
+            }
+        } catch (error) {
+            console.error('❌ Failed to add note:', error);
+            this.showToast('Errore nell\'aggiunta della nota', 'error');
+        }
+    }
+
+    /**
+     * 💬 Reopen chat from ticket
+     */
+    async reopenChatFromTicket(ticketNumber) {
+        try {
+            const response = await fetch(`${this.apiBase}/tickets/${ticketNumber}/reopen-chat`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${localStorage.getItem('auth_token')}`
+                },
+                body: JSON.stringify({
+                    operatorId: this.currentOperator.id
+                })
+            });
+
+            if (response.ok) {
+                const data = await response.json();
+                this.showToast('Chat riaperta con successo', 'success');
+                this.closeTicketModal();
+                this.switchSection('chats');
+            } else {
+                throw new Error('Failed to reopen chat');
+            }
+        } catch (error) {
+            console.error('❌ Failed to reopen chat:', error);
+            this.showToast('Errore nella riapertura della chat', 'error');
+        }
+    }
+
+    /**
+     * ❌ Close ticket modal
+     */
+    closeTicketModal() {
+        const modal = document.getElementById('ticket-modal');
+        if (modal) {
+            modal.style.display = 'none';
+        }
+    }
+
+    /**
+     * Assign ticket to operator (legacy - for compatibility)
      */
     assignTicket(ticketId) {
-        console.log('👤 Assign ticket:', ticketId);
-        this.showToast('Funzionalità in sviluppo', 'info');
+        // This is called from old code, redirect to modal
+        this.viewTicket(ticketId, null);
     }
 
     /**

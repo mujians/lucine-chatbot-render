@@ -178,6 +178,27 @@ router.post('/login', loginLimiter, async (req, res) => {
   }
 });
 
+// 👥 Get list of operators
+router.get('/list', async (req, res) => {
+  try {
+    const operators = await getPrisma().operator.findMany({
+      where: { isActive: true },
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        isOnline: true
+      },
+      orderBy: { name: 'asc' }
+    });
+
+    res.json(operators);
+  } catch (error) {
+    console.error('❌ Failed to fetch operators list:', error);
+    res.status(500).json({ error: 'Failed to fetch operators' });
+  }
+});
+
 // 📊 Dashboard Summary - Single endpoint for all dashboard data
 router.get('/dashboard-summary', async (req, res) => {
   try {
