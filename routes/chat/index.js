@@ -123,7 +123,29 @@ router.post('/', async (req, res) => {
 
     // Check if user is in ticket collection workflow
     if (isRequestingTicket(session)) {
-      return await handleTicketCollection(message, session, res);
+      return await handleTicketCollection(sanitizedMessage, session, res);
+    }
+
+    // Check if user is requesting a ticket (trigger words)
+    const ticketTriggers = /apri.*ticket|crea.*ticket|voglio.*ticket|ticket|request_ticket/i;
+    if (ticketTriggers.test(sanitizedMessage)) {
+      console.log('🎫 Ticket request detected, starting collection flow');
+
+      const prisma = container.get('prisma');
+
+      // Set session to REQUESTING_TICKET
+      await prisma.chatSession.update({
+        where: { id: session.id },
+        data: { status: SESSION_STATUS.REQUESTING_TICKET }
+      });
+
+      // Return message asking for contact
+      return res.json({
+        reply: '🎫 Perfetto! Per aprire un ticket ho bisogno del tuo contatto.\n\nInviami la tua 📧 **email** oppure il tuo 📱 **numero di telefono**:',
+        sessionId: session.sessionId,
+        status: 'requesting_ticket',
+        smartActions: []
+      });
     }
 
     // Build conversation history
