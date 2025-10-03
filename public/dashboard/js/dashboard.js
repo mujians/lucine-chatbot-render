@@ -405,7 +405,7 @@ class DashboardApp {
                 this.loadChatsHistory();
                 break;
             case 'tickets':
-                this.showEmptyTickets();
+                this.loadTickets();
                 break;
             case 'analytics':
                 this.loadAnalyticsData();
@@ -431,7 +431,7 @@ class DashboardApp {
                 await this.loadChatsHistory();
                 break;
             case 'tickets':
-                this.showEmptyTickets();
+                await this.loadTickets();
                 break;
             case 'analytics':
                 await this.loadAnalyticsData();
@@ -640,11 +640,48 @@ class DashboardApp {
     }
 
     /**
-     * 📝 Show empty tickets state
+     * 🎫 Load tickets
      */
-    showEmptyTickets() {
+    async loadTickets(statusFilter = '') {
+        try {
+            console.log('🎫 Loading tickets...', { statusFilter });
+
+            const response = await fetch(`${this.apiBase}/tickets`, {
+                headers: {
+                    'Authorization': `Bearer ${localStorage.getItem('auth_token')}`
+                }
+            });
+
+            if (response.ok) {
+                const data = await response.json();
+                console.log('✅ Tickets loaded:', data);
+
+                this.renderTickets(data.tickets || []);
+
+                // Update badges
+                const openTicketsEl = document.getElementById('open-tickets');
+                if (openTicketsEl) {
+                    openTicketsEl.textContent = data.stats?.open || 0;
+                }
+            } else {
+                console.error('❌ Failed to load tickets:', response.status);
+                this.showToast('Errore nel caricamento dei ticket', 'error');
+            }
+
+        } catch (error) {
+            console.error('❌ Failed to load tickets:', error);
+            this.showToast('Errore nel caricamento dei ticket', 'error');
+        }
+    }
+
+    /**
+     * 🎨 Render tickets
+     */
+    renderTickets(tickets) {
         const ticketsList = document.getElementById('tickets-list');
-        if (ticketsList) {
+        if (!ticketsList) return;
+
+        if (tickets.length === 0) {
             ticketsList.innerHTML = `
                 <div class="empty-state">
                     <div class="empty-icon">🎫</div>
@@ -652,13 +689,97 @@ class DashboardApp {
                     <p>I ticket di supporto appariranno qui quando saranno disponibili</p>
                 </div>
             `;
+            return;
         }
-        
-        // Reset badge
-        const openTicketsEl = document.getElementById('open-tickets');
-        if (openTicketsEl) {
-            openTicketsEl.textContent = '0';
-        }
+
+        ticketsList.innerHTML = tickets.map(ticket => {
+            const statusBadge = this.getTicketStatusBadge(ticket.status);
+            const priorityBadge = this.getPriorityBadge(ticket.priority);
+            const createdDate = new Date(ticket.createdAt).toLocaleDateString('it-IT');
+            const assignedTo = ticket.assignedTo?.name || 'Non assegnato';
+
+            return `
+                <div class="ticket-item" data-ticket-id="${ticket.id}">
+                    <div class="ticket-header">
+                        <div class="ticket-info">
+                            <i class="fas fa-ticket-alt"></i>
+                            <span class="ticket-number">#${ticket.ticketNumber}</span>
+                            ${statusBadge}
+                            ${priorityBadge}
+                        </div>
+                        <div class="ticket-date">
+                            <i class="fas fa-calendar"></i>
+                            <span>${createdDate}</span>
+                        </div>
+                    </div>
+
+                    <div class="ticket-body">
+                        <h4 class="ticket-subject">${ticket.subject}</h4>
+                        <p class="ticket-description">${ticket.description.substring(0, 150)}${ticket.description.length > 150 ? '...' : ''}</p>
+                        <div class="ticket-meta">
+                            <span><i class="fas fa-user"></i> ${assignedTo}</span>
+                            ${ticket.userEmail ? `<span><i class="fas fa-envelope"></i> ${ticket.userEmail}</span>` : ''}
+                            ${ticket.userPhone ? `<span><i class="fas fa-phone"></i> ${ticket.userPhone}</span>` : ''}
+                        </div>
+                    </div>
+
+                    <div class="ticket-footer">
+                        <button class="btn-secondary" onclick="dashboardApp.viewTicket('${ticket.id}', '${ticket.ticketNumber}')">
+                            <i class="fas fa-eye"></i>
+                            Dettagli
+                        </button>
+                        ${ticket.status === 'OPEN' || ticket.status === 'IN_PROGRESS' ?
+                            `<button class="btn-primary" onclick="dashboardApp.assignTicket('${ticket.id}')">
+                                <i class="fas fa-user-check"></i>
+                                ${ticket.assignedTo ? 'Riassegna' : 'Assegna'}
+                            </button>` : ''
+                        }
+                    </div>
+                </div>
+            `;
+        }).join('');
+    }
+
+    /**
+     * Get ticket status badge
+     */
+    getTicketStatusBadge(status) {
+        const badges = {
+            'OPEN': '<span class="status-badge open">Aperto</span>',
+            'IN_PROGRESS': '<span class="status-badge in-progress">In Lavorazione</span>',
+            'RESOLVED': '<span class="status-badge resolved">Risolto</span>',
+            'CLOSED': '<span class="status-badge closed">Chiuso</span>'
+        };
+        return badges[status] || `<span class="status-badge">${status}</span>`;
+    }
+
+    /**
+     * Get priority badge
+     */
+    getPriorityBadge(priority) {
+        const badges = {
+            'URGENT': '<span class="priority-badge urgent">Urgente</span>',
+            'HIGH': '<span class="priority-badge high">Alta</span>',
+            'MEDIUM': '<span class="priority-badge medium">Media</span>',
+            'LOW': '<span class="priority-badge low">Bassa</span>'
+        };
+        return badges[priority] || `<span class="priority-badge">${priority}</span>`;
+    }
+
+    /**
+     * View ticket details (placeholder)
+     */
+    viewTicket(ticketId, ticketNumber) {
+        console.log('📋 View ticket:', ticketId, ticketNumber);
+        this.showToast(`Visualizzazione ticket #${ticketNumber}`, 'info');
+    }
+
+    /**
+     * Assign ticket to operator (placeholder)
+     */
+    assignTicket(ticketId) {
+        console.log('👤 Assign ticket:', ticketId);
+        this.showToast('Funzionalità in sviluppo', 'info');
     }
 
     /**
