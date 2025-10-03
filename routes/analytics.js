@@ -29,7 +29,54 @@ router.get('/dashboard', async (req, res) => {
     
     const totalMessages = await getPrisma().message.count();
     const openTickets = await getPrisma().ticket.count({ where: { status: 'OPEN' } });
-    
+
+    // Operator statistics
+    const totalOperators = await getPrisma().operator.count({ where: { isActive: true } });
+    const onlineOperators = await getPrisma().operator.count({
+      where: { isActive: true, isOnline: true }
+    });
+
+    // Chats per operator (active and completed)
+    const operatorStats = await getPrisma().operatorChat.groupBy({
+      by: ['operatorId'],
+      _count: {
+        id: true
+      },
+      orderBy: {
+        _count: {
+          id: 'desc'
+        }
+      }
+    });
+
+    // Get operator details with chat counts
+    const operatorDetails = await Promise.all(
+      operatorStats.slice(0, 5).map(async (stat) => {
+        const operator = await getPrisma().operator.findUnique({
+          where: { id: stat.operatorId },
+          select: {
+            id: true,
+            name: true,
+            isOnline: true,
+            email: true
+          }
+        });
+
+        const activeChatsCount = await getPrisma().operatorChat.count({
+          where: {
+            operatorId: stat.operatorId,
+            endedAt: null
+          }
+        });
+
+        return {
+          ...operator,
+          totalChats: stat._count.id,
+          activeChats: activeChatsCount
+        };
+      })
+    );
+
     // Recent activity - basic version
     const recentActivity = await getPrisma().message.findMany({
       take: 5,
@@ -59,6 +106,12 @@ router.get('/dashboard', async (req, res) => {
         avgSessionDuration: 0, // Placeholder
         satisfaction: null, // Placeholder
         totalRatings: 0
+      },
+      operators: {
+        total: totalOperators,
+        online: onlineOperators,
+        offline: totalOperators - onlineOperators,
+        topPerformers: operatorDetails
       },
       recentActivity: recentActivity.map(msg => ({
         id: msg.id,

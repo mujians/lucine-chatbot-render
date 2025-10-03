@@ -1542,6 +1542,7 @@ class DashboardApp {
         const actualData = data.data || data;
         const summary = actualData.summary || {};
         const recentActivity = actualData.recentActivity || [];
+        const operators = actualData.operators || {};
 
         // Calculate additional metrics
         const totalChats = summary.activeChats || 0;
@@ -1549,6 +1550,12 @@ class DashboardApp {
         const totalMessages = summary.totalMessages || 0;
         const openTickets = summary.openTickets || 0;
         const avgSessionDuration = summary.avgSessionDuration || 0;
+
+        // Operator metrics
+        const totalOperators = operators.total || 0;
+        const onlineOperators = operators.online || 0;
+        const offlineOperators = operators.offline || 0;
+        const topPerformers = operators.topPerformers || [];
 
         // Calculate percentages
         const operatorChatPercent = totalChats > 0 ? Math.round((operatorChats / totalChats) * 100) : 0;
@@ -1633,6 +1640,58 @@ class DashboardApp {
                         </span>
                     </div>
                 </div>
+            </div>
+
+            <!-- Operator Statistics -->
+            <div class="analytics-section">
+                <h3 class="section-title">👥 Statistiche Operatori</h3>
+                <div class="operator-stats-grid">
+                    <div class="operator-stat-card online">
+                        <i class="fas fa-user-check"></i>
+                        <div class="stat-info">
+                            <h4>${onlineOperators}</h4>
+                            <p>Online Ora</p>
+                        </div>
+                    </div>
+                    <div class="operator-stat-card offline">
+                        <i class="fas fa-user-times"></i>
+                        <div class="stat-info">
+                            <h4>${offlineOperators}</h4>
+                            <p>Offline</p>
+                        </div>
+                    </div>
+                    <div class="operator-stat-card total">
+                        <i class="fas fa-users"></i>
+                        <div class="stat-info">
+                            <h4>${totalOperators}</h4>
+                            <p>Totale Attivi</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Top Performers -->
+                ${topPerformers.length > 0 ? `
+                <div class="top-performers">
+                    <h4 class="subsection-title">🏆 Top Operatori per Chat Gestite</h4>
+                    <div class="performers-list">
+                        ${topPerformers.map((op, index) => `
+                            <div class="performer-item">
+                                <div class="performer-rank">#${index + 1}</div>
+                                <div class="performer-info">
+                                    <div class="performer-name">
+                                        ${op.name}
+                                        ${op.isOnline ? '<span class="status-dot online"></span>' : '<span class="status-dot offline"></span>'}
+                                    </div>
+                                    <div class="performer-stats">
+                                        <span><i class="fas fa-comments"></i> ${op.totalChats} chat totali</span>
+                                        ${op.activeChats > 0 ? `<span class="active-badge"><i class="fas fa-circle"></i> ${op.activeChats} attive</span>` : ''}
+                                    </div>
+                                </div>
+                            </div>
+                        `).join('')}
+                    </div>
+                </div>
+                ` : ''}
             </div>
 
             <!-- Performance Metrics -->

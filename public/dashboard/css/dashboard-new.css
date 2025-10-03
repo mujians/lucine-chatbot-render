@@ -2426,3 +2426,168 @@ body {
     color: var(--primary-color);
     font-size: var(--font-size-sm);
 }
+
+/* Operator Statistics */
+.operator-stats-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: var(--spacing-md);
+    margin-bottom: var(--spacing-lg);
+}
+
+.operator-stat-card {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-md);
+    padding: var(--spacing-lg);
+    background: white;
+    border-radius: var(--radius-lg);
+    border: 2px solid var(--gray-200);
+    transition: all 0.3s ease;
+}
+
+.operator-stat-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+}
+
+.operator-stat-card.online {
+    border-color: var(--success-color);
+    background: linear-gradient(135deg, rgba(16, 185, 129, 0.05) 0%, white 100%);
+}
+
+.operator-stat-card.online i {
+    color: var(--success-color);
+    font-size: 2rem;
+}
+
+.operator-stat-card.offline {
+    border-color: var(--gray-400);
+    background: linear-gradient(135deg, rgba(107, 114, 128, 0.05) 0%, white 100%);
+}
+
+.operator-stat-card.offline i {
+    color: var(--gray-500);
+    font-size: 2rem;
+}
+
+.operator-stat-card.total {
+    border-color: var(--primary-color);
+    background: linear-gradient(135deg, rgba(37, 99, 235, 0.05) 0%, white 100%);
+}
+
+.operator-stat-card.total i {
+    color: var(--primary-color);
+    font-size: 2rem;
+}
+
+.operator-stat-card .stat-info h4 {
+    font-size: 2rem;
+    font-weight: 700;
+    margin: 0;
+    color: var(--gray-900);
+}
+
+.operator-stat-card .stat-info p {
+    margin: 0;
+    font-size: var(--font-size-sm);
+    color: var(--gray-600);
+}
+
+/* Top Performers */
+.top-performers {
+    margin-top: var(--spacing-lg);
+}
+
+.subsection-title {
+    font-size: var(--font-size-lg);
+    font-weight: 600;
+    color: var(--gray-800);
+    margin-bottom: var(--spacing-md);
+}
+
+.performers-list {
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-sm);
+}
+
+.performer-item {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-md);
+    padding: var(--spacing-md);
+    background: white;
+    border: 1px solid var(--gray-200);
+    border-radius: var(--radius-md);
+    transition: all 0.2s ease;
+}
+
+.performer-item:hover {
+    border-color: var(--primary-color);
+    box-shadow: 0 2px 8px rgba(37, 99, 235, 0.1);
+}
+
+.performer-rank {
+    width: 40px;
+    height: 40px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: linear-gradient(135deg, var(--primary-color), #1d4ed8);
+    color: white;
+    font-weight: 700;
+    font-size: var(--font-size-lg);
+    border-radius: 50%;
+    flex-shrink: 0;
+}
+
+.performer-info {
+    flex: 1;
+}
+
+.performer-name {
+    font-weight: 600;
+    color: var(--gray-900);
+    margin-bottom: 0.25rem;
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-sm);
+}
+
+.status-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    display: inline-block;
+}
+
+.status-dot.online {
+    background: var(--success-color);
+    box-shadow: 0 0 0 2px rgba(16, 185, 129, 0.2);
+}
+
+.status-dot.offline {
+    background: var(--gray-400);
+}
+
+.performer-stats {
+    display: flex;
+    gap: var(--spacing-md);
+    font-size: var(--font-size-sm);
+    color: var(--gray-600);
+}
+
+.performer-stats i {
+    color: var(--primary-color);
+}
+
+.active-badge {
+    color: var(--success-color);
+    font-weight: 600;
+}
+
+.active-badge i {
+    color: var(--success-color);
+    animation: pulse 2s infinite;
+}
