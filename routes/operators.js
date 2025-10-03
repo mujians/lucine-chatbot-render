@@ -467,7 +467,7 @@ router.put('/status', authenticateToken, async (req, res) => {
   try {
     const { operatorId, isOnline } = req.body;
 
-    console.log('🔄 Status update request:', { operatorId, isOnline });
+    console.log('🔄 Status update request:', { operatorId, isOnline, requestBy: req.operator?.id });
 
     // Validation
     if (!operatorId) {
@@ -476,6 +476,15 @@ router.put('/status', authenticateToken, async (req, res) => {
 
     if (typeof isOnline !== 'boolean') {
       return res.status(400).json({ error: 'isOnline must be boolean' });
+    }
+
+    // Security check: ensure authenticated operator matches
+    if (req.operator && req.operator.id !== operatorId) {
+      console.warn(`🚨 Operator ${req.operator.id} tried to update status of ${operatorId}`);
+      return res.status(403).json({
+        error: 'You can only update your own status',
+        details: { authenticated: req.operator.id, requested: operatorId }
+      });
     }
 
     // Check if operator exists
