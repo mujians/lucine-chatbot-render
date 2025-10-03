@@ -1475,16 +1475,130 @@ class DashboardApp {
      * 🎨 Render analytics
      */
     renderAnalytics(data) {
-        // For now, just show placeholder charts
-        // In a real implementation, you'd use Chart.js or similar
-        const chartPlaceholder = '<div class="chart-placeholder-text">📊 Grafico non ancora implementato</div>';
-        
-        document.querySelectorAll('.chart-placeholder canvas').forEach(canvas => {
-            canvas.style.display = 'none';
-            canvas.parentElement.innerHTML = chartPlaceholder;
-        });
-        
-        // Chat history functionality removed (endpoint does not exist)
+        const container = document.getElementById('analytics-content');
+        if (!container) return;
+
+        // Extract data with fallback
+        const actualData = data.data || data;
+        const summary = actualData.summary || {};
+        const recentActivity = actualData.recentActivity || [];
+
+        // Calculate additional metrics
+        const totalChats = summary.activeChats || 0;
+        const operatorChats = summary.operatorChats || 0;
+        const totalMessages = summary.totalMessages || 0;
+        const openTickets = summary.openTickets || 0;
+        const avgSessionDuration = summary.avgSessionDuration || 0;
+
+        // Calculate percentages
+        const operatorChatPercent = totalChats > 0 ? Math.round((operatorChats / totalChats) * 100) : 0;
+
+        container.innerHTML = `
+            <div class="analytics-grid">
+                <!-- Main Stats Cards -->
+                <div class="analytics-card">
+                    <div class="analytics-icon primary">
+                        <i class="fas fa-comments"></i>
+                    </div>
+                    <div class="analytics-info">
+                        <h3 class="analytics-value">${totalChats}</h3>
+                        <p class="analytics-label">Sessioni Chat</p>
+                        <span class="analytics-change positive">
+                            <i class="fas fa-arrow-up"></i> Totali attive
+                        </span>
+                    </div>
+                </div>
+
+                <div class="analytics-card">
+                    <div class="analytics-icon success">
+                        <i class="fas fa-headset"></i>
+                    </div>
+                    <div class="analytics-info">
+                        <h3 class="analytics-value">${operatorChats}</h3>
+                        <p class="analytics-label">Con Operatore</p>
+                        <span class="analytics-change">
+                            <i class="fas fa-percentage"></i> ${operatorChatPercent}% del totale
+                        </span>
+                    </div>
+                </div>
+
+                <div class="analytics-card">
+                    <div class="analytics-icon info">
+                        <i class="fas fa-envelope"></i>
+                    </div>
+                    <div class="analytics-info">
+                        <h3 class="analytics-value">${totalMessages}</h3>
+                        <p class="analytics-label">Messaggi Oggi</p>
+                        <span class="analytics-change">
+                            <i class="fas fa-chart-line"></i> Totale scambiati
+                        </span>
+                    </div>
+                </div>
+
+                <div class="analytics-card">
+                    <div class="analytics-icon warning">
+                        <i class="fas fa-ticket-alt"></i>
+                    </div>
+                    <div class="analytics-info">
+                        <h3 class="analytics-value">${openTickets}</h3>
+                        <p class="analytics-label">Ticket Aperti</p>
+                        <span class="analytics-change">
+                            <i class="fas fa-exclamation-circle"></i> In attesa
+                        </span>
+                    </div>
+                </div>
+
+                <div class="analytics-card">
+                    <div class="analytics-icon secondary">
+                        <i class="fas fa-stopwatch"></i>
+                    </div>
+                    <div class="analytics-info">
+                        <h3 class="analytics-value">${avgSessionDuration || 0} min</h3>
+                        <p class="analytics-label">Durata Media</p>
+                        <span class="analytics-change">
+                            <i class="fas fa-clock"></i> Per sessione
+                        </span>
+                    </div>
+                </div>
+
+                <div class="analytics-card">
+                    <div class="analytics-icon success">
+                        <i class="fas fa-chart-pie"></i>
+                    </div>
+                    <div class="analytics-info">
+                        <h3 class="analytics-value">${summary.satisfaction || '--'}</h3>
+                        <p class="analytics-label">Soddisfazione</p>
+                        <span class="analytics-change positive">
+                            <i class="fas fa-star"></i> Media rating
+                        </span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Recent Activity Summary -->
+            <div class="analytics-section">
+                <h3 class="section-title">📊 Riepilogo Attività</h3>
+                <div class="activity-summary">
+                    <div class="summary-item">
+                        <span class="summary-label">Attività recenti registrate:</span>
+                        <span class="summary-value">${recentActivity.length}</span>
+                    </div>
+                    <div class="summary-item">
+                        <span class="summary-label">Periodo analisi:</span>
+                        <span class="summary-value">Oggi</span>
+                    </div>
+                    <div class="summary-item">
+                        <span class="summary-label">Ultimo aggiornamento:</span>
+                        <span class="summary-value">${new Date().toLocaleTimeString('it-IT')}</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="analytics-note">
+                💡 <strong>Nota:</strong> I grafici dettagliati saranno disponibili in una versione futura.
+                Per ora vengono mostrate le statistiche principali in formato card.
+            </div>
+        `;
     }
 
 
