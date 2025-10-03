@@ -231,7 +231,7 @@ export async function handleEscalation(message, session) {
 
       if (!hasOnlineOperators) {
         // SCENARIO 1: No operators online at all
-        reply = `⏰ **Non ci sono operatori online al momento**\n\nGli operatori potrebbero essere offline perché:\n• Fuori orario lavorativo\n• Pausa o riunione\n• Fine turno\n\n🎫 **Ti consigliamo di aprire un ticket**\nLascia il tuo contatto e ti risponderemo appena disponibili:\n📧 **Email** o 📱 **WhatsApp**\n\n💡 Oppure continua con l'assistente AI`;
+        reply = `⏰ Non ci sono operatori online al momento\n\nGli operatori potrebbero essere offline perché:\n• Fuori orario lavorativo\n• Pausa o riunione\n• Fine turno\n\n💡 Puoi aprire un ticket o continuare con l'assistente AI`;
 
         smartActions = [
           {
@@ -252,10 +252,10 @@ export async function handleEscalation(message, session) {
       } else {
         // SCENARIO 2: Operators online but all busy
         const queueMessage = queueInfo
-          ? `📊 **Posizione in coda**: ${queueInfo.position}\n⏱️ **Attesa stimata**: ~${queueInfo.estimatedWait} minuti\n\n`
+          ? `📊 Posizione in coda: ${queueInfo.position}\n⏱️ Attesa stimata: ~${queueInfo.estimatedWait} minuti\n\n`
           : '';
 
-        reply = `⏰ **Tutti gli operatori sono occupati**\n\n${queueMessage}${onlineOperators.length} operator${onlineOperators.length > 1 ? 'i' : 'e'} online ma al momento impegnat${onlineOperators.length > 1 ? 'i' : 'o'} in altre chat.\n\n🔔 **Sei in coda** - ti risponderemo appena possibile!\n\n💡 Oppure apri un ticket per ricevere assistenza via email/WhatsApp`;
+        reply = `⏰ Tutti gli operatori sono occupati\n\n${queueMessage}${onlineOperators.length} operator${onlineOperators.length > 1 ? 'i' : 'e'} online ma al momento impegnat${onlineOperators.length > 1 ? 'i' : 'o'} in altre chat.\n\n🔔 Sei in coda - ti risponderemo appena possibile!`;
 
         smartActions = [
           {
