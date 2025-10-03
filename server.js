@@ -309,10 +309,18 @@ async function startServer() {
     // Database ready for use
 
     server.listen(PORT, '0.0.0.0', () => {
+      const isProduction = process.env.NODE_ENV === 'production';
+      const baseUrl = isProduction
+        ? (process.env.RENDER_EXTERNAL_URL || 'https://lucine-chatbot.onrender.com')
+        : `http://localhost:${PORT}`;
+      const wsUrl = isProduction
+        ? baseUrl.replace('https://', 'wss://')
+        : `ws://localhost:${PORT}`;
+
       console.log(`🚀 Server running on port ${PORT}`);
       console.log(`🌍 Environment: ${process.env.NODE_ENV}`);
-      console.log(`📊 Dashboard: http://localhost:${PORT}/dashboard`);
-      console.log(`🔌 WebSocket Server: ws://localhost:${PORT}`);
+      console.log(`📊 Dashboard: ${baseUrl}/dashboard`);
+      console.log(`🔌 WebSocket Server: ${wsUrl}`);
     });
   } catch (error) {
     console.error('❌ Failed to start server:', error);
