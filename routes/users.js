@@ -83,6 +83,7 @@ router.get('/me', authenticateToken, async (req, res) => {
 router.get('/:id', authenticateToken, checkAdmin, async (req, res) => {
   try {
     const { id } = req.params;
+    console.log(`🔍 Fetching user by ID: ${id}`);
 
     const operator = await getPrisma().operator.findUnique({
       where: { id },
@@ -103,13 +104,15 @@ router.get('/:id', authenticateToken, checkAdmin, async (req, res) => {
     });
 
     if (!operator) {
+      console.log(`❌ Operator not found with ID: ${id}`);
       return res.status(404).json({ error: 'Operatore non trovato' });
     }
 
-    res.json(operator);
+    console.log(`✅ Found operator: ${operator.username}`);
+    return res.json(operator);
   } catch (error) {
     console.error('❌ Error fetching user:', error);
-    res.status(500).json({ error: 'Failed to fetch user' });
+    return res.status(500).json({ error: 'Failed to fetch user' });
   }
 });
 
