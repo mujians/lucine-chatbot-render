@@ -190,6 +190,10 @@ router.get('/pending-chats', async (req, res) => {
         messages: {
           orderBy: { timestamp: 'desc' },
           take: 5
+        },
+        queueEntries: {
+          where: { status: 'WAITING' },
+          select: { priority: true, enteredAt: true }
         }
       },
       orderBy: { lastActivity: 'desc' }
@@ -230,7 +234,7 @@ router.get('/pending-chats', async (req, res) => {
         lastActivity: chat.lastActivity,
         lastMessage: chat.messages[0]?.message,
         status: 'waiting',
-        priority: 'MEDIUM', // Default priority since we're not using queue system yet
+        priority: chat.queueEntries[0]?.priority || 'MEDIUM',
         timeWaiting: Date.now() - new Date(chat.lastActivity).getTime(),
         userLastSeen: chat.lastActivity
       })),
