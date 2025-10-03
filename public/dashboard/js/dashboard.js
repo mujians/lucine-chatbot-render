@@ -519,7 +519,7 @@ class DashboardApp {
     }
 
     /**
-     * 📝 Render attività recente
+     * 📝 Render attività recente (raggruppate per sessione)
      */
     renderRecentActivity(activities) {
         const activityList = document.getElementById('recent-activity');
@@ -529,24 +529,60 @@ class DashboardApp {
             }
             return;
         }
-        
-        activityList.innerHTML = activities.map(activity => {
-            const timeAgo = this.getTimeAgo(new Date(activity.timestamp));
-            const icon = activity.sender === 'USER' ? 'user' : 
-                        activity.sender === 'OPERATOR' ? 'headset' : 'robot';
-            const senderLabel = activity.sender === 'USER' ? 'Utente' : 
-                               activity.sender === 'OPERATOR' ? 'Operatore' : 'Bot';
-            
+
+        // Group activities by sessionId
+        const groupedActivities = {};
+        activities.forEach(activity => {
+            if (!groupedActivities[activity.sessionId]) {
+                groupedActivities[activity.sessionId] = [];
+            }
+            groupedActivities[activity.sessionId].push(activity);
+        });
+
+        // Render grouped activities
+        activityList.innerHTML = Object.entries(groupedActivities).map(([sessionId, sessionActivities]) => {
+            const firstActivity = sessionActivities[0];
+            const latestTime = this.getTimeAgo(new Date(firstActivity.timestamp));
+            const messageCount = sessionActivities.length;
+
+            // Build messages preview
+            const messagesPreview = sessionActivities.slice(0, 3).map(activity => {
+                const icon = activity.sender === 'USER' ? 'user' :
+                            activity.sender === 'OPERATOR' ? 'headset' : 'robot';
+                const senderLabel = activity.sender === 'USER' ? 'Utente' :
+                                   activity.sender === 'OPERATOR' ? 'Operatore' : 'Bot';
+                const messagePreview = activity.message.length > 60
+                    ? activity.message.substring(0, 60) + '...'
+                    : activity.message;
+
+                return `
+                    <div class="message-line">
+                        <i class="fas fa-${icon} message-icon ${activity.sender.toLowerCase()}"></i>
+                        <span class="message-text"><strong>${senderLabel}:</strong> ${messagePreview}</span>
+                    </div>
+                `;
+            }).join('');
+
+            const moreMessagesText = messageCount > 3 ? `<p class="more-messages">+${messageCount - 3} altri messaggi</p>` : '';
+
             return `
-                <div class="activity-item clickable" onclick="dashboardApp.jumpToChat('${activity.sessionId}')">
-                    <div class="activity-icon ${activity.sender.toLowerCase()}">
-                        <i class="fas fa-${icon}"></i>
+                <div class="session-group clickable" onclick="dashboardApp.jumpToChat('${sessionId}')">
+                    <div class="session-header">
+                        <div class="session-info-header">
+                            <i class="fas fa-comments"></i>
+                            <span class="session-id-label">Sessione: ${sessionId.substr(-8).toUpperCase()}</span>
+                            <span class="message-count">${messageCount} messaggio${messageCount > 1 ? 'i' : ''}</span>
+                        </div>
+                        <div class="session-time">
+                            <i class="fas fa-clock"></i>
+                            <span>${latestTime}</span>
+                        </div>
                     </div>
-                    <div class="activity-content">
-                        <p><strong>${senderLabel}:</strong> ${activity.message}</p>
-                        <span class="activity-time">${timeAgo} • Sessione: ${activity.sessionId.substr(-8)}</span>
+                    <div class="session-messages">
+                        ${messagesPreview}
+                        ${moreMessagesText}
                     </div>
-                    <div class="activity-action">
+                    <div class="session-action">
                         <i class="fas fa-chevron-right"></i>
                         <span class="action-tooltip">Clicca per gestire la chat</span>
                     </div>
