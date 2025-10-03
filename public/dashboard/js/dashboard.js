@@ -1251,37 +1251,48 @@ class DashboardApp {
      */
     handleNewOperatorRequest(notification) {
         console.log('🙋 New operator request:', notification);
-        
-        // Play notification sound
+
+        // Play notification sound (2 volte per urgenza)
         this.playNotificationSound();
-        
-        // Show prominent notification
-        this.showToast(`🙋 Nuova richiesta di supporto da ${notification.sessionId || 'cliente'}`, 'warning', 10000);
-        
+        setTimeout(() => this.playNotificationSound(), 500);
+
         // Update pending chats count and reload
         this.loadChatsData();
-        
+
         // If on overview, refresh data
         if (this.currentSection === 'overview') {
             this.loadOverviewData();
         }
-        
-        // Browser notification (if permission granted)
+
+        // Browser notification NATIVA (if permission granted)
         if ('Notification' in window && Notification.permission === 'granted') {
-            console.log('📢 Creating browser notification...');
+            console.log('📢 Creating NATIVE browser notification...');
             try {
-                const notif = new Notification('🙋 Nuova richiesta supporto', {
-                    body: notification.message || 'Un cliente ha richiesto assistenza',
-                    requireInteraction: true,
-                    tag: 'operator-request',
-                    badge: '🔔'
+                const sessionShort = notification.sessionId?.substring(0, 8) || 'cliente';
+                const notif = new Notification('🚨 NUOVA RICHIESTA SUPPORTO', {
+                    body: `Un cliente richiede assistenza urgente\n\nSessione: ${sessionShort}\nMessaggio: ${notification.message || 'Richiesta operatore'}`,
+                    icon: '/dashboard/images/notification-icon.png',
+                    badge: '/dashboard/images/badge-icon.png',
+                    requireInteraction: true, // Rimane fino a click
+                    tag: `operator-request-${notification.sessionId}`,
+                    vibrate: [200, 100, 200], // Vibrazione su mobile
+                    silent: false
                 });
-                console.log('✅ Browser notification created:', notif);
+
+                // Click notification → vai a Chat Live
+                notif.onclick = () => {
+                    window.focus();
+                    this.switchSection('chats');
+                    notif.close();
+                };
+
+                console.log('✅ NATIVE notification created:', notif);
             } catch (error) {
                 console.error('❌ Failed to create notification:', error);
             }
         } else {
-            console.log('⚠️ Notification not shown - permission:', Notification?.permission);
+            console.warn('⚠️ Notifiche NATIVE non disponibili - permission:', Notification?.permission);
+            alert('🚨 NUOVA RICHIESTA SUPPORTO!\n\nUn cliente richiede assistenza.\n\nVai a Chat Live per rispondere.');
         }
     }
 
