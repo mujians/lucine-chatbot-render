@@ -137,7 +137,7 @@
                 <!-- Overview Section -->
                 <section id="overview-section" class="content-section active">
                     <div class="metrics-grid">
-                        <div class="metric-card">
+                        <div class="metric-card clickable" data-section="chats" onclick="dashboardApp.switchSection('chats')">
                             <div class="metric-header">
                                 <div class="metric-icon primary">
                                     <i class="fas fa-comments"></i>
@@ -150,8 +150,8 @@
                                 <span>Tempo reale</span>
                             </div>
                         </div>
-                        
-                        <div class="metric-card">
+
+                        <div class="metric-card clickable" data-section="chats" onclick="dashboardApp.switchSection('chats')">
                             <div class="metric-header">
                                 <div class="metric-icon success">
                                     <i class="fas fa-headset"></i>
@@ -164,8 +164,8 @@
                                 <span>In gestione</span>
                             </div>
                         </div>
-                        
-                        <div class="metric-card">
+
+                        <div class="metric-card clickable" data-section="tickets" onclick="dashboardApp.switchSection('tickets')">
                             <div class="metric-header">
                                 <div class="metric-icon warning">
                                     <i class="fas fa-ticket-alt"></i>
@@ -178,8 +178,8 @@
                                 <span>Priorità alta</span>
                             </div>
                         </div>
-                        
-                        <div class="metric-card">
+
+                        <div class="metric-card clickable" data-section="analytics" onclick="dashboardApp.switchSection('analytics')">
                             <div class="metric-header">
                                 <div class="metric-icon info">
                                     <i class="fas fa-chart-line"></i>

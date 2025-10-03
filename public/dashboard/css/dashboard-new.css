@@ -519,6 +519,20 @@ body {
     box-shadow: var(--shadow-lg);
 }
 
+.metric-card.clickable {
+    cursor: pointer;
+}
+
+.metric-card.clickable:hover {
+    transform: translateY(-4px);
+    box-shadow: 0 10px 25px rgba(0, 0, 0, 0.15);
+    border-color: var(--primary-color);
+}
+
+.metric-card.clickable:active {
+    transform: translateY(-2px);
+}
+
 .metric-header {
     display: flex;
     align-items: center;
