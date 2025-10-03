@@ -163,18 +163,31 @@ class QueueService {
 
         if (!entry) return null;
 
-        const position = await this.prisma.queueEntry.count({
-            where: {
-                status: 'WAITING',
-                OR: [
-                    { priority: { gt: entry.priority } },
-                    { 
-                        priority: entry.priority,
-                        enteredAt: { lt: entry.enteredAt }
-                    }
-                ]
+        // Priority ranking (higher = more urgent)
+        const priorityRank = {
+            'URGENT': 4,
+            'HIGH': 3,
+            'MEDIUM': 2,
+            'LOW': 1
+        };
+
+        const entryRank = priorityRank[entry.priority] || 1;
+
+        // Get all waiting entries
+        const allWaiting = await this.prisma.queueEntry.findMany({
+            where: { status: 'WAITING' },
+            select: {
+                priority: true,
+                enteredAt: true
             }
         });
+
+        // Count how many are ahead (higher priority OR same priority but earlier)
+        const position = allWaiting.filter(item => {
+            const itemRank = priorityRank[item.priority] || 1;
+            return itemRank > entryRank ||
+                   (itemRank === entryRank && item.enteredAt < entry.enteredAt);
+        }).length;
 
         return position + 1;
     }
