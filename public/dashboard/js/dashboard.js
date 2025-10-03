@@ -659,10 +659,11 @@ class DashboardApp {
                 
                 this.renderPendingChats(data.pending || []);
                 
-                // Update badge
+                // Update badge and remove pulse animation (operator has viewed)
                 const pendingChatsEl = document.getElementById('pending-chats');
                 if (pendingChatsEl) {
                     pendingChatsEl.textContent = data.count || 0;
+                    pendingChatsEl.classList.remove('has-pending');
                 }
             } else {
                 console.error('❌ Failed to load chats:', response.status);
@@ -1262,6 +1263,14 @@ class DashboardApp {
         // Play notification sound (2 volte per urgenza)
         this.playNotificationSound();
         setTimeout(() => this.playNotificationSound(), 500);
+
+        // Update badge with pulse animation
+        const badge = document.getElementById('pending-chats');
+        if (badge) {
+            const currentCount = parseInt(badge.textContent) || 0;
+            badge.textContent = currentCount + 1;
+            badge.classList.add('has-pending');
+        }
 
         // Update pending chats count and reload
         this.loadChatsData();
