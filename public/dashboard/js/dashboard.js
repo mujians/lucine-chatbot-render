@@ -2574,10 +2574,9 @@ class DashboardApp {
                 <div class="card user-card">
                     <div class="card-body">
                         <div class="d-flex align-items-start mb-3">
-                            <img src="${user.avatar || '/dashboard/images/default-avatar.png'}"
-                                 alt="${user.displayName || user.name}"
-                                 class="rounded-circle me-3"
-                                 width="50" height="50">
+                            <div class="avatar-circle me-3" style="width: 50px; height: 50px; font-size: 24px; display: flex; align-items: center; justify-content: center; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); border-radius: 50%; color: white;">
+                                ${user.avatar && user.avatar.length <= 2 ? user.avatar : '👤'}
+                            </div>
                             <div class="flex-grow-1">
                                 <h5 class="mb-1">${user.displayName || user.name}</h5>
                                 <small class="text-muted">@${user.username}</small>

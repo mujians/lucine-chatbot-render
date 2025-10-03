@@ -45,6 +45,42 @@ router.get('/', authenticateToken, checkAdmin, async (req, res) => {
 });
 
 /**
+ * GET /api/users/:id - Get single operator (ADMIN only)
+ */
+router.get('/:id', authenticateToken, checkAdmin, async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const operator = await getPrisma().operator.findUnique({
+      where: { id },
+      select: {
+        id: true,
+        username: true,
+        email: true,
+        name: true,
+        displayName: true,
+        avatar: true,
+        specialization: true,
+        role: true,
+        isActive: true,
+        isOnline: true,
+        lastSeen: true,
+        createdAt: true
+      }
+    });
+
+    if (!operator) {
+      return res.status(404).json({ error: 'Operatore non trovato' });
+    }
+
+    res.json(operator);
+  } catch (error) {
+    console.error('❌ Error fetching user:', error);
+    res.status(500).json({ error: 'Failed to fetch user' });
+  }
+});
+
+/**
  * POST /api/users - Crea nuovo operatore (ADMIN only)
  */
 router.post('/', authenticateToken, checkAdmin, async (req, res) => {
