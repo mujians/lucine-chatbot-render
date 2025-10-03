@@ -30,58 +30,40 @@ class DashboardApp {
         this.setupEventListeners();
         this.checkAuthStatus();
 
-        // Auto refresh ogni 5 secondi (fallback se WebSocket non funziona)
-        this.refreshInterval = setInterval(() => {
+        // Auto refresh ogni 15 secondi SOLO per i badge
+        // Le sezioni si refreshano solo quando vengono visualizzate
+        this.badgeRefreshInterval = setInterval(() => {
             if (this.currentOperator) {
-                this.refreshData();
+                this.updateAllBadges();
             }
-        }, 5000); // 5 secondi per notifiche più rapide
+        }, 15000); // 15 secondi - WebSocket gestisce notifiche real-time
     }
 
     /**
-     * 🔔 Centralized Badge Update Function
-     * Updates all sidebar badges from a single data source
+     * 🔔 Centralized Badge Update Function - OPTIMIZED
+     * Single API call instead of 3 separate calls
      */
     async updateAllBadges() {
         try {
-            // Fetch all counts in parallel
-            const [chatsResponse, ticketsResponse, historyResponse] = await Promise.all([
-                fetch(`${this.apiBase}/operators/pending-chats`, {
-                    headers: { 'Authorization': `Bearer ${localStorage.getItem('auth_token')}` }
-                }),
-                fetch(`${this.apiBase}/tickets`, {
-                    headers: { 'Authorization': `Bearer ${localStorage.getItem('auth_token')}` }
-                }),
-                fetch(`${this.apiBase}/operators/chat-history?limit=1`, {
-                    headers: { 'Authorization': `Bearer ${localStorage.getItem('auth_token')}` }
-                })
-            ]);
+            // Single endpoint call
+            const response = await fetch(`${this.apiBase}/operators/dashboard-summary`, {
+                headers: { 'Authorization': `Bearer ${localStorage.getItem('auth_token')}` }
+            });
 
-            let pendingCount = 0;
-            let openTicketsCount = 0;
-            let totalSessionsCount = 0;
-
-            if (chatsResponse.ok) {
-                const chatsData = await chatsResponse.json();
-                pendingCount = (chatsData.waitingCount || 0) + (chatsData.activeCount || 0);
+            if (!response.ok) {
+                console.warn('⚠️ Dashboard summary failed:', response.status);
+                return;
             }
 
-            if (ticketsResponse.ok) {
-                const ticketsData = await ticketsResponse.json();
-                openTicketsCount = ticketsData.stats?.open || 0;
-            }
-
-            if (historyResponse.ok) {
-                const historyData = await historyResponse.json();
-                totalSessionsCount = historyData.total || 0;
-            }
+            const data = await response.json();
+            const badges = data.badges || {};
 
             // Update all badges
-            this.setBadge('pending-chats', pendingCount);
-            this.setBadge('open-tickets', openTicketsCount);
-            this.setBadge('total-sessions', totalSessionsCount);
+            this.setBadge('pending-chats', badges.pendingChats || 0);
+            this.setBadge('open-tickets', badges.openTickets || 0);
+            this.setBadge('total-sessions', badges.totalSessions || 0);
 
-            console.log('✅ Badges updated:', { pendingCount, openTicketsCount, totalSessionsCount });
+            console.log('✅ Badges updated:', badges);
 
         } catch (error) {
             console.error('❌ Failed to update badges:', error);
@@ -483,9 +465,7 @@ class DashboardApp {
      * 🔄 Refresh tutti i dati
      */
     async refreshData() {
-        // Always update badges on every refresh
-        this.updateAllBadges();
-
+        // Refresh ONLY the current section, not everything
         switch (this.currentSection) {
             case 'overview':
                 await this.loadOverviewData();
@@ -559,8 +539,7 @@ class DashboardApp {
                 satisfactionEl.textContent = satisfactionText;
             }
             
-            // Update navigation badges using centralized function
-            this.updateAllBadges();
+            // Badges updated by background interval
             
             // Render recent activity from real data
             this.renderRecentActivity(data.recentActivity || []);
@@ -721,9 +700,6 @@ class DashboardApp {
                 console.log('✅ Tickets loaded:', data);
 
                 this.renderTickets(data.tickets || []);
-
-                // Update all badges using centralized function
-                this.updateAllBadges();
             } else {
                 console.error('❌ Failed to load tickets:', response.status);
                 this.showToast('Errore nel caricamento dei ticket', 'error');
@@ -865,9 +841,6 @@ class DashboardApp {
                 console.log('✅ Chat history loaded:', data);
 
                 this.renderChatsHistory(data.sessions || []);
-
-                // Update all badges using centralized function
-                this.updateAllBadges();
             } else {
                 console.error('❌ Failed to load chat history:', response.status);
                 this.showToast('Errore nel caricamento dello storico', 'error');
@@ -1010,9 +983,6 @@ class DashboardApp {
                 if (activeBadge) {
                     activeBadge.textContent = data.activeCount || 0;
                 }
-
-                // Update all badges using centralized function
-                this.updateAllBadges();
 
                 // Remove pulse animation when operator views the chats section
                 const pendingChatsEl = document.getElementById('pending-chats');

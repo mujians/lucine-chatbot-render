@@ -178,6 +178,50 @@ router.post('/login', loginLimiter, async (req, res) => {
   }
 });
 
+// 📊 Dashboard Summary - Single endpoint for all dashboard data
+router.get('/dashboard-summary', async (req, res) => {
+  try {
+    // Fetch everything in parallel
+    const [pendingChatsData, ticketsData, chatHistoryCount] = await Promise.all([
+      // Pending chats count
+      (async () => {
+        const waiting = await getPrisma().chatSession.count({
+          where: { status: 'WAITING_OPERATOR' }
+        });
+        const active = await getPrisma().chatSession.count({
+          where: {
+            status: 'WITH_OPERATOR',
+            operatorChats: { some: { endedAt: null } }
+          }
+        });
+        return { waiting, active, total: waiting + active };
+      })(),
+
+      // Tickets count
+      getPrisma().ticket.count({
+        where: { status: 'OPEN' }
+      }),
+
+      // Total sessions
+      getPrisma().chatSession.count()
+    ]);
+
+    res.json({
+      badges: {
+        pendingChats: pendingChatsData.total,
+        waitingChats: pendingChatsData.waiting,
+        activeChats: pendingChatsData.active,
+        openTickets: ticketsData,
+        totalSessions: chatHistoryCount
+      },
+      timestamp: new Date().toISOString()
+    });
+  } catch (error) {
+    console.error('❌ Dashboard summary error:', error);
+    res.status(500).json({ error: 'Failed to fetch dashboard summary' });
+  }
+});
+
 // Get pending chats (sessions that need operator attention) AND active operator chats
 router.get('/pending-chats', async (req, res) => {
   try {
