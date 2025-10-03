@@ -41,7 +41,7 @@ ORARI E DATE - Fornisci sempre informazioni complete:
 2. INFORMAZIONE MANCANTE - Solo se non hai l'informazione nella knowledge base:
    - NON dare mai contatti diretti (email/WhatsApp)
    - OBBLIGATORIO: Includi sempre smartActions nell'output JSON
-   - USA ESATTO questo formato JSON: {"reply": "Non ho informazioni specifiche su questo argomento. Vuoi parlare con un operatore?", "smartActions": [{"type": "primary", "icon": "👤", "text": "SÌ, CHIAMA OPERATORE", "description": "Ti connetto subito con un operatore", "action": "request_operator"}, {"type": "secondary", "icon": "🔙", "text": "NO, CONTINUA CON AI", "description": "Rimani con l'assistente virtuale", "action": "continue_ai"}], "escalation": "none"}
+   - USA ESATTO questo formato JSON: {"reply": "Non ho informazioni specifiche su questo argomento. Vuoi parlare con un operatore?", "smartActions": [{"type": "primary", "icon": "👤", "text": "SÌ, PARLA CON OPERATORE", "description": "Ti connetto subito con un operatore", "action": "request_operator"}, {"type": "secondary", "icon": "🔙", "text": "NO, CONTINUA CON AI", "description": "Rimani con l'assistente virtuale", "action": "continue_ai"}], "escalation": "none"}
 
 3. DETTAGLI COMPLETI - Fornisci sempre informazioni complete e specifiche quando disponibili.
 
@@ -122,23 +122,55 @@ export async function handleAIResponse(message, session, history) {
 
     // Se AI non sa rispondere, aggiungi automaticamente pulsanti YES/NO
     if (isUnknownResponse && !parsedResponse.smartActions) {
-      console.log('🔧 MECCANICO: Aggiunta automatica pulsanti YES/NO per risposta sconosciuta');
-      parsedResponse.smartActions = [
-        {
-          type: "primary",
-          icon: "👤",
-          text: "SÌ, CHIAMA OPERATORE",
-          description: "Ti connetto subito con un operatore",
-          action: "request_operator"
-        },
-        {
-          type: "secondary",
-          icon: "🔙",
-          text: "NO, CONTINUA CON AI",
-          description: "Rimani con l'assistente virtuale",
-          action: "continue_ai"
+      console.log('🔧 MECCANICO: Aggiunta automatica pulsanti per risposta sconosciuta');
+
+      // Check if there are operators online
+      const onlineOperators = await prisma.operator.count({
+        where: {
+          isOnline: true,
+          isActive: true
         }
-      ];
+      });
+
+      console.log(`👥 Online operators: ${onlineOperators}`);
+
+      if (onlineOperators > 0) {
+        // Operators available - show "parla con operatore" button
+        parsedResponse.smartActions = [
+          {
+            type: "primary",
+            icon: "👤",
+            text: "SÌ, PARLA CON OPERATORE",
+            description: "Ti connetto con un operatore",
+            action: "request_operator"
+          },
+          {
+            type: "secondary",
+            icon: "🔙",
+            text: "NO, CONTINUA CON AI",
+            description: "Rimani con l'assistente virtuale",
+            action: "continue_ai"
+          }
+        ];
+      } else {
+        // No operators online - show ticket and AI buttons only
+        parsedResponse.smartActions = [
+          {
+            type: "primary",
+            icon: "🎫",
+            text: "APRI UN TICKET",
+            description: "Lascia il tuo contatto per assistenza",
+            action: "request_ticket"
+          },
+          {
+            type: "secondary",
+            icon: "🔙",
+            text: "CONTINUA CON AI",
+            description: "Rimani con l'assistente virtuale",
+            action: "continue_ai"
+          }
+        ];
+      }
     }
 
     // Save bot response
