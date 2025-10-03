@@ -1635,28 +1635,31 @@ class DashboardApp {
                 </div>
             </div>
 
-            <!-- Recent Activity Summary -->
+            <!-- Performance Metrics -->
             <div class="analytics-section">
-                <h3 class="section-title">📊 Riepilogo Attività</h3>
+                <h3 class="section-title">📊 Metriche di Performance</h3>
                 <div class="activity-summary">
                     <div class="summary-item">
-                        <span class="summary-label">Attività recenti registrate:</span>
-                        <span class="summary-value">${recentActivity.length}</span>
+                        <span class="summary-label">Conversazioni totali:</span>
+                        <span class="summary-value">${totalChats}</span>
                     </div>
                     <div class="summary-item">
-                        <span class="summary-label">Periodo analisi:</span>
-                        <span class="summary-value">Oggi</span>
+                        <span class="summary-label">Tasso escalation operatore:</span>
+                        <span class="summary-value">${operatorChatPercent}%</span>
+                    </div>
+                    <div class="summary-item">
+                        <span class="summary-label">Messaggi scambiati:</span>
+                        <span class="summary-value">${totalMessages}</span>
+                    </div>
+                    <div class="summary-item">
+                        <span class="summary-label">Ticket aperti:</span>
+                        <span class="summary-value">${openTickets}</span>
                     </div>
                     <div class="summary-item">
                         <span class="summary-label">Ultimo aggiornamento:</span>
                         <span class="summary-value">${new Date().toLocaleTimeString('it-IT')}</span>
                     </div>
                 </div>
-            </div>
-
-            <div class="analytics-note">
-                💡 <strong>Nota:</strong> I grafici dettagliati saranno disponibili in una versione futura.
-                Per ora vengono mostrate le statistiche principali in formato card.
             </div>
         `;
     }
