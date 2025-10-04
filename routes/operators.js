@@ -497,6 +497,18 @@ router.post('/take-chat', authenticateToken, validateSession, async (req, res) =
       select: { name: true }
     });
 
+    // Check if greeting was already sent (to avoid duplicates)
+    const existingGreeting = await getPrisma().message.findFirst({
+      where: {
+        sessionId,
+        sender: 'OPERATOR',
+        metadata: {
+          path: ['isAutomatic'],
+          equals: true
+        }
+      }
+    });
+
     // Add system message (only if new operator chat)
     if (!existing) {
       await getPrisma().message.create({
@@ -506,8 +518,11 @@ router.post('/take-chat', authenticateToken, validateSession, async (req, res) =
           message: `👤 ${operator.name} si è unito alla chat`
         }
       });
+    }
 
-      // Send automatic greeting from operator
+    // Send automatic greeting if not already sent
+    if (!existingGreeting) {
+      console.log('📨 Sending operator greeting...');
       const greetingText = await getAutomatedText('operator_greeting');
 
       const greetingMessage = await getPrisma().message.create({
@@ -536,9 +551,12 @@ router.post('/take-chat', authenticateToken, validateSession, async (req, res) =
             isAutomatic: true
           }
         });
+        console.log('✅ Greeting sent via WebSocket');
       } catch (wsError) {
-        console.warn('⚠️ Failed to send greeting via WebSocket:', wsError);
+        console.warn('⚠️ Failed to send greeting via WebSocket, will arrive via polling:', wsError);
       }
+    } else {
+      console.log('ℹ️ Greeting already sent, skipping');
     }
 
     res.json({
