@@ -2929,6 +2929,8 @@ class DashboardApp {
     async loadAutomatedTexts() {
         try {
             console.log('📝 Loading automated texts...');
+            console.log('🔑 Auth token:', this.authToken ? 'Present' : 'Missing');
+            console.log('📡 API endpoint:', `${this.apiBase}/automated-texts`);
 
             const response = await fetch(`${this.apiBase}/automated-texts`, {
                 headers: {
@@ -2936,19 +2938,26 @@ class DashboardApp {
                 }
             });
 
+            console.log('📊 Response status:', response.status);
+
             if (!response.ok) {
-                throw new Error('Failed to load automated texts');
+                const errorData = await response.text();
+                console.error('❌ Response error:', errorData);
+                throw new Error(`Failed to load automated texts: ${response.status}`);
             }
 
             const data = await response.json();
+            console.log('✅ Data received:', data);
+            console.log('📝 Number of texts:', data.texts?.length || 0);
+
             this.allTexts = data.texts || [];
 
             this.applyTextsFilters();
             this.setupTextsEventListeners();
         } catch (error) {
-            console.error('Error loading automated texts:', error);
+            console.error('❌ Error loading automated texts:', error);
             this.showToast('Errore nel caricamento dei testi', 'error');
-            document.getElementById('texts-container').innerHTML = '<p class="text-muted">Errore nel caricamento</p>';
+            document.getElementById('texts-container').innerHTML = `<p class="text-muted">Errore nel caricamento: ${error.message}</p>`;
         }
     }
 
