@@ -251,18 +251,18 @@ export async function handleEscalation(message, session) {
         ];
       } else {
         // SCENARIO 2: Operators online but all busy
-        const queueMessage = queueInfo
-          ? `📊 Posizione in coda: ${queueInfo.position}\n⏱️ Attesa stimata: ~${queueInfo.estimatedWait} minuti\n\n`
-          : '';
+        const waitMessage = queueInfo && queueInfo.estimatedWait
+          ? `Attesa stimata: ~${queueInfo.estimatedWait} minuti`
+          : 'Ti risponderemo al più presto';
 
-        reply = `⏰ Tutti gli operatori sono occupati\n\n${queueMessage}${onlineOperators.length} operator${onlineOperators.length > 1 ? 'i' : 'e'} online ma al momento impegnat${onlineOperators.length > 1 ? 'i' : 'o'} in altre chat.\n\n🔔 Sei in coda - ti risponderemo appena possibile!`;
+        reply = `⏰ **Al momento tutti gli operatori sono impegnati.**\n\n${waitMessage}\n\nPuoi attendere in linea oppure lasciare un ticket per essere ricontattato.`;
 
         smartActions = [
           {
-            type: 'info',
-            icon: '📊',
-            text: queueInfo ? `Posizione: ${queueInfo.position}°` : 'In coda',
-            description: queueInfo ? `Attesa ~${queueInfo.estimatedWait} min` : 'Attendi...'
+            type: 'primary',
+            icon: '⏱️',
+            text: 'Attendi in linea',
+            description: queueInfo ? `Sei in coda (posizione ${queueInfo.position}°)` : 'Aspetta un operatore'
           },
           {
             type: 'secondary',

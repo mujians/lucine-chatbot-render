@@ -177,6 +177,24 @@ router.post('/', async (req, res) => {
 
       const prisma = container.get('prisma');
 
+      // Check if already has a recent open ticket for this session
+      const existingTicket = await prisma.ticket.findFirst({
+        where: {
+          sessionId: session.sessionId,
+          status: { in: ['OPEN', 'IN_PROGRESS', 'WAITING_USER'] }
+        },
+        orderBy: { createdAt: 'desc' }
+      });
+
+      if (existingTicket) {
+        return res.json({
+          reply: `✅ **Hai già un ticket aperto: #${existingTicket.ticketNumber}**\n\nUn operatore ti contatterà a breve. Se vuoi aggiungere informazioni, scrivile pure qui.`,
+          sessionId: session.sessionId,
+          status: 'ticket_exists',
+          ticketNumber: existingTicket.ticketNumber
+        });
+      }
+
       // Set session to REQUESTING_TICKET
       await prisma.chatSession.update({
         where: { id: session.id },
