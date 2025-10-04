@@ -2442,12 +2442,16 @@ class DashboardApp {
     handleNewMessage(notification) {
         console.log('💬 New message notification:', notification);
 
-        // Se la chat è aperta, ricarica i messaggi automaticamente
+        // Se la chat è aperta, aggiungi il messaggio in real-time
         if (this.activeChat && this.activeChat.sessionId === notification.sessionId) {
-            console.log('🔄 Reloading active chat messages...');
+            console.log('📨 Adding new message to active chat...');
 
-            // Ricarica la conversazione per mostrare il nuovo messaggio
-            this.loadChatMessages(notification.sessionId);
+            // Aggiungi il messaggio alla chat aperta
+            this.appendMessageToActiveChat({
+                sender: notification.sender,
+                message: notification.message,
+                timestamp: notification.timestamp
+            });
 
             // Play subtle notification sound
             this.playSystemBeep();
@@ -2465,6 +2469,41 @@ class DashboardApp {
 
         // Ricarica lista chat per aggiornare preview ultimo messaggio
         this.loadChatsData();
+    }
+
+    /**
+     * ➕ Aggiungi messaggio alla chat attiva
+     */
+    appendMessageToActiveChat(msg) {
+        const messagesContainer = document.getElementById('chat-messages');
+        if (!messagesContainer) return;
+
+        const time = new Date(msg.timestamp).toLocaleTimeString('it-IT', {
+            hour: '2-digit',
+            minute: '2-digit'
+        });
+
+        const senderClass = msg.sender.toLowerCase();
+        const senderName = msg.sender === 'USER' ? 'Cliente' :
+                          msg.sender === 'BOT' ? 'Assistente' :
+                          msg.sender === 'SYSTEM' ? 'Sistema' : 'Tu';
+
+        const messageHtml = `
+            <div class="message ${senderClass}">
+                <div class="message-content">
+                    <div class="message-header">
+                        <span class="sender">${senderName}</span>
+                        <span class="time">${time}</span>
+                    </div>
+                    <p class="message-text">${msg.message}</p>
+                </div>
+            </div>
+        `;
+
+        messagesContainer.insertAdjacentHTML('beforeend', messageHtml);
+
+        // Auto-scroll to bottom
+        messagesContainer.scrollTop = messagesContainer.scrollHeight;
     }
 
     /**
