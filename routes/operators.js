@@ -496,14 +496,47 @@ router.post('/take-chat', authenticateToken, validateSession, async (req, res) =
       select: { name: true }
     });
 
-    // Add system message
-    await getPrisma().message.create({
-      data: {
-        sessionId,
-        sender: 'SYSTEM',
-        message: `👤 ${operator.name} si è unito alla chat\n✨ Pronto ad aiutarti!`
+    // Add system message (only if new operator chat)
+    if (!existing) {
+      await getPrisma().message.create({
+        data: {
+          sessionId,
+          sender: 'SYSTEM',
+          message: `👤 ${operator.name} si è unito alla chat`
+        }
+      });
+
+      // Send automatic greeting from operator
+      const greetingMessage = await getPrisma().message.create({
+        data: {
+          sessionId,
+          sender: 'OPERATOR',
+          message: `Ciao! Un attimo che controllo la conversazione e vedo come posso aiutarti.\nIntanto, fammi sapere se hai altre esigenze specifiche 😊`,
+          metadata: {
+            operatorId,
+            isAutomatic: true
+          }
+        }
+      });
+
+      // Send greeting to widget via WebSocket
+      try {
+        const { notifyWidget } = await import('../utils/notifications.js');
+        notifyWidget(sessionId, {
+          event: 'new_operator_message',
+          message: {
+            id: greetingMessage.id,
+            sender: 'OPERATOR',
+            message: greetingMessage.message,
+            timestamp: greetingMessage.timestamp,
+            operatorId,
+            isAutomatic: true
+          }
+        });
+      } catch (wsError) {
+        console.warn('⚠️ Failed to send greeting via WebSocket:', wsError);
       }
-    });
+    }
 
     res.json({
       success: true,

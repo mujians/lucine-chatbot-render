@@ -297,3 +297,19 @@ enum SLAStatus {
   VIOLATED
   ESCALATED
 }
+
+// Testi automatici configurabili
+model AutomatedText {
+  id          String   @id @default(uuid())
+  key         String   @unique  // Es: "operator_greeting", "queue_message", "ticket_created", etc.
+  label       String              // Nome descrittivo mostrato in dashboard
+  text        String   @db.Text  // Il testo effettivo
+  description String?             // Spiegazione del contesto d'uso
+  category    String   @default("general")  // Categoria: "operator", "queue", "ticket", "closure", etc.
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([key])
+  @@index([category, isActive])
+}
