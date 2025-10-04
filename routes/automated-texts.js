@@ -18,13 +18,19 @@ router.use(authenticateToken);
  */
 router.get('/', async (req, res) => {
   try {
+    console.log('📝 GET /automated-texts - Request received');
+    console.log('👤 User:', req.user);
+
     const prisma = container.get('prisma');
 
     const { category, isActive } = req.query;
+    console.log('🔍 Query params:', { category, isActive });
 
     const where = {};
     if (category) where.category = category;
     if (isActive !== undefined) where.isActive = isActive === 'true';
+
+    console.log('🔎 Where clause:', where);
 
     const texts = await prisma.automatedText.findMany({
       where,
@@ -34,6 +40,7 @@ router.get('/', async (req, res) => {
       ]
     });
 
+    console.log(`✅ Found ${texts.length} texts`);
     res.json({ texts, count: texts.length });
   } catch (error) {
     console.error('❌ Error fetching automated texts:', error);
