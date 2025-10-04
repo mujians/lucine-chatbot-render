@@ -2989,6 +2989,30 @@ class DashboardApp {
             saveBtn.setAttribute('data-listener', 'true');
             saveBtn.addEventListener('click', () => this.saveText());
         }
+
+        // Modal close buttons (X and Cancel)
+        const modal = document.getElementById('text-modal');
+        if (modal && !modal.hasAttribute('data-listener')) {
+            modal.setAttribute('data-listener', 'true');
+
+            // Close button (X)
+            const closeBtn = modal.querySelector('.btn-close');
+            if (closeBtn) {
+                closeBtn.addEventListener('click', () => {
+                    modal.style.display = 'none';
+                    modal.classList.remove('show');
+                });
+            }
+
+            // Cancel button
+            const cancelBtns = modal.querySelectorAll('[data-bs-dismiss="modal"]');
+            cancelBtns.forEach(btn => {
+                btn.addEventListener('click', () => {
+                    modal.style.display = 'none';
+                    modal.classList.remove('show');
+                });
+            });
+        }
     }
 
     applyTextsFilters() {
@@ -3146,9 +3170,9 @@ class DashboardApp {
             document.getElementById('text-active').checked = true;
         }
 
-        // Show modal using Bootstrap
-        const bsModal = new bootstrap.Modal(modal);
-        bsModal.show();
+        // Show modal (native style, no Bootstrap)
+        modal.style.display = 'block';
+        modal.classList.add('show');
     }
 
     editText(key) {
@@ -3215,8 +3239,11 @@ class DashboardApp {
             this.showToast(this.editingTextKey ? 'Testo aggiornato!' : 'Testo creato!', 'success');
 
             // Close modal
-            const modal = bootstrap.Modal.getInstance(document.getElementById('text-modal'));
-            if (modal) modal.hide();
+            const modal = document.getElementById('text-modal');
+            if (modal) {
+                modal.style.display = 'none';
+                modal.classList.remove('show');
+            }
 
             await this.loadAutomatedTexts();
         } catch (error) {
