@@ -53,30 +53,35 @@ model Ticket {
   sessionId     String?
   status        TicketStatus @default(OPEN)
   priority      Priority     @default(MEDIUM)
-  
+
   // Contact info
   userEmail     String?
   userPhone     String?
   contactMethod ContactMethod
-  
+
   // Content
   subject       String
   description   String
-  
+
+  // Resume chat link
+  resumeToken   String?   @unique @default(cuid())  // Token per riprendere la chat
+  resumeUrl     String?                              // URL completo da inviare all'utente
+
   // Timestamps
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
   resolvedAt    DateTime?
-  
+
   // Relations
   session       ChatSession? @relation(fields: [sessionId], references: [sessionId])
   assignedTo    Operator?    @relation(fields: [operatorId], references: [id])
   operatorId    String?
   notes         TicketNote[]
-  
+
   @@index([status, priority])
   @@index([ticketNumber])
   @@index([createdAt])
+  @@index([resumeToken])
 }
 
 // Note sui ticket

@@ -27,6 +27,7 @@ import {
   isRequestingTicket
 } from './session-handler.js';
 import { handlePolling } from './polling-handler.js';
+import { resumeChatFromToken } from './resume-handler.js';
 
 const router = express.Router();
 
@@ -252,6 +253,28 @@ router.get('/poll/:sessionId', async (req, res) => {
     console.error('❌ Polling endpoint error:', error);
     return res.status(500).json({
       error: 'Errore nel polling messaggi',
+      message: error.message
+    });
+  }
+});
+
+/**
+ * 🔗 Resume chat from ticket token
+ */
+router.get('/resume/:token', async (req, res) => {
+  try {
+    const { token } = req.params;
+    const result = await resumeChatFromToken(token);
+
+    if (result.error) {
+      return res.status(404).json(result);
+    }
+
+    return res.json(result);
+  } catch (error) {
+    console.error('❌ Resume chat error:', error);
+    return res.status(500).json({
+      error: 'Errore nel riprendere la conversazione',
       message: error.message
     });
   }
