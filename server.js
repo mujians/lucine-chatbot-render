@@ -66,6 +66,9 @@ container.register('prisma', prisma);
 const app = express();
 const PORT = process.env.PORT || 3000;
 
+// Trust proxy - REQUIRED for Render deployment
+app.set('trust proxy', 1);
+
 // Create HTTP server
 const server = createServer(app);
 
