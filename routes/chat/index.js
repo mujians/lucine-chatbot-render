@@ -41,7 +41,7 @@ router.post('/', async (req, res) => {
     const { message, sessionId } = req.body;
 
     console.log('📨 NEW CHAT REQUEST:', {
-      message: message?.substring(0, 50),
+      message: typeof message === 'string' ? message.substring(0, 50) : message,
       sessionId,
       timestamp: new Date().toISOString()
     });

@@ -277,7 +277,7 @@ model SLARecord {
 
   // Response tracking
   firstResponseAt       DateTime?
-  firstResponseTime     Int?      // in seconds
+  // firstResponseTime     Int?      // COMMENTED OUT - column doesn't exist in production DB
   responseOperatorId    String?
   responseOnTime        Boolean?
 
