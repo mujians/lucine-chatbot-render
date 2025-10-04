@@ -2838,14 +2838,20 @@ class DashboardApp {
     async saveUser() {
         const userId = document.getElementById('user-id').value;
         const username = document.getElementById('user-username').value;
+        const password = document.getElementById('user-password').value;
+
         const userData = {
             username: username.toLowerCase().replace(/\s+/g, ''), // username senza spazi
             email: document.getElementById('user-email').value,
             name: username, // nome = username
             displayName: username, // displayName = username
-            avatar: document.getElementById('user-avatar').value || null,
-            password: document.getElementById('user-password').value || undefined
+            avatar: document.getElementById('user-avatar').value || null
         };
+
+        // Add password only if provided
+        if (password && password.trim().length > 0) {
+            userData.password = password;
+        }
 
         // Validate required fields
         if (!username || !userData.email) {
