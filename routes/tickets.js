@@ -259,7 +259,11 @@ router.get('/', async (req, res) => {
       stats: {
         open: tickets.filter(t => t.status === 'OPEN').length,
         inProgress: tickets.filter(t => t.status === 'IN_PROGRESS').length,
-        resolved: tickets.filter(t => t.status === 'RESOLVED').length
+        waitingUser: tickets.filter(t => t.status === 'WAITING_USER').length,
+        resolved: tickets.filter(t => t.status === 'RESOLVED').length,
+        closed: tickets.filter(t => t.status === 'CLOSED').length,
+        // Active tickets (not resolved/closed)
+        active: tickets.filter(t => !['RESOLVED', 'CLOSED'].includes(t.status)).length
       }
     });
 

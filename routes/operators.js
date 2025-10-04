@@ -218,9 +218,13 @@ router.get('/dashboard-summary', async (req, res) => {
         return { waiting, active, total: waiting + active };
       })(),
 
-      // Tickets count
+      // Tickets count (active tickets: OPEN, IN_PROGRESS, WAITING_USER)
       getPrisma().ticket.count({
-        where: { status: 'OPEN' }
+        where: {
+          status: {
+            in: ['OPEN', 'IN_PROGRESS', 'WAITING_USER']
+          }
+        }
       }),
 
       // Total sessions
