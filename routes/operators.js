@@ -833,7 +833,7 @@ router.post('/send-message', authenticateToken, validateSession, async (req, res
           sender: 'OPERATOR',
           message: sanitizedMessage,
           timestamp: savedMessage.timestamp,
-          operatorName: operatorChat.operator.name,
+          // Don't send operatorName - widget shows message directly without prefix
           operatorId: operatorChat.operator.id,
           isFirstResponse
         }
@@ -885,6 +885,80 @@ router.post('/send-message', authenticateToken, validateSession, async (req, res
   } catch (error) {
     console.error('Send operator message error:', error);
     res.status(500).json({ error: 'Failed to send message' });
+  }
+});
+
+/**
+ * 🔚 POST /operators/close-conversation
+ * Operator initiates conversation closure - sends message to user asking if they need more help
+ */
+router.post('/close-conversation', authenticateToken, async (req, res) => {
+  try {
+    const { sessionId, operatorId } = req.body;
+
+    if (!sessionId || !operatorId) {
+      return res.status(400).json({ error: 'SessionId and operatorId required' });
+    }
+
+    console.log(`🔚 Operator ${operatorId} closing conversation with session ${sessionId}`);
+
+    // Verify session exists and is with operator
+    const session = await getPrisma().chatSession.findUnique({
+      where: { sessionId },
+      include: {
+        operatorChats: {
+          where: { endedAt: null }
+        }
+      }
+    });
+
+    if (!session) {
+      return res.status(404).json({ error: 'Session not found' });
+    }
+
+    if (session.status !== 'WITH_OPERATOR' || session.operatorChats.length === 0) {
+      return res.status(400).json({ error: 'Session is not with an operator' });
+    }
+
+    // Send closure question to user via widget with smart actions
+    const { notifyWidget } = await import('../utils/notifications.js');
+    const sent = notifyWidget(sessionId, {
+      event: 'closure_request',
+      message: {
+        sender: 'SYSTEM',
+        message: 'Posso aiutarti con qualcos\'altro?',
+        timestamp: new Date().toISOString(),
+        smartActions: [
+          {
+            type: 'success',
+            icon: '✅',
+            text: 'Sì, ho ancora bisogno',
+            description: 'Continua la conversazione',
+            action: 'continue_chat'
+          },
+          {
+            type: 'secondary',
+            icon: '❌',
+            text: 'No, grazie',
+            description: 'Termina la conversazione',
+            action: 'end_chat'
+          }
+        ]
+      }
+    });
+
+    if (!sent) {
+      console.warn('⚠️ Widget notification failed - user may not be connected');
+    }
+
+    res.json({
+      success: true,
+      message: 'Closure request sent to user'
+    });
+
+  } catch (error) {
+    console.error('❌ Close conversation error:', error);
+    res.status(500).json({ error: 'Failed to initiate conversation closure' });
   }
 });
 

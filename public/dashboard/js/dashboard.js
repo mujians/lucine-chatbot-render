@@ -1694,9 +1694,20 @@ class DashboardApp {
         
         // Render messages
         this.renderChatMessages(messages);
-        
+
         // Setup message input
         this.setupMessageInput();
+
+        // Show/hide close conversation button based on session status
+        const closeBtn = document.getElementById('close-conversation-btn');
+        if (closeBtn) {
+            // Show button only if chat is WITH_OPERATOR
+            if (session.status === 'WITH_OPERATOR') {
+                closeBtn.style.display = 'block';
+            } else {
+                closeBtn.style.display = 'none';
+            }
+        }
     }
 
     /**
@@ -1765,6 +1776,12 @@ class DashboardApp {
         
         // Send button click
         sendButton.addEventListener('click', () => this.sendMessage());
+
+        // Close conversation button
+        const closeConvBtn = document.getElementById('close-conversation-btn');
+        if (closeConvBtn) {
+            closeConvBtn.addEventListener('click', () => this.initiateConversationClosure());
+        }
     }
 
     /**
@@ -1848,6 +1865,51 @@ class DashboardApp {
         messagesContainer.scrollTop = messagesContainer.scrollHeight;
     }
 
+    /**
+     * 🔚 Inizia chiusura conversazione
+     */
+    async initiateConversationClosure() {
+        if (!this.activeChat) {
+            this.showToast('Nessuna chat attiva', 'error');
+            return;
+        }
+
+        try {
+            console.log('🔚 Initiating conversation closure for:', this.activeChat.sessionId);
+
+            const response = await fetch(`${this.apiBase}/operators/close-conversation`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${localStorage.getItem('auth_token')}`
+                },
+                body: JSON.stringify({
+                    sessionId: this.activeChat.sessionId,
+                    operatorId: this.currentOperator.id
+                })
+            });
+
+            const data = await response.json();
+
+            if (response.ok) {
+                console.log('✅ Conversation closure initiated');
+                this.showToast('Richiesta di chiusura inviata all\'utente', 'success');
+
+                // Disable close button (already sent)
+                const closeBtn = document.getElementById('close-conversation-btn');
+                if (closeBtn) {
+                    closeBtn.disabled = true;
+                    closeBtn.innerHTML = '<i class="fas fa-check"></i> Richiesta inviata';
+                }
+            } else {
+                throw new Error(data.error || 'Failed to initiate closure');
+            }
+
+        } catch (error) {
+            console.error('❌ Failed to initiate conversation closure:', error);
+            this.showToast('Errore nella richiesta di chiusura', 'error');
+        }
+    }
 
     /**
      * 📈 Carica dati analytics

@@ -121,6 +121,50 @@ router.post('/', async (req, res) => {
       });
     }
 
+    // Check if user is responding to conversation closure request
+    if (sanitizedMessage === 'continue_chat') {
+      console.log('✅ User wants to continue chat with operator');
+
+      return res.json({
+        reply: 'Certo! Dimmi pure, come posso aiutarti ancora.',
+        sessionId: session.sessionId,
+        status: 'with_operator',
+        operatorConnected: true
+      });
+    }
+
+    if (sanitizedMessage === 'end_chat') {
+      console.log('👋 User confirmed conversation end');
+
+      const prisma = container.get('prisma');
+
+      // End operator chat
+      await prisma.operatorChat.updateMany({
+        where: {
+          sessionId: session.sessionId,
+          endedAt: null
+        },
+        data: {
+          endedAt: new Date()
+        }
+      });
+
+      // Set session back to ACTIVE (AI takes over)
+      await prisma.chatSession.update({
+        where: { id: session.id },
+        data: { status: SESSION_STATUS.ACTIVE }
+      });
+
+      console.log(`✅ Chat ${session.sessionId} returned to AI control`);
+
+      return res.json({
+        reply: 'Felici di esserti stati d\'aiuto! Se ti servisse ancora qualcosa, siamo sempre disponibili.\n\nOra puoi continuare a parlare con il nostro assistente virtuale per qualsiasi informazione aggiuntiva.',
+        sessionId: session.sessionId,
+        status: 'back_to_ai',
+        operatorConnected: false
+      });
+    }
+
     // Check if user is in ticket collection workflow
     if (isRequestingTicket(session)) {
       return await handleTicketCollection(sanitizedMessage, session, res);
