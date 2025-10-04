@@ -2615,6 +2615,10 @@ class DashboardApp {
         document.getElementById('user-id').value = '';
         document.getElementById('user-modal-title').textContent = 'Nuovo Operatore';
 
+        // Make password required for create mode
+        const passwordRequired = document.getElementById('password-required');
+        if (passwordRequired) passwordRequired.style.display = 'inline';
+
         // Show modal (without bootstrap, use display)
         const modal = document.getElementById('user-modal');
         modal.style.display = 'block';
@@ -2643,6 +2647,10 @@ class DashboardApp {
             document.getElementById('user-password').value = ''; // Don't populate password
 
             document.getElementById('user-modal-title').textContent = 'Modifica Operatore';
+
+            // Make password optional for edit mode
+            const passwordRequired = document.getElementById('password-required');
+            if (passwordRequired) passwordRequired.style.display = 'none';
 
             // Show modal
             const modal = document.getElementById('user-modal');
