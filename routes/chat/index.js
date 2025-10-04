@@ -11,9 +11,9 @@ import {
   generateSecureSessionId,
   isValidSessionId,
   validateChatMessage,
-  chatRateLimiter,
-  authenticateToken
+  chatRateLimiter
 } from '../../utils/security.js';
+import { authenticateToken } from '../../middleware/security.js';
 import { ValidationError } from '../../utils/error-handler.js';
 
 // Handlers
