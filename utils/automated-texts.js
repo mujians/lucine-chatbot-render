@@ -28,11 +28,11 @@ export async function getAutomatedText(key, variables = {}) {
 
     // Fetch from DB
     const textRecord = await prisma.automatedText.findUnique({
-      where: { key, isActive: true }
+      where: { key }
     });
 
-    if (!textRecord) {
-      console.warn(`⚠️ Automated text not found: ${key}`);
+    if (!textRecord || !textRecord.isActive) {
+      console.warn(`⚠️ Automated text not found or inactive: ${key}`);
       return `[Missing text: ${key}]`;
     }
 
