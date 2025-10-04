@@ -5,7 +5,7 @@
 
 import express from 'express';
 import container from '../config/container.js';
-import { authenticateToken } from '../middleware/auth.js';
+import { authenticateToken } from '../middleware/security.js';
 
 const router = express.Router();
 
