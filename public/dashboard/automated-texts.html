@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Testi Automatici - Dashboard Lucine</title>
+    <link rel="stylesheet" href="css/dashboard.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+<body>
+    <div class="dashboard-container">
+        <!-- Sidebar -->
+        <aside class="sidebar">
+            <div class="sidebar-header">
+                <h2>🎄 Lucine Dashboard</h2>
+                <p id="operator-name">Admin</p>
+            </div>
+
+            <nav class="sidebar-nav">
+                <a href="index.html" class="nav-item">
+                    <i class="fas fa-home"></i>
+                    <span>Dashboard</span>
+                </a>
+                <a href="automated-texts.html" class="nav-item active">
+                    <i class="fas fa-comment-dots"></i>
+                    <span>Testi Automatici</span>
+                </a>
+                <a href="#" class="nav-item" id="logout-btn">
+                    <i class="fas fa-sign-out-alt"></i>
+                    <span>Logout</span>
+                </a>
+            </nav>
+        </aside>
+
+        <!-- Main Content -->
+        <main class="main-content">
+            <header class="content-header">
+                <h1>📝 Gestione Testi Automatici</h1>
+                <div class="header-actions">
+                    <button class="btn btn-primary" id="create-text-btn">
+                        <i class="fas fa-plus"></i> Nuovo Testo
+                    </button>
+                </div>
+            </header>
+
+            <!-- Filter Bar -->
+            <div class="filter-bar" style="margin-bottom: 20px; display: flex; gap: 10px;">
+                <select id="category-filter" class="form-control" style="max-width: 200px;">
+                    <option value="">Tutte le categorie</option>
+                    <option value="operator">Operatore</option>
+                    <option value="queue">Coda</option>
+                    <option value="ticket">Ticket</option>
+                    <option value="closure">Chiusura</option>
+                    <option value="general">Generale</option>
+                </select>
+                <label style="display: flex; align-items: center; gap: 8px;">
+                    <input type="checkbox" id="active-only-filter" checked>
+                    <span>Solo attivi</span>
+                </label>
+            </div>
+
+            <!-- Texts List -->
+            <div class="card">
+                <div class="card-header">
+                    <h3>Elenco Testi</h3>
+                    <span id="texts-count" class="badge">0</span>
+                </div>
+                <div class="card-body" id="texts-container">
+                    <div class="loading-spinner" style="text-align: center; padding: 40px;">
+                        <i class="fas fa-spinner fa-spin fa-2x"></i>
+                        <p>Caricamento testi...</p>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- Modal Crea/Modifica Testo -->
+    <div id="text-modal" class="modal">
+        <div class="modal-content" style="max-width: 600px;">
+            <div class="modal-header">
+                <h3 id="modal-title">Nuovo Testo Automatico</h3>
+                <button class="close-modal" id="close-modal-btn">&times;</button>
+            </div>
+            <div class="modal-body">
+                <form id="text-form">
+                    <div class="form-group">
+                        <label for="text-key">Chiave Univoca *</label>
+                        <input type="text" id="text-key" class="form-control" required
+                               placeholder="es: operator_greeting">
+                        <small class="text-muted">Usata per identificare il testo nel codice</small>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="text-label">Etichetta *</label>
+                        <input type="text" id="text-label" class="form-control" required
+                               placeholder="es: Saluto Operatore">
+                    </div>
+
+                    <div class="form-group">
+                        <label for="text-category">Categoria *</label>
+                        <select id="text-category" class="form-control" required>
+                            <option value="general">Generale</option>
+                            <option value="operator">Operatore</option>
+                            <option value="queue">Coda</option>
+                            <option value="ticket">Ticket</option>
+                            <option value="closure">Chiusura</option>
+                        </select>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="text-content">Testo *</label>
+                        <textarea id="text-content" class="form-control" rows="5" required
+                                  placeholder="Inserisci il testo del messaggio automatico..."></textarea>
+                        <small class="text-muted">Supporta variabili come {name}, {ticketNumber}, ecc.</small>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="text-description">Descrizione</label>
+                        <textarea id="text-description" class="form-control" rows="2"
+                                  placeholder="Quando viene usato questo testo?"></textarea>
+                    </div>
+
+                    <div class="form-group">
+                        <label class="checkbox-label">
+                            <input type="checkbox" id="text-active" checked>
+                            <span>Attivo</span>
+                        </label>
+                    </div>
+
+                    <div class="modal-actions">
+                        <button type="button" class="btn btn-secondary" id="cancel-btn">Annulla</button>
+                        <button type="submit" class="btn btn-primary">
+                            <i class="fas fa-save"></i> Salva
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <script src="js/automated-texts.js"></script>
+</body>
+</html>

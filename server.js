@@ -23,6 +23,7 @@ import analyticsRouter from './routes/analytics.js';
 import healthRouter from './routes/health.js';
 import chatManagementRouter from './routes/chat-management.js';
 import usersRouter from './routes/users.js';
+import automatedTextsRouter from './routes/automated-texts.js';
 
 // Security & Monitoring Middleware
 import {
@@ -229,6 +230,7 @@ app.use('/api/analytics', apiLimiter, analyticsRouter);
 app.use('/api/health', apiLimiter, healthRouter);
 app.use('/api/chat-management', apiLimiter, chatManagementRouter);
 app.use('/api/users', apiLimiter, usersRouter);
+app.use('/api/automated-texts', apiLimiter, automatedTextsRouter);
 
 // Static dashboard - simplified configuration
 app.use('/dashboard', express.static('public/dashboard'));
