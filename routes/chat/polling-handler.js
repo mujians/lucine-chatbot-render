@@ -79,13 +79,22 @@ export async function handlePolling(sessionId) {
 
     // Get new messages since last poll (messages not yet received by user)
     // For simplicity, we return last 10 operator messages
-    const operatorMessages = session.messages.map(msg => ({
-      id: msg.id,
-      sender: msg.sender,
-      message: msg.message,
-      timestamp: msg.timestamp
-      // No operatorName - widget shows message directly without prefix
-    }));
+    const operatorMessages = session.messages.map(msg => {
+      const messageData = {
+        id: msg.id,
+        sender: msg.sender,
+        message: msg.message,
+        timestamp: msg.timestamp
+        // No operatorName - widget shows message directly without prefix
+      };
+
+      // Include smartActions if present in metadata (for closure requests, etc.)
+      if (msg.metadata && msg.metadata.smartActions) {
+        messageData.smartActions = msg.metadata.smartActions;
+      }
+
+      return messageData;
+    });
 
     return {
       status: 'with_operator',

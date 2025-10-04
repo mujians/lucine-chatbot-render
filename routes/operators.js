@@ -959,34 +959,53 @@ router.post('/close-conversation', authenticateToken, async (req, res) => {
     // Send closure question to user via widget with smart actions
     const closureText = await getAutomatedText('closure_request');
 
+    const smartActions = [
+      {
+        type: 'success',
+        icon: '✅',
+        text: 'Sì, ho ancora bisogno',
+        description: 'Continua la conversazione',
+        action: 'continue_chat'
+      },
+      {
+        type: 'secondary',
+        icon: '❌',
+        text: 'No, grazie',
+        description: 'Termina la conversazione',
+        action: 'end_chat'
+      }
+    ];
+
+    // Save message to database with smartActions in metadata for polling fallback
+    const closureMessage = await getPrisma().message.create({
+      data: {
+        sessionId,
+        sender: 'SYSTEM',
+        message: closureText,
+        metadata: {
+          smartActions,
+          isClosureRequest: true
+        }
+      }
+    });
+
+    // Also send via WebSocket for instant delivery
     const { notifyWidget } = await import('../utils/notifications.js');
     const sent = notifyWidget(sessionId, {
       event: 'closure_request',
       message: {
+        id: closureMessage.id,
         sender: 'SYSTEM',
         message: closureText,
-        timestamp: new Date().toISOString(),
-        smartActions: [
-          {
-            type: 'success',
-            icon: '✅',
-            text: 'Sì, ho ancora bisogno',
-            description: 'Continua la conversazione',
-            action: 'continue_chat'
-          },
-          {
-            type: 'secondary',
-            icon: '❌',
-            text: 'No, grazie',
-            description: 'Termina la conversazione',
-            action: 'end_chat'
-          }
-        ]
+        timestamp: closureMessage.timestamp,
+        smartActions
       }
     });
 
     if (!sent) {
-      console.warn('⚠️ Widget notification failed - user may not be connected');
+      console.log('⚠️ Widget not connected via WebSocket - user will receive via polling');
+    } else {
+      console.log('✅ Closure request sent via WebSocket');
     }
 
     res.json({
