@@ -273,7 +273,7 @@ model SLARecord {
   createdAt             DateTime  @default(now())
   responseDeadline      DateTime
   resolutionDeadline    DateTime
-  warningThreshold      DateTime?
+  // warningThreshold      DateTime?  // COMMENTED OUT - column doesn't exist in production DB
 
   // Response tracking
   firstResponseAt       DateTime?
