@@ -509,18 +509,7 @@ router.post('/take-chat', authenticateToken, validateSession, async (req, res) =
 
     const existingGreeting = existingOperatorMessages;
 
-    // Add system message (only if new operator chat)
-    if (!existing) {
-      await getPrisma().message.create({
-        data: {
-          sessionId,
-          sender: 'SYSTEM',
-          message: `👤 ${operator.name} si è unito alla chat`
-        }
-      });
-    }
-
-    // Send automatic greeting if not already sent
+    // Send automatic greeting if not already sent (BEFORE system message for correct order)
     if (!existingGreeting) {
       console.log('📨 Sending operator greeting...');
       const greetingText = await getAutomatedText('operator_greeting');
@@ -557,6 +546,17 @@ router.post('/take-chat', authenticateToken, validateSession, async (req, res) =
       }
     } else {
       console.log('ℹ️ Greeting already sent, skipping');
+    }
+
+    // Add system message AFTER greeting (only if new operator chat)
+    if (!existing) {
+      await getPrisma().message.create({
+        data: {
+          sessionId,
+          sender: 'SYSTEM',
+          message: `👤 ${operator.name} si è unito alla chat`
+        }
+      });
     }
 
     res.json({
