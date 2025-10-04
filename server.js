@@ -36,6 +36,7 @@ import {
   detectSuspiciousActivity,
   setPrismaClient
 } from './middleware/security.js';
+import checkAdmin from './middleware/check-admin.js';
 
 // API Response Standardization
 import { standardizeResponse } from './utils/api-response.js';
@@ -229,7 +230,7 @@ app.use('/api/tickets', apiLimiter, ticketRouter);
 app.use('/api/analytics', apiLimiter, analyticsRouter);
 app.use('/api/health', apiLimiter, healthRouter);
 app.use('/api/chat-management', apiLimiter, chatManagementRouter);
-app.use('/api/users', apiLimiter, usersRouter);
+app.use('/api/users', apiLimiter, checkAdmin, usersRouter);  // Admin-only route
 app.use('/api/automated-texts', apiLimiter, automatedTextsRouter);
 
 // Static dashboard - simplified configuration

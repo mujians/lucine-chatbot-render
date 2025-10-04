@@ -41,9 +41,10 @@ model Message {
   
   // Relations
   session     ChatSession @relation(fields: [sessionId], references: [sessionId])
-  
+
   @@index([sessionId, timestamp])
   @@index([sender])
+  @@index([timestamp])  // For sorting/filtering by time
 }
 
 // Sistema ticket
@@ -115,10 +116,12 @@ model Operator {
   createdAt     DateTime  @default(now())
 
   // Relations
-  tickets       Ticket[]
-  chats         OperatorChat[]
-  queueEntries  QueueEntry[]
-  internalNotes InternalNote[]
+  tickets              Ticket[]
+  chats                OperatorChat[]
+  queueEntries         QueueEntry[]
+  internalNotes        InternalNote[]
+  slaResponseRecords   SLARecord[] @relation("SLAResponseOperator")
+  slaResolutionRecords SLARecord[] @relation("SLAResolutionOperator")
 
   @@index([isOnline, isActive])
   @@index([username])
@@ -189,23 +192,7 @@ model Analytics {
   @@index([sessionId])
 }
 
-// Knowledge Base (FAQ)
-model KnowledgeItem {
-  id          String    @id @default(uuid())
-  category    String
-  question    String
-  answer      String
-  keywords    String[]
-  isActive    Boolean   @default(true)
-  views       Int       @default(0)
-  helpful     Int       @default(0)
-  notHelpful  Int       @default(0)
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
-  
-  @@index([category, isActive])
-  @@index([keywords])
-}
+// Knowledge Base removed - using JSON file instead (data/knowledge-base.json)
 
 model InternalNote {
   id          String   @id @default(uuid())
@@ -252,6 +239,7 @@ enum TicketStatus {
   WAITING_USER
   RESOLVED
   CLOSED
+  ESCALATED
 }
 
 enum Priority {
@@ -277,22 +265,44 @@ enum QueueStatus {
 
 // SLA Records
 model SLARecord {
-  id               String   @id @default(uuid())
-  entityId         String
-  entityType       String
-  priority         Priority @default(MEDIUM)
-  createdAt        DateTime @default(now())
-  responseDeadline DateTime
-  resolutionDeadline DateTime
-  firstResponseAt  DateTime?
-  resolvedAt       DateTime?
-  status           SLAStatus @default(ACTIVE)
-  violatedAt       DateTime?
-  escalatedAt      DateTime?
-  
+  id                    String    @id @default(uuid())
+  entityId              String
+  entityType            String
+  priority              Priority  @default(MEDIUM)
+  category              String    @default("GENERAL")
+  createdAt             DateTime  @default(now())
+  responseDeadline      DateTime
+  resolutionDeadline    DateTime
+  warningThreshold      DateTime?
+
+  // Response tracking
+  firstResponseAt       DateTime?
+  firstResponseTime     Int?      // in seconds
+  responseOperatorId    String?
+  responseOnTime        Boolean?
+
+  // Resolution tracking
+  resolvedAt            DateTime?
+  totalResolutionTime   Int?      // in seconds
+  resolutionOperatorId  String?
+  resolutionOnTime      Boolean?
+  resolutionType        String?   // RESOLVED, ESCALATED, CLOSED, etc.
+
+  // Status tracking
+  status                SLAStatus @default(ACTIVE)
+  violatedAt            DateTime?
+  escalatedAt           DateTime?
+
+  // Relations
+  responseOperator      Operator? @relation("SLAResponseOperator", fields: [responseOperatorId], references: [id])
+  resolutionOperator    Operator? @relation("SLAResolutionOperator", fields: [resolutionOperatorId], references: [id])
+
   @@index([entityId, entityType])
   @@index([status, responseDeadline])
   @@index([status, resolutionDeadline])
+  @@index([category])
+  @@index([responseOperatorId])
+  @@index([resolutionOperatorId])
 }
 
 enum SLAStatus {

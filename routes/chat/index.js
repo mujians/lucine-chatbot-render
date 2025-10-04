@@ -11,7 +11,8 @@ import {
   generateSecureSessionId,
   isValidSessionId,
   validateChatMessage,
-  chatRateLimiter
+  chatRateLimiter,
+  authenticateToken
 } from '../../utils/security.js';
 import { ValidationError } from '../../utils/error-handler.js';
 
@@ -275,6 +276,63 @@ router.get('/resume/:token', async (req, res) => {
     console.error('❌ Resume chat error:', error);
     return res.status(500).json({
       error: 'Errore nel riprendere la conversazione',
+      message: error.message
+    });
+  }
+});
+
+/**
+ * 📋 Get session details with messages (operators only)
+ */
+router.get('/sessions/:sessionId', authenticateToken, async (req, res) => {
+  try {
+    const { sessionId } = req.params;
+    const prisma = container.get('prisma');
+
+    const session = await prisma.chatSession.findUnique({
+      where: { sessionId },
+      include: {
+        messages: {
+          orderBy: { timestamp: 'asc' }
+        },
+        operatorChats: {
+          include: {
+            operator: {
+              select: { name: true, displayName: true }
+            }
+          }
+        }
+      }
+    });
+
+    if (!session) {
+      return res.status(404).json({ error: 'Session not found' });
+    }
+
+    // Get operator name if available
+    const activeOperatorChat = session.operatorChats.find(chat => !chat.endedAt);
+    const operatorName = activeOperatorChat ?
+      (activeOperatorChat.operator.displayName || activeOperatorChat.operator.name) : null;
+
+    return res.json({
+      sessionId: session.sessionId,
+      status: session.status,
+      createdAt: session.createdAt,
+      endedAt: session.endedAt,
+      lastActivity: session.lastActivity,
+      operatorName,
+      messages: session.messages.map(msg => ({
+        id: msg.id,
+        sender: msg.sender,
+        message: msg.message,
+        timestamp: msg.timestamp
+      }))
+    });
+
+  } catch (error) {
+    console.error('❌ Get session error:', error);
+    return res.status(500).json({
+      error: 'Errore nel recuperare la sessione',
       message: error.message
     });
   }

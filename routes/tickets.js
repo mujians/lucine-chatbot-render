@@ -1,6 +1,7 @@
 import express from 'express';
 import container from '../config/container.js';
 import { StatusCodes, ErrorCodes } from '../utils/api-response.js';
+import { authenticateToken } from '../middleware/security.js';
 
 const router = express.Router();
 
@@ -239,11 +240,9 @@ router.get('/:ticketNumber', async (req, res) => {
   }
 });
 
-// List all tickets (admin)
-router.get('/', async (req, res) => {
+// List all tickets (admin) - Requires authentication
+router.get('/', authenticateToken, async (req, res) => {
   try {
-    // TODO: Add authentication check
-    
     const tickets = await getPrisma().ticket.findMany({
       orderBy: { createdAt: 'desc' },
       include: {
@@ -272,11 +271,9 @@ router.get('/', async (req, res) => {
   }
 });
 
-// Update ticket (admin)
-router.put('/:ticketId', async (req, res) => {
+// Update ticket (admin) - Requires authentication
+router.put('/:ticketId', authenticateToken, async (req, res) => {
   try {
-    // TODO: Add authentication check
-    
     const { status, priority, operatorId, note } = req.body;
     
     const ticket = await getPrisma().ticket.update({

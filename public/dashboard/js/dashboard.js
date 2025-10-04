@@ -1320,11 +1320,116 @@ class DashboardApp {
     }
 
     /**
-     * View session details (placeholder)
+     * View session details
      */
-    viewSession(sessionId) {
-        console.log('📋 View session:', sessionId);
-        this.showToast('Funzionalità in sviluppo', 'info');
+    async viewSession(sessionId) {
+        try {
+            console.log('📋 Loading session details:', sessionId);
+
+            // Fetch session data with messages
+            const response = await fetch(`${this.apiBase}/chat/sessions/${sessionId}`, {
+                headers: {
+                    'Authorization': `Bearer ${localStorage.getItem('auth_token')}`
+                }
+            });
+
+            if (!response.ok) {
+                throw new Error('Failed to load session');
+            }
+
+            const session = await response.json();
+
+            // Create modal
+            const modal = document.createElement('div');
+            modal.className = 'modal';
+            modal.innerHTML = `
+                <div class="modal-content" style="max-width: 800px; max-height: 90vh; overflow-y: auto;">
+                    <div class="modal-header">
+                        <h3>📋 Dettagli Sessione ${sessionId.substring(0, 8)}...</h3>
+                        <button class="close-modal">&times;</button>
+                    </div>
+                    <div class="modal-body">
+                        <div class="session-info" style="margin-bottom: 20px;">
+                            <p><strong>ID:</strong> ${sessionId}</p>
+                            <p><strong>Status:</strong> <span class="status-badge status-${session.status?.toLowerCase()}">${session.status || 'UNKNOWN'}</span></p>
+                            <p><strong>Creata:</strong> ${new Date(session.createdAt).toLocaleString('it-IT')}</p>
+                            ${session.endedAt ? `<p><strong>Terminata:</strong> ${new Date(session.endedAt).toLocaleString('it-IT')}</p>` : ''}
+                            ${session.operatorName ? `<p><strong>Operatore:</strong> ${session.operatorName}</p>` : ''}
+                        </div>
+
+                        <div class="messages-container" style="border: 1px solid #ddd; border-radius: 8px; padding: 15px; background: #f9f9f9; max-height: 400px; overflow-y: auto;">
+                            <h4 style="margin-top: 0;">💬 Conversazione</h4>
+                            ${this.renderSessionMessages(session.messages || [])}
+                        </div>
+                    </div>
+                    <div class="modal-actions" style="margin-top: 20px; text-align: right;">
+                        <button class="btn-secondary close-modal">Chiudi</button>
+                    </div>
+                </div>
+            `;
+
+            document.body.appendChild(modal);
+
+            // Close handlers
+            const closeButtons = modal.querySelectorAll('.close-modal');
+            closeButtons.forEach(btn => {
+                btn.addEventListener('click', () => {
+                    modal.remove();
+                });
+            });
+
+            // Click outside to close
+            modal.addEventListener('click', (e) => {
+                if (e.target === modal) {
+                    modal.remove();
+                }
+            });
+
+            // Show modal
+            modal.style.display = 'flex';
+
+        } catch (error) {
+            console.error('❌ Error loading session:', error);
+            this.showToast('Errore nel caricamento della sessione', 'error');
+        }
+    }
+
+    /**
+     * Render messages for session modal
+     */
+    renderSessionMessages(messages) {
+        if (!messages || messages.length === 0) {
+            return '<p style="color: #999; font-style: italic;">Nessun messaggio disponibile</p>';
+        }
+
+        return messages.map(msg => {
+            const time = new Date(msg.timestamp).toLocaleTimeString('it-IT', {
+                hour: '2-digit',
+                minute: '2-digit'
+            });
+            const senderClass = msg.sender === 'USER' ? 'user-msg' :
+                               msg.sender === 'OPERATOR' ? 'operator-msg' : 'system-msg';
+            const senderIcon = msg.sender === 'USER' ? '👤' :
+                              msg.sender === 'OPERATOR' ? '👨‍💼' : '🤖';
+
+            return `
+                <div class="message-item ${senderClass}" style="margin-bottom: 12px; padding: 10px; background: white; border-radius: 6px; border-left: 3px solid ${msg.sender === 'USER' ? '#4CAF50' : msg.sender === 'OPERATOR' ? '#2196F3' : '#9E9E9E'};">
+                    <div style="font-size: 12px; color: #666; margin-bottom: 4px;">
+                        ${senderIcon} <strong>${msg.sender}</strong> <span style="float: right;">${time}</span>
+                    </div>
+                    <div style="white-space: pre-wrap; word-break: break-word;">${this.escapeHtml(msg.message)}</div>
+                </div>
+            `;
+        }).join('');
+    }
+
+    /**
+     * Escape HTML to prevent XSS
+     */
+    escapeHtml(text) {
+        const div = document.createElement('div');
+        div.textContent = text;
+        return div.innerHTML;
     }
 
     /**
