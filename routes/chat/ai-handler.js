@@ -182,7 +182,8 @@ export async function handleAIResponse(message, session, history) {
         message: parsedResponse.reply,
         metadata: {
           actions: parsedResponse.actions,
-          escalation: parsedResponse.escalation
+          escalation: parsedResponse.escalation,
+          smartActions: parsedResponse.smartActions // Save smartActions for widget
         }
       }
     });
