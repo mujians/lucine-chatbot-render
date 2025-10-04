@@ -83,15 +83,15 @@ export async function handlePolling(sessionId) {
       id: msg.id,
       sender: msg.sender,
       message: msg.message,
-      timestamp: msg.timestamp,
-      operatorName: activeOperatorChat.operator?.name
+      timestamp: msg.timestamp
+      // No operatorName - widget shows message directly without prefix
     }));
 
     return {
       status: 'with_operator',
       sessionId,
       operatorId: activeOperatorChat.operatorId,
-      operatorName: activeOperatorChat.operator?.name,
+      // No operatorName in response - widget doesn't need it
       messages: operatorMessages
     };
 
