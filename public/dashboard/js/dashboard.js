@@ -458,6 +458,9 @@ class DashboardApp {
             case 'users':
                 this.loadUsers();
                 break;
+            case 'automated-texts':
+                this.loadAutomatedTexts();
+                break;
         }
     }
 
@@ -484,6 +487,9 @@ class DashboardApp {
                 break;
             case 'users':
                 await this.loadUsers();
+                break;
+            case 'automated-texts':
+                await this.loadAutomatedTexts();
                 break;
         }
     }
@@ -2913,6 +2919,300 @@ class DashboardApp {
         } catch (error) {
             console.error('Error deactivating user:', error);
             this.showToast('Errore nella disattivazione', 'error');
+        }
+    }
+
+    /**
+     * 📝 AUTOMATED TEXTS MANAGEMENT
+     */
+
+    async loadAutomatedTexts() {
+        try {
+            console.log('📝 Loading automated texts...');
+
+            const response = await fetch(`${this.apiBase}/automated-texts`, {
+                headers: {
+                    'Authorization': `Bearer ${this.authToken}`
+                }
+            });
+
+            if (!response.ok) {
+                throw new Error('Failed to load automated texts');
+            }
+
+            const data = await response.json();
+            this.allTexts = data.texts || [];
+
+            this.applyTextsFilters();
+            this.setupTextsEventListeners();
+        } catch (error) {
+            console.error('Error loading automated texts:', error);
+            this.showToast('Errore nel caricamento dei testi', 'error');
+            document.getElementById('texts-container').innerHTML = '<p class="text-muted">Errore nel caricamento</p>';
+        }
+    }
+
+    setupTextsEventListeners() {
+        // Create text button
+        const createBtn = document.getElementById('create-text-btn');
+        if (createBtn && !createBtn.hasAttribute('data-listener')) {
+            createBtn.setAttribute('data-listener', 'true');
+            createBtn.addEventListener('click', () => this.openTextModal());
+        }
+
+        // Category filter
+        const categoryFilter = document.getElementById('category-filter');
+        if (categoryFilter && !categoryFilter.hasAttribute('data-listener')) {
+            categoryFilter.setAttribute('data-listener', 'true');
+            categoryFilter.addEventListener('change', () => this.applyTextsFilters());
+        }
+
+        // Active only filter
+        const activeFilter = document.getElementById('active-only-filter');
+        if (activeFilter && !activeFilter.hasAttribute('data-listener')) {
+            activeFilter.setAttribute('data-listener', 'true');
+            activeFilter.addEventListener('change', () => this.applyTextsFilters());
+        }
+
+        // Save text button
+        const saveBtn = document.getElementById('save-text-btn');
+        if (saveBtn && !saveBtn.hasAttribute('data-listener')) {
+            saveBtn.setAttribute('data-listener', 'true');
+            saveBtn.addEventListener('click', () => this.saveText());
+        }
+    }
+
+    applyTextsFilters() {
+        const categoryFilter = document.getElementById('category-filter');
+        const activeFilter = document.getElementById('active-only-filter');
+
+        if (!categoryFilter || !activeFilter || !this.allTexts) return;
+
+        const selectedCategory = categoryFilter.value;
+        const activeOnly = activeFilter.checked;
+
+        let filtered = this.allTexts;
+
+        if (selectedCategory) {
+            filtered = filtered.filter(t => t.category === selectedCategory);
+        }
+
+        if (activeOnly) {
+            filtered = filtered.filter(t => t.isActive);
+        }
+
+        this.renderTexts(filtered);
+
+        const badge = document.getElementById('texts-count-badge');
+        if (badge) {
+            badge.textContent = `${filtered.length} testi`;
+        }
+    }
+
+    renderTexts(texts) {
+        const container = document.getElementById('texts-container');
+        if (!container) return;
+
+        if (texts.length === 0) {
+            container.innerHTML = `
+                <div style="text-align: center; padding: 40px; color: #999;">
+                    <i class="fas fa-inbox fa-3x" style="margin-bottom: 16px;"></i>
+                    <p>Nessun testo trovato</p>
+                </div>
+            `;
+            return;
+        }
+
+        // Group by category
+        const grouped = texts.reduce((acc, text) => {
+            if (!acc[text.category]) acc[text.category] = [];
+            acc[text.category].push(text);
+            return acc;
+        }, {});
+
+        let html = '';
+
+        Object.entries(grouped).forEach(([category, categoryTexts]) => {
+            html += `
+                <div class="text-category-group" style="margin-bottom: 30px;">
+                    <h4 style="color: #666; margin-bottom: 16px; text-transform: capitalize;">
+                        ${this.getCategoryIcon(category)} ${this.getCategoryLabel(category)}
+                    </h4>
+                    <div class="row g-3">
+            `;
+
+            categoryTexts.forEach(text => {
+                html += `
+                    <div class="col-md-6">
+                        <div class="card">
+                            <div class="card-body">
+                                <div style="display: flex; justify-content: space-between; align-items: start; margin-bottom: 12px;">
+                                    <div style="flex: 1;">
+                                        <h6 class="card-title mb-1">
+                                            ${this.escapeHtml(text.label)}
+                                            ${!text.isActive ? '<span class="badge bg-secondary ms-2">Inattivo</span>' : ''}
+                                        </h6>
+                                        <code style="font-size: 11px; color: #999;">${text.key}</code>
+                                    </div>
+                                    <div style="display: flex; gap: 8px;">
+                                        <button class="btn btn-sm btn-outline-primary" onclick="dashboardApp.editText('${text.key}')" title="Modifica">
+                                            <i class="fas fa-edit"></i>
+                                        </button>
+                                        <button class="btn btn-sm btn-outline-danger" onclick="dashboardApp.deleteText('${text.key}')" title="Elimina">
+                                            <i class="fas fa-trash"></i>
+                                        </button>
+                                    </div>
+                                </div>
+
+                                <div class="alert alert-light mb-2" style="font-size: 14px; white-space: pre-wrap;">
+                                    ${this.escapeHtml(text.text)}
+                                </div>
+
+                                ${text.description ? `
+                                    <p class="text-muted small mb-0">
+                                        <i class="fas fa-info-circle"></i> ${this.escapeHtml(text.description)}
+                                    </p>
+                                ` : ''}
+                            </div>
+                        </div>
+                    </div>
+                `;
+            });
+
+            html += `
+                    </div>
+                </div>
+            `;
+        });
+
+        container.innerHTML = html;
+    }
+
+    getCategoryIcon(category) {
+        const icons = {
+            operator: '👤',
+            queue: '⏱️',
+            ticket: '🎫',
+            closure: '👋',
+            general: '💬'
+        };
+        return icons[category] || '📝';
+    }
+
+    getCategoryLabel(category) {
+        const labels = {
+            operator: 'Operatore',
+            queue: 'Coda',
+            ticket: 'Ticket',
+            closure: 'Chiusura',
+            general: 'Generale'
+        };
+        return labels[category] || category;
+    }
+
+    openTextModal(key = null) {
+        this.editingTextKey = key;
+        const modal = document.getElementById('text-modal');
+        const modalTitle = document.getElementById('text-modal-title');
+        const textKeyInput = document.getElementById('text-key');
+
+        if (key) {
+            // Edit mode
+            const text = this.allTexts.find(t => t.key === key);
+            if (!text) return;
+
+            modalTitle.textContent = 'Modifica Testo';
+            textKeyInput.value = text.key;
+            textKeyInput.disabled = true;
+            document.getElementById('text-label').value = text.label;
+            document.getElementById('text-category').value = text.category;
+            document.getElementById('text-content').value = text.text;
+            document.getElementById('text-description').value = text.description || '';
+            document.getElementById('text-active').checked = text.isActive;
+        } else {
+            // Create mode
+            modalTitle.textContent = 'Nuovo Testo Automatico';
+            document.getElementById('text-form').reset();
+            textKeyInput.disabled = false;
+            document.getElementById('text-active').checked = true;
+        }
+
+        // Show modal using Bootstrap
+        const bsModal = new bootstrap.Modal(modal);
+        bsModal.show();
+    }
+
+    editText(key) {
+        this.openTextModal(key);
+    }
+
+    async deleteText(key) {
+        if (!confirm('Sei sicuro di voler eliminare questo testo?')) return;
+
+        try {
+            const response = await fetch(`${this.apiBase}/automated-texts/${key}`, {
+                method: 'DELETE',
+                headers: {
+                    'Authorization': `Bearer ${this.authToken}`
+                }
+            });
+
+            if (!response.ok) throw new Error('Errore nell\'eliminazione');
+
+            this.showToast('Testo eliminato', 'success');
+            await this.loadAutomatedTexts();
+        } catch (error) {
+            console.error('Error deleting text:', error);
+            this.showToast('Errore nell\'eliminazione', 'error');
+        }
+    }
+
+    async saveText() {
+        const data = {
+            key: document.getElementById('text-key').value.trim(),
+            label: document.getElementById('text-label').value.trim(),
+            category: document.getElementById('text-category').value,
+            text: document.getElementById('text-content').value.trim(),
+            description: document.getElementById('text-description').value.trim() || null,
+            isActive: document.getElementById('text-active').checked
+        };
+
+        if (!data.key || !data.label || !data.text) {
+            this.showToast('Compila tutti i campi obbligatori', 'warning');
+            return;
+        }
+
+        try {
+            const url = this.editingTextKey
+                ? `${this.apiBase}/automated-texts/${this.editingTextKey}`
+                : `${this.apiBase}/automated-texts`;
+
+            const method = this.editingTextKey ? 'PUT' : 'POST';
+
+            const response = await fetch(url, {
+                method,
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${this.authToken}`
+                },
+                body: JSON.stringify(data)
+            });
+
+            if (!response.ok) {
+                const error = await response.json();
+                throw new Error(error.error || 'Errore nel salvare il testo');
+            }
+
+            this.showToast(this.editingTextKey ? 'Testo aggiornato!' : 'Testo creato!', 'success');
+
+            // Close modal
+            const modal = bootstrap.Modal.getInstance(document.getElementById('text-modal'));
+            if (modal) modal.hide();
+
+            await this.loadAutomatedTexts();
+        } catch (error) {
+            console.error('Error saving text:', error);
+            this.showToast(error.message, 'error');
         }
     }
 

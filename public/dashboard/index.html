@@ -106,10 +106,10 @@
                         <div class="nav-icon"><i class="fas fa-users"></i></div>
                         <span>Gestione Utenti</span>
                     </button>
-                    <a href="automated-texts.html" class="nav-item">
+                    <button class="nav-item" data-section="automated-texts">
                         <div class="nav-icon"><i class="fas fa-comment-dots"></i></div>
                         <span>Testi Automatici</span>
-                    </a>
+                    </button>
                 </div>
             </nav>
         </aside>
@@ -389,6 +389,44 @@
                         </div>
                     </div>
                 </section>
+
+                <!-- Automated Texts Section (ADMIN ONLY) -->
+                <section id="automated-texts-section" class="content-section">
+                    <div class="card">
+                        <div class="card-header">
+                            <h2 class="card-title">📝 Testi Automatici</h2>
+                            <button class="btn btn-primary" id="create-text-btn">
+                                <i class="fas fa-plus"></i> Nuovo Testo
+                            </button>
+                        </div>
+                        <div class="card-content">
+                            <!-- Filter Bar -->
+                            <div class="filter-bar" style="margin-bottom: 20px; display: flex; gap: 10px; align-items: center;">
+                                <select id="category-filter" class="form-control" style="max-width: 200px;">
+                                    <option value="">Tutte le categorie</option>
+                                    <option value="operator">👤 Operatore</option>
+                                    <option value="queue">⏱️ Coda</option>
+                                    <option value="ticket">🎫 Ticket</option>
+                                    <option value="closure">👋 Chiusura</option>
+                                    <option value="general">💬 Generale</option>
+                                </select>
+                                <label style="display: flex; align-items: center; gap: 8px;">
+                                    <input type="checkbox" id="active-only-filter" checked>
+                                    <span>Solo attivi</span>
+                                </label>
+                                <span id="texts-count-badge" class="badge" style="margin-left: auto;">0 testi</span>
+                            </div>
+
+                            <!-- Texts Container -->
+                            <div id="texts-container">
+                                <div class="loading-spinner" style="text-align: center; padding: 40px;">
+                                    <i class="fas fa-spinner fa-spin fa-2x"></i>
+                                    <p>Caricamento testi...</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </section>
             </div>
         </main>
     </div>
@@ -487,6 +525,67 @@
                 <div class="modal-footer">
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Annulla</button>
                     <button type="button" class="btn btn-primary" id="save-user-btn">Salva</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Automated Text Modal -->
+    <div class="modal fade" id="text-modal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="text-modal-title">Nuovo Testo Automatico</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <form id="text-form">
+                        <div class="mb-3">
+                            <label class="form-label">Chiave Univoca *</label>
+                            <input type="text" class="form-control" id="text-key" required placeholder="es: operator_greeting">
+                            <small class="text-muted">Usata per identificare il testo nel codice</small>
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label">Etichetta *</label>
+                            <input type="text" class="form-control" id="text-label" required placeholder="es: Saluto Operatore">
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label">Categoria *</label>
+                            <select class="form-control" id="text-category" required>
+                                <option value="general">💬 Generale</option>
+                                <option value="operator">👤 Operatore</option>
+                                <option value="queue">⏱️ Coda</option>
+                                <option value="ticket">🎫 Ticket</option>
+                                <option value="closure">👋 Chiusura</option>
+                            </select>
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label">Testo *</label>
+                            <textarea class="form-control" id="text-content" rows="5" required placeholder="Inserisci il testo del messaggio automatico..."></textarea>
+                            <small class="text-muted">Supporta variabili come {name}, {ticketNumber}, {operatorName}, {contact}, {waitMessage}</small>
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label">Descrizione</label>
+                            <textarea class="form-control" id="text-description" rows="2" placeholder="Quando viene usato questo testo?"></textarea>
+                        </div>
+
+                        <div class="mb-3">
+                            <div class="form-check">
+                                <input type="checkbox" class="form-check-input" id="text-active" checked>
+                                <label class="form-check-label" for="text-active">Attivo</label>
+                            </div>
+                        </div>
+                    </form>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Annulla</button>
+                    <button type="button" class="btn btn-primary" id="save-text-btn">
+                        <i class="fas fa-save"></i> Salva
+                    </button>
                 </div>
             </div>
         </div>
