@@ -296,18 +296,36 @@ router.get('/pending-chats', async (req, res) => {
       orderBy: { lastActivity: 'desc' }
     });
 
-    res.json({
-      // Waiting chats (in queue, not yet assigned)
-      waiting: waitingChats.map(chat => ({
+    // Enrich waiting chats with queue data
+    const { queueService } = await import('../services/queue-service.js');
+    const waitingChatsWithQueue = await Promise.all(waitingChats.map(async (chat) => {
+      const queueEntry = chat.queueEntries[0];
+      let queuePosition = null;
+      let estimatedWait = null;
+
+      if (queueEntry) {
+        queuePosition = await queueService.getQueuePosition(chat.sessionId);
+        estimatedWait = await queueService.calculateEstimatedWait(queueEntry.priority);
+      }
+
+      return {
         sessionId: chat.sessionId,
         startedAt: chat.startedAt,
         lastActivity: chat.lastActivity,
         lastMessage: chat.messages[0]?.message,
         status: 'waiting',
-        priority: chat.queueEntries[0]?.priority || 'MEDIUM',
+        priority: queueEntry?.priority || 'MEDIUM',
+        queuePosition,
+        estimatedWait,
         timeWaiting: Date.now() - new Date(chat.lastActivity).getTime(),
-        userLastSeen: chat.lastActivity
-      })),
+        userLastSeen: chat.lastActivity,
+        enteredQueueAt: queueEntry?.enteredAt
+      };
+    }));
+
+    res.json({
+      // Waiting chats (in queue, not yet assigned)
+      waiting: waitingChatsWithQueue,
       // Active chats (assigned to operators)
       active: activeChats.map(chat => ({
         sessionId: chat.sessionId,
@@ -457,6 +475,35 @@ router.post('/take-chat', authenticateToken, validateSession, async (req, res) =
       where: { sessionId },
       data: { status: 'WITH_OPERATOR' }
     });
+
+    // 📋 Remove from queue if present (mark as ASSIGNED)
+    try {
+      const { queueService } = await import('../services/queue-service.js');
+      const queueEntry = await getPrisma().queueEntry.findFirst({
+        where: {
+          sessionId,
+          status: 'WAITING'
+        }
+      });
+
+      if (queueEntry) {
+        await getPrisma().queueEntry.update({
+          where: { id: queueEntry.id },
+          data: {
+            status: 'ASSIGNED',
+            assignedTo: operatorId,
+            assignedAt: new Date()
+          }
+        });
+        console.log(`✅ Queue entry marked as ASSIGNED for session ${sessionId}`);
+
+        // Update queue positions for remaining entries
+        await queueService.updateQueuePositions();
+      }
+    } catch (error) {
+      console.error('⚠️ Failed to update queue entry:', error);
+      // Non-blocking
+    }
 
     // 📊 Create SLA record if not already exists (for manually taken chats)
     if (!existing) {

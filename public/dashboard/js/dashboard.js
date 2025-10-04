@@ -1505,12 +1505,28 @@ class DashboardApp {
             `;
             return;
         }
-        
+
         chatList.innerHTML = sessions.map(session => {
             const waitTime = this.formatWaitingTime(session.timeWaiting || 0);
             const lastMessage = session.lastMessage || 'Richiesta operatore';
             const userLastSeen = this.formatTimeAgo(new Date(session.userLastSeen));
             const isUrgent = (session.timeWaiting || 0) > 300000; // > 5 minuti
+
+            // Queue information
+            const queuePosition = session.queuePosition || '?';
+            const estimatedWait = session.estimatedWait || 0;
+            const priorityLabel = {
+                'URGENT': 'URGENTE',
+                'HIGH': 'ALTA',
+                'MEDIUM': 'MEDIA',
+                'LOW': 'BASSA'
+            }[session.priority] || 'MEDIA';
+            const priorityColor = {
+                'URGENT': '#dc2626',
+                'HIGH': '#f59e0b',
+                'MEDIUM': '#059669',
+                'LOW': '#6b7280'
+            }[session.priority] || '#059669';
             
             return `
                 <div class="chat-card ${isUrgent ? 'urgent' : ''}" data-session-id="${session.sessionId}">
@@ -1523,6 +1539,25 @@ class DashboardApp {
                         </div>
                         <div class="time-badge">
                             <i class="fas fa-clock"></i> ${waitTime}
+                        </div>
+                    </div>
+
+                    <div class="queue-info" style="display: flex; justify-content: space-between; padding: 0.75rem 1rem; background: rgba(5, 150, 105, 0.1); border-left: 3px solid ${priorityColor};">
+                        <div style="display: flex; gap: 1.5rem;">
+                            <div>
+                                <i class="fas fa-sort-numeric-down"></i>
+                                <span style="font-weight: 600;">#${queuePosition}</span>
+                                <span style="font-size: 0.85rem; color: #94a3b8;"> in coda</span>
+                            </div>
+                            <div>
+                                <i class="fas fa-flag"></i>
+                                <span style="font-weight: 600; color: ${priorityColor};">${priorityLabel}</span>
+                            </div>
+                            ${estimatedWait > 0 ? `
+                            <div>
+                                <i class="fas fa-hourglass-half"></i>
+                                <span style="font-weight: 600;">~${estimatedWait} min</span>
+                            </div>` : ''}
                         </div>
                     </div>
                     
