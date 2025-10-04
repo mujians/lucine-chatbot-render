@@ -43,6 +43,22 @@ const defaultTexts = [
     description: 'Messaggio quando tutti gli operatori sono occupati (variabili: {waitMessage})',
     isActive: true
   },
+  {
+    key: 'operator_no_online',
+    label: 'Nessun Operatore Online (Escalation)',
+    category: 'queue',
+    text: '⏰ Non ci sono operatori disponibili al momento\n\n💡 Puoi aprire un ticket o continuare con l\'assistente AI',
+    description: 'Messaggio escalation quando nessun operatore è online',
+    isActive: true
+  },
+  {
+    key: 'operator_all_busy',
+    label: 'Operatori Tutti Occupati (Escalation)',
+    category: 'queue',
+    text: '⏰ **Al momento tutti gli operatori sono impegnati.**\n\n{waitMessage}\n\nPuoi attendere in linea oppure lasciare un ticket per essere ricontattato.',
+    description: 'Messaggio escalation quando tutti occupati (variabili: {waitMessage})',
+    isActive: true
+  },
 
   // TICKET
   {
@@ -101,6 +117,40 @@ const defaultTexts = [
     category: 'closure',
     text: 'Felici di esserti stati d\'aiuto! Se ti servisse ancora qualcosa, siamo sempre disponibili.\n\nOra puoi continuare a parlare con il nostro assistente virtuale per qualsiasi informazione aggiuntiva.',
     description: 'Messaggio di saluto quando l\'utente termina la conversazione',
+    isActive: true
+  },
+
+  // TICKET VALIDATION
+  {
+    key: 'ticket_cancel',
+    label: 'Ticket Annullato',
+    category: 'ticket',
+    text: '🔙 Perfetto! Sono tornato in modalità chat normale.\n\nCome posso aiutarti con le **Lucine di Natale**? 🎄',
+    description: 'Messaggio quando l\'utente annulla la creazione del ticket',
+    isActive: true
+  },
+  {
+    key: 'ticket_ask_additional',
+    label: 'Richiesta Info Aggiuntive',
+    category: 'ticket',
+    text: 'Perfetto! Ti contatterò su **{contact}** ✅\n\n📝 **C\'è qualcos\'altro che vuoi aggiungere?**\n\nPuoi darmi più dettagli sul tuo problema o sulla tua richiesta.\n\n_Oppure scrivi "no" o "basta" per procedere._',
+    description: 'Richiesta informazioni aggiuntive dopo contatto (variabili: {contact})',
+    isActive: true
+  },
+  {
+    key: 'ticket_name_invalid',
+    label: 'Nome Non Valido',
+    category: 'ticket',
+    text: '❌ Nome non valido.\n\nPer favore, inserisci il tuo **nome** (almeno 2 caratteri).\n\n💡 _Scrivi "annulla" per tornare alla chat_',
+    description: 'Errore validazione nome durante creazione ticket',
+    isActive: true
+  },
+  {
+    key: 'ticket_contact_invalid',
+    label: 'Contatto Non Valido',
+    category: 'ticket',
+    text: '❌ **Contatto non valido**\n\nInserisci un contatto valido:\n📧 **Email**: esempio@gmail.com\n📱 **WhatsApp**: +39 333 123 4567\n\n💡 _Scrivi "annulla" per tornare alla chat_',
+    description: 'Errore validazione contatto durante creazione ticket',
     isActive: true
   },
 

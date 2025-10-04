@@ -6,6 +6,7 @@ import {
   TokenManager,
   loginLimiter
 } from '../middleware/security.js';
+import { getAutomatedText } from '../utils/automated-texts.js';
 
 const router = express.Router();
 
@@ -507,11 +508,13 @@ router.post('/take-chat', authenticateToken, validateSession, async (req, res) =
       });
 
       // Send automatic greeting from operator
+      const greetingText = await getAutomatedText('operator_greeting');
+
       const greetingMessage = await getPrisma().message.create({
         data: {
           sessionId,
           sender: 'OPERATOR',
-          message: `Ciao! Un attimo che controllo la conversazione e vedo come posso aiutarti.\nIntanto, fammi sapere se hai altre esigenze specifiche 😊`,
+          message: greetingText,
           metadata: {
             operatorId,
             isAutomatic: true
@@ -954,12 +957,14 @@ router.post('/close-conversation', authenticateToken, async (req, res) => {
     }
 
     // Send closure question to user via widget with smart actions
+    const closureText = await getAutomatedText('closure_request');
+
     const { notifyWidget } = await import('../utils/notifications.js');
     const sent = notifyWidget(sessionId, {
       event: 'closure_request',
       message: {
         sender: 'SYSTEM',
-        message: 'Posso aiutarti con qualcos\'altro?',
+        message: closureText,
         timestamp: new Date().toISOString(),
         smartActions: [
           {

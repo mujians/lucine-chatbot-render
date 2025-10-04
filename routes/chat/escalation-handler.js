@@ -8,6 +8,7 @@ import { notifyOperators } from '../../utils/notifications.js';
 import { SESSION_STATUS, ANALYTICS } from '../../config/constants.js';
 import { queueService } from '../../services/queue-service.js';
 import { slaService } from '../../services/sla-service.js';
+import { getAutomatedText } from '../../utils/automated-texts.js';
 
 /**
  * Gestisce richiesta escalation a operatore
@@ -143,9 +144,13 @@ export async function handleEscalation(message, session) {
         }
       });
 
+      const operatorConnectedText = await getAutomatedText('operator_connected', {
+        operatorName: availableOperator.name
+      });
+
       return {
         success: true,
-        reply: `🟢 Perfetto! Ti sto connettendo con un operatore...\n\n⏱️ ${availableOperator.name} ti risponderà a breve. Attendi un momento.`,
+        reply: operatorConnectedText,
         sessionId: session.sessionId,
         status: 'connecting_operator',
         operator: {
@@ -231,7 +236,7 @@ export async function handleEscalation(message, session) {
 
       if (!hasOnlineOperators) {
         // SCENARIO 1: No operators online at all
-        reply = `⏰ Non ci sono operatori disponibili al momento\n\n💡 Puoi aprire un ticket o continuare con l'assistente AI`;
+        reply = await getAutomatedText('operator_no_online');
 
         smartActions = [
           {
@@ -255,7 +260,7 @@ export async function handleEscalation(message, session) {
           ? `Attesa stimata: ~${queueInfo.estimatedWait} minuti`
           : 'Ti risponderemo al più presto';
 
-        reply = `⏰ **Al momento tutti gli operatori sono impegnati.**\n\n${waitMessage}\n\nPuoi attendere in linea oppure lasciare un ticket per essere ricontattato.`;
+        reply = await getAutomatedText('operator_all_busy', { waitMessage });
 
         smartActions = [
           {

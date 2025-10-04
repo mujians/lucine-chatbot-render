@@ -29,6 +29,7 @@ import {
 } from './session-handler.js';
 import { handlePolling } from './polling-handler.js';
 import { resumeChatFromToken } from './resume-handler.js';
+import { getAutomatedText } from '../../utils/automated-texts.js';
 
 const router = express.Router();
 
@@ -127,8 +128,10 @@ router.post('/', async (req, res) => {
     if (sanitizedMessage === 'continue_chat') {
       console.log('✅ User wants to continue chat with operator');
 
+      const continueText = await getAutomatedText('chat_continue');
+
       return res.json({
-        reply: 'Certo! Dimmi pure, come posso aiutarti ancora.',
+        reply: continueText,
         sessionId: session.sessionId,
         status: 'with_operator',
         operatorConnected: true
@@ -159,8 +162,10 @@ router.post('/', async (req, res) => {
 
       console.log(`✅ Chat ${session.sessionId} returned to AI control`);
 
+      const endGoodbyeText = await getAutomatedText('chat_end_goodbye');
+
       return res.json({
-        reply: 'Felici di esserti stati d\'aiuto! Se ti servisse ancora qualcosa, siamo sempre disponibili.\n\nOra puoi continuare a parlare con il nostro assistente virtuale per qualsiasi informazione aggiuntiva.',
+        reply: endGoodbyeText,
         sessionId: session.sessionId,
         status: 'back_to_ai',
         operatorConnected: false
@@ -189,8 +194,12 @@ router.post('/', async (req, res) => {
       });
 
       if (existingTicket) {
+        const alreadyExistsText = await getAutomatedText('ticket_already_exists', {
+          ticketNumber: existingTicket.ticketNumber
+        });
+
         return res.json({
-          reply: `✅ **Hai già un ticket aperto: #${existingTicket.ticketNumber}**\n\nUn operatore ti contatterà a breve. Se vuoi aggiungere informazioni, scrivile pure qui.`,
+          reply: alreadyExistsText,
           sessionId: session.sessionId,
           status: 'ticket_exists',
           ticketNumber: existingTicket.ticketNumber
@@ -204,8 +213,10 @@ router.post('/', async (req, res) => {
       });
 
       // Return message asking for name (first step)
+      const ticketStartText = await getAutomatedText('ticket_start');
+
       return res.json({
-        reply: '🎫 **Perfetto! Creiamo un ticket di supporto.**\n\nUn operatore ti ricontatterà appena disponibile per riprendere la conversazione.\n\n👤 **Per iniziare, come ti chiami?**\n\n💡 _Scrivi "annulla" in qualsiasi momento per tornare alla chat_',
+        reply: ticketStartText,
         sessionId: session.sessionId,
         status: 'requesting_ticket',
         smartActions: []

@@ -5,6 +5,7 @@
 
 import container from '../../config/container.js';
 import { PATTERNS, CONTACT_METHOD, PRIORITY, SESSION_STATUS, ANALYTICS } from '../../config/constants.js';
+import { getAutomatedText } from '../../utils/automated-texts.js';
 
 /**
  * Gestisce il flusso di raccolta dati multi-step per ticket creation
@@ -26,8 +27,10 @@ export async function handleTicketCollection(message, session, res) {
         }
       });
 
+      const cancelText = await getAutomatedText('ticket_cancel');
+
       return res.json({
-        reply: `🔙 Perfetto! Sono tornato in modalità chat normale.\n\nCome posso aiutarti con le **Lucine di Natale**? 🎄`,
+        reply: cancelText,
         sessionId: session.sessionId,
         status: 'back_to_ai'
       });
@@ -49,14 +52,18 @@ export async function handleTicketCollection(message, session, res) {
           }
         });
 
+        const askContactText = await getAutomatedText('ticket_ask_contact', { name: ticketData.name });
+
         return res.json({
-          reply: `Piacere di conoscerti, **${ticketData.name}**! 👋\n\n📧 **Come preferisci essere contattato?**\n\nInviami:\n• La tua **email** (es: mario.rossi@gmail.com)\n• Oppure il tuo numero **WhatsApp** (es: +39 333 123 4567)\n\n💡 _Scrivi "annulla" per tornare alla chat_`,
+          reply: askContactText,
           sessionId: session.sessionId,
           status: 'collecting_contact'
         });
       } else {
+        const invalidNameText = await getAutomatedText('ticket_name_invalid');
+
         return res.json({
-          reply: `❌ Nome non valido.\n\nPer favore, inserisci il tuo **nome** (almeno 2 caratteri).\n\n💡 _Scrivi "annulla" per tornare alla chat_`,
+          reply: invalidNameText,
           sessionId: session.sessionId,
           status: 'collecting_name_retry'
         });
@@ -82,14 +89,20 @@ export async function handleTicketCollection(message, session, res) {
           }
         });
 
+        const askAdditionalText = await getAutomatedText('ticket_ask_additional', {
+          contact: ticketData.contact.email || ticketData.contact.phone
+        });
+
         return res.json({
-          reply: `Perfetto! Ti contatterò su **${ticketData.contact.email || ticketData.contact.phone}** ✅\n\n📝 **C'è qualcos'altro che vuoi aggiungere?**\n\nPuoi darmi più dettagli sul tuo problema o sulla tua richiesta.\n\n_Oppure scrivi "no" o "basta" per procedere._`,
+          reply: askAdditionalText,
           sessionId: session.sessionId,
           status: 'collecting_additional_info'
         });
       } else {
+        const invalidContactText = await getAutomatedText('ticket_contact_invalid');
+
         return res.json({
-          reply: `❌ **Contatto non valido**\n\nInserisci un contatto valido:\n📧 **Email**: esempio@gmail.com\n📱 **WhatsApp**: +39 333 123 4567\n\n💡 _Scrivi "annulla" per tornare alla chat_`,
+          reply: invalidContactText,
           sessionId: session.sessionId,
           status: 'collecting_contact_retry'
         });
