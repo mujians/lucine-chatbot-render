@@ -191,17 +191,30 @@ class Logger {
    * WebSocket logging helpers
    */
   websocket = {
-    connected: (type, id) => {
-      this.info('WEBSOCKET', `${type} connected`, { id });
+    connected: (typeOrId, id) => {
+      // Support both: connected('new_connection') and connected('operator', 'id123')
+      if (id) {
+        this.info('WEBSOCKET', `${typeOrId} connected`, { id });
+      } else {
+        this.info('WEBSOCKET', 'Connection established', { type: typeOrId });
+      }
     },
-    disconnected: (type, id, reason) => {
-      this.info('WEBSOCKET', `${type} disconnected`, { id, reason });
+    disconnected: (typeOrId, id, reason) => {
+      // Support both: disconnected('operator_123') and disconnected('operator', 'id123', reason)
+      if (id) {
+        this.info('WEBSOCKET', `${typeOrId} disconnected`, { id, reason });
+      } else {
+        this.info('WEBSOCKET', 'Connection closed', { type: typeOrId });
+      }
     },
     message: (type, event, data = {}) => {
       this.debug('WEBSOCKET', `${type} message: ${event}`, data);
     },
     error: (type, error) => {
       this.error('WEBSOCKET', `${type} error`, error);
+    },
+    sent: (sessionId, event, data = {}) => {
+      this.debug('WEBSOCKET', `Message sent to ${sessionId}: ${event}`, data);
     }
   };
 
@@ -224,6 +237,9 @@ class Logger {
    * Database/Prisma logging helpers
    */
   db = {
+    connected: () => {
+      this.info('DATABASE', 'Database connected successfully');
+    },
     query: (model, operation, data = {}) => {
       this.debug('DATABASE', `${model}.${operation}`, data);
     },
@@ -236,6 +252,9 @@ class Logger {
    * Health check logging helpers
    */
   health = {
+    started: () => {
+      this.info('HEALTH', 'Health monitoring service started');
+    },
     check: (metric, status, value) => {
       if (status === 'critical') {
         this.error('HEALTH', `Critical: ${metric}`, null);
@@ -254,11 +273,17 @@ class Logger {
    * SLA logging helpers
    */
   sla = {
+    created: (entityId, priority, entityType = 'SESSION') => {
+      this.info('SLA', 'SLA record created', { entityId, priority, entityType });
+    },
     timeout: (sessionId, timeElapsed) => {
       this.warn('SLA', 'Session timeout', { sessionId, timeElapsed });
     },
     warning: (sessionId, timeRemaining) => {
       this.warn('SLA', 'SLA warning threshold', { sessionId, timeRemaining });
+    },
+    violation: (entityId, violationType, minutesLate) => {
+      this.error('SLA', `SLA ${violationType} violation`, { entityId, minutesLate });
     }
   };
 }
