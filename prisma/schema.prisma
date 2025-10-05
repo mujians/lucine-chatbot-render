@@ -23,7 +23,7 @@ model ChatSession {
   operatorChats OperatorChat[]
   queueEntries  QueueEntry[]
   internalNotes InternalNote[]
-  slaRecords    SLARecord[]
+  slaMonitoringRecords SLAMonitoringRecord[]
   
   @@index([status, lastActivity])
   @@index([sessionId])
