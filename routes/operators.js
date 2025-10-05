@@ -1034,8 +1034,21 @@ router.post('/close-conversation', authenticateToken, async (req, res) => {
       return res.status(404).json({ error: 'Session not found' });
     }
 
-    if (session.status !== 'WITH_OPERATOR' || session.operatorChats.length === 0) {
+    if (session.status !== 'WITH_OPERATOR') {
       return res.status(400).json({ error: 'Session is not with an operator' });
+    }
+
+    // Allow closure even if operatorChat was ended (user clicked continue after first closure)
+    // Just check if there's an operator chat record (ended or not)
+    const hasOperatorChat = await getPrisma().operatorChat.findFirst({
+      where: {
+        sessionId,
+        operatorId
+      }
+    });
+
+    if (!hasOperatorChat) {
+      return res.status(400).json({ error: 'No operator chat found for this session' });
     }
 
     // Send closure question to user via widget with smart actions

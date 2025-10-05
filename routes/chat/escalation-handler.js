@@ -267,7 +267,8 @@ export async function handleEscalation(message, session) {
             type: 'primary',
             icon: '⏱️',
             text: 'Attendi in linea',
-            description: queueInfo ? `Sei in coda (posizione ${queueInfo.position}°)` : 'Aspetta un operatore'
+            description: queueInfo ? `Sei in coda (posizione ${queueInfo.position}°)` : 'Aspetta un operatore',
+            action: 'wait_in_queue'
           },
           {
             type: 'secondary',

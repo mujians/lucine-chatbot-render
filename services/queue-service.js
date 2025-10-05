@@ -196,36 +196,43 @@ class QueueService {
      * 📈 Calcola tempo di attesa stimato
      */
     async calculateEstimatedWait(priority) {
-        // Trova operatori online
-        const onlineOperators = await this.prisma.operator.count({
-            where: { isOnline: true, isActive: true }
+        // Count available operators (online AND not in active chat)
+        const allOnlineOperators = await this.prisma.operator.findMany({
+            where: { isOnline: true, isActive: true },
+            select: { id: true }
         });
 
-        if (onlineOperators === 0) {
-            return 30; // 30 minuti se nessun operatore
+        if (allOnlineOperators.length === 0) {
+            return 30; // 30 minutes if no operators online
         }
 
-        // Conta code per priorità
-        const queueCounts = await this.prisma.queueEntry.groupBy({
-            by: ['priority'],
-            where: { status: 'WAITING' },
-            _count: { priority: true }
+        // Check how many are actually available (not in active chat)
+        let availableCount = 0;
+        for (const op of allOnlineOperators) {
+            const activeChats = await this.prisma.operatorChat.count({
+                where: {
+                    operatorId: op.id,
+                    endedAt: null
+                }
+            });
+            if (activeChats === 0) availableCount++;
+        }
+
+        // If operators available, wait should be minimal
+        if (availableCount > 0) {
+            return 1; // 1 minute - almost instant
+        }
+
+        // All operators busy - calculate based on queue size and busy operators
+        const busyOperators = allOnlineOperators.length;
+        const totalWaiting = await this.prisma.queueEntry.count({
+            where: { status: 'WAITING' }
         });
 
-        let estimatedMinutes = 0;
+        // Average 5 minutes per chat, distributed across busy operators
+        const estimatedMinutes = Math.ceil((totalWaiting / busyOperators) * 5);
 
-        // Calcola based su priorità (tempi medi per chat)
-        for (const queueCount of queueCounts) {
-            if (priority === 'HIGH' && queueCount.priority === 'HIGH') {
-                estimatedMinutes += (queueCount._count.priority / onlineOperators) * 2;
-            } else if (priority === 'MEDIUM' && ['HIGH', 'MEDIUM'].includes(queueCount.priority)) {
-                estimatedMinutes += (queueCount._count.priority / onlineOperators) * 3;
-            } else if (priority === 'LOW') {
-                estimatedMinutes += (queueCount._count.priority / onlineOperators) * 5;
-            }
-        }
-
-        return Math.max(1, Math.round(estimatedMinutes)); // Minimo 1 minuto
+        return Math.min(30, Math.max(3, estimatedMinutes)); // Between 3-30 minutes
     }
 
     /**
