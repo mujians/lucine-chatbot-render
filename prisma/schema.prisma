@@ -110,11 +110,12 @@ model Operator {
   avatar        String?   // URL or emoji
   specialization String?
   role          String    @default("OPERATOR") // ADMIN or OPERATOR
-  passwordHash  String
-  isActive      Boolean   @default(true)
-  isOnline      Boolean   @default(false)
-  lastSeen      DateTime?
-  createdAt     DateTime  @default(now())
+  passwordHash        String
+  isActive            Boolean   @default(true)
+  isOnline            Boolean   @default(false)
+  availabilityStatus  AvailabilityStatus @default(AVAILABLE)
+  lastSeen            DateTime?
+  createdAt           DateTime  @default(now())
 
   // Relations
   tickets              Ticket[]
@@ -306,8 +307,8 @@ model SLARecord {
   @@index([resolutionOperatorId])
 }
 
-// SLA Records per tracking granulare
-model SLARecord {
+// SLA Monitoring Records (granular tracking)
+model SLAMonitoringRecord {
   id             String      @id @default(uuid())
   sessionId      String
   ticketId       String?
@@ -349,6 +350,14 @@ enum SLAStatus {
   RESOLUTION_MET
   VIOLATED
   ESCALATED
+}
+
+// Operator availability status
+enum AvailabilityStatus {
+  AVAILABLE  // Accepts new chats
+  BUSY       // Only handles assigned chats
+  AWAY       // No new assignments
+  OFFLINE    // Disconnected
 }
 
 // Testi automatici configurabili

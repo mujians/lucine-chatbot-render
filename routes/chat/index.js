@@ -18,6 +18,7 @@ import { ValidationError } from '../../utils/error-handler.js';
 
 // Handlers
 import { handleTicketCollection } from './ticket-handler.js';
+import { operatorEventLogger } from '../../services/operator-event-logging.js';
 import { handleAIResponse } from './ai-handler.js';
 import { handleEscalation } from './escalation-handler.js';
 import {
@@ -223,16 +224,36 @@ router.post('/', async (req, res) => {
 
       const prisma = container.get('prisma');
 
+      // Find active operator chat to log event
+      const activeOperatorChat = await prisma.operatorChat.findFirst({
+        where: {
+          sessionId: session.sessionId,
+          endedAt: null
+        }
+      });
+
       // End operator chat
+      const endTime = new Date();
       await prisma.operatorChat.updateMany({
         where: {
           sessionId: session.sessionId,
           endedAt: null
         },
         data: {
-          endedAt: new Date()
+          endedAt: endTime
         }
       });
+
+      // Log operator closing chat
+      if (activeOperatorChat) {
+        const duration = endTime - new Date(activeOperatorChat.startedAt);
+        await operatorEventLogger.logChatClosed(
+          activeOperatorChat.operatorId,
+          session.sessionId,
+          duration,
+          activeOperatorChat.rating
+        );
+      }
 
       // Set session back to ACTIVE (AI takes over)
       await prisma.chatSession.update({

@@ -214,9 +214,13 @@ class QueueService {
      * 📈 Calcola tempo di attesa stimato
      */
     async calculateEstimatedWait(priority) {
-        // Count available operators (online AND not in active chat)
+        // Count available operators (online AND not in active chat AND availabilityStatus = AVAILABLE)
         const allOnlineOperators = await this.prisma.operator.findMany({
-            where: { isOnline: true, isActive: true },
+            where: {
+                isOnline: true,
+                isActive: true,
+                availabilityStatus: 'AVAILABLE'
+            },
             select: { id: true }
         });
 
@@ -405,7 +409,11 @@ class QueueService {
 
         // Notifica operatori disponibili
         const operators = await this.prisma.operator.findMany({
-            where: { isOnline: true, isActive: true }
+            where: {
+                isOnline: true,
+                isActive: true,
+                availabilityStatus: 'AVAILABLE'
+            }
         });
 
         for (const operator of operators) {
@@ -460,9 +468,10 @@ class QueueService {
      */
     async notifyAvailableOperators(queueEntry) {
         const operators = await this.prisma.operator.findMany({
-            where: { 
-                isOnline: true, 
+            where: {
+                isOnline: true,
                 isActive: true,
+                availabilityStatus: 'AVAILABLE',
                 lastSeen: { gte: new Date(Date.now() - 5 * 60 * 1000) } // Attivi negli ultimi 5 min
             }
         });

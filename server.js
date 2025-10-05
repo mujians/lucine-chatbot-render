@@ -47,6 +47,7 @@ import { queueService } from './services/queue-service.js';
 import { slaService } from './services/sla-service.js';
 import { slaMonitoringService } from './services/sla-monitoring-service.js';
 import { timeoutService } from './services/timeout-service.js';
+import { operatorEventLogger } from './services/operator-event-logging.js';
 
 // Database migration script
 import { ensureTables } from './scripts/ensure-tables.js';
@@ -304,6 +305,9 @@ async function startServer() {
 
     await slaMonitoringService.init(prisma);
     console.log('✅ SLA Monitoring service initialized');
+
+    await operatorEventLogger.init(prisma);
+    console.log('✅ Operator Event Logger initialized');
 
     // Start timeout service
     timeoutService.start();

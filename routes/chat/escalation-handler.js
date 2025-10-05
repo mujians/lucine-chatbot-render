@@ -31,17 +31,19 @@ export async function handleEscalation(message, session) {
     });
     console.log('📊 ALL operators in database:', allOperators);
 
-    // Check for online operators
+    // Check for online operators with AVAILABLE status
     const onlineOperators = await prisma.operator.findMany({
       where: {
         isOnline: true,
-        isActive: true
+        isActive: true,
+        availabilityStatus: 'AVAILABLE'
       },
       select: {
         id: true,
         name: true,
         isOnline: true,
-        isActive: true
+        isActive: true,
+        availabilityStatus: true
       }
     });
 

@@ -7,6 +7,7 @@ import {
   loginLimiter
 } from '../middleware/security.js';
 import { getAutomatedText } from '../utils/automated-texts.js';
+import { operatorEventLogger } from '../services/operator-event-logging.js';
 
 const router = express.Router();
 
@@ -113,11 +114,18 @@ router.post('/login', loginLimiter, async (req, res) => {
       // Update online status
       await getPrisma().operator.update({
         where: { id: operator.id },
-        data: { 
+        data: {
           isOnline: true,
           lastSeen: new Date()
         }
       });
+
+      // Log operator login
+      await operatorEventLogger.logLogin(
+        operator.id,
+        req.ip || req.connection.remoteAddress,
+        req.get('user-agent')
+      );
 
       // Generate JWT token
       const token = TokenManager.generateToken({
@@ -480,6 +488,16 @@ router.post('/take-chat', authenticateToken, validateSession, async (req, res) =
       where: { sessionId },
       data: { status: 'WITH_OPERATOR' }
     });
+
+    // Log operator taking chat
+    const queueEntry = await getPrisma().queueEntry.findFirst({
+      where: { sessionId, status: 'WAITING' }
+    });
+    const queueWaitTime = queueEntry
+      ? Date.now() - new Date(queueEntry.enteredAt).getTime()
+      : 0;
+
+    await operatorEventLogger.logChatTaken(operatorId, sessionId, queueWaitTime);
 
     // 📋 Remove from queue if present (mark as ASSIGNED)
     try {

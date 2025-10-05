@@ -154,6 +154,26 @@ Chiamare immediatamente!
     }
 
     /**
+     * 🎫 Invia link ripresa chat via WhatsApp (ticket creato)
+     */
+    async sendTicketResumeLink(customerPhone, ticketNumber, resumeUrl, customerName = 'Cliente') {
+        const message = `Ciao ${customerName}! 🎄
+
+Il tuo ticket #${ticketNumber} è stato creato con successo.
+
+📝 Per riprendere la conversazione in qualsiasi momento, clicca qui:
+${resumeUrl}
+
+Il link resterà valido e potrai usarlo anche tra giorni.
+
+Grazie per aver scelto Lucine di Natale! ✨
+
+- Team Lucine di Natale`;
+
+        return await this.sendWhatsApp(customerPhone, message);
+    }
+
+    /**
      * 🎄 Notifica follow-up cliente
      */
     async sendCustomerFollowUp(customerPhone, customerName, ticketNumber, resolutionType) {

@@ -6,6 +6,7 @@
 import container from '../../config/container.js';
 import { PATTERNS, CONTACT_METHOD, PRIORITY, SESSION_STATUS, ANALYTICS } from '../../config/constants.js';
 import { getAutomatedText } from '../../utils/automated-texts.js';
+import { twilioService } from '../../services/twilio-service.js';
 
 /**
  * Gestisce il flusso di raccolta dati multi-step per ticket creation
@@ -183,6 +184,22 @@ ${conversationContext}
             }
           }
         });
+
+        // Send WhatsApp notification if user provided phone number
+        if (ticketData.contact.phone && ticketData.contact.method === CONTACT_METHOD.WHATSAPP) {
+          try {
+            await twilioService.sendTicketResumeLink(
+              ticketData.contact.phone,
+              ticket.ticketNumber,
+              resumeUrl,
+              ticketData.name
+            );
+            console.log(`📱 WhatsApp resume link sent to ${ticketData.contact.phone}`);
+          } catch (whatsappError) {
+            console.error('❌ Failed to send WhatsApp notification:', whatsappError);
+            // Non blocchiamo il flusso se l'invio fallisce
+          }
+        }
 
         // Reset session status and clear ticket data
         await prisma.chatSession.update({
