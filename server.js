@@ -45,6 +45,7 @@ import { standardizeResponse } from './utils/api-response.js';
 import { healthService } from './services/health-service.js';
 import { queueService } from './services/queue-service.js';
 import { slaService } from './services/sla-service.js';
+import { slaMonitoringService } from './services/sla-monitoring-service.js';
 import { timeoutService } from './services/timeout-service.js';
 
 // Database migration script
@@ -300,7 +301,10 @@ async function startServer() {
     
     await slaService.init(prisma);
     console.log('✅ SLA service initialized');
-    
+
+    await slaMonitoringService.init(prisma);
+    console.log('✅ SLA Monitoring service initialized');
+
     // Start timeout service
     timeoutService.start();
     console.log('✅ Timeout service started');
@@ -350,24 +354,26 @@ async function startServer() {
 // Graceful shutdown
 process.on('SIGTERM', async () => {
   console.log('SIGTERM received, shutting down gracefully');
-  
+
   // Cleanup services
   await healthService.cleanup();
   await queueService.cleanup();
   await slaService.cleanup();
-  
+  await slaMonitoringService.cleanup();
+
   await prisma.$disconnect();
   process.exit(0);
 });
 
 process.on('SIGINT', async () => {
   console.log('SIGINT received, shutting down gracefully');
-  
+
   // Cleanup services
   await healthService.cleanup();
   await queueService.cleanup();
   await slaService.cleanup();
-  
+  await slaMonitoringService.cleanup();
+
   await prisma.$disconnect();
   process.exit(0);
 });

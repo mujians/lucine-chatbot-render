@@ -73,6 +73,44 @@ export async function resumeChatFromToken(token) {
     // Check if there's an active operator chat
     const activeOperatorChat = session.operatorChats[0];
 
+    // Import automated texts
+    const { getAutomatedText } = await import('../../utils/automated-texts.js');
+
+    // Create welcome back system message with choice (Opzione C)
+    const welcomeBackText = await getAutomatedText('resume_welcome', {
+      ticketNumber: ticket.ticketNumber
+    });
+
+    const welcomeMessage = await prisma.message.create({
+      data: {
+        sessionId: session.sessionId,
+        sender: 'SYSTEM',
+        message: welcomeBackText || `🔄 Bentornato! Questa è la conversazione del ticket #${ticket.ticketNumber}.\n\nVuoi continuare con l'AI o parlare con un operatore?`,
+        metadata: {
+          isResumeWelcome: true,
+          ticketId: ticket.id
+        }
+      }
+    });
+
+    // Prepare smartActions for user choice
+    const smartActions = [
+      {
+        type: 'success',
+        icon: '🤖',
+        text: 'Continua con AI',
+        description: 'Lascia che Lucy AI ti assista',
+        action: 'resume_with_ai'
+      },
+      {
+        type: 'primary',
+        icon: '👤',
+        text: 'Richiedi operatore',
+        description: 'Parla con un operatore umano',
+        action: 'resume_with_operator'
+      }
+    ];
+
     return {
       success: true,
       sessionId: session.sessionId,
@@ -84,12 +122,18 @@ export async function resumeChatFromToken(token) {
         message: msg.message,
         timestamp: msg.timestamp
       })),
+      welcomeMessage: {
+        id: welcomeMessage.id,
+        sender: 'SYSTEM',
+        message: welcomeMessage.message,
+        timestamp: welcomeMessage.timestamp
+      },
+      smartActions, // User choice: AI or Operator
       operatorConnected: !!activeOperatorChat,
       operator: activeOperatorChat ? {
         id: activeOperatorChat.operator.id,
         name: activeOperatorChat.operator.displayName || activeOperatorChat.operator.name
-      } : null,
-      welcomeMessage: `🎫 **Benvenuto!**\n\nHai ripreso la conversazione del ticket #${ticket.ticketNumber}.\n\n${activeOperatorChat ? '🟢 Un operatore è già assegnato alla tua richiesta.' : '⏱️ Sei in attesa di un operatore.'}`
+      } : null
     };
 
   } catch (error) {

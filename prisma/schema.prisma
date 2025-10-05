@@ -23,6 +23,7 @@ model ChatSession {
   operatorChats OperatorChat[]
   queueEntries  QueueEntry[]
   internalNotes InternalNote[]
+  slaRecords    SLARecord[]
   
   @@index([status, lastActivity])
   @@index([sessionId])
@@ -305,6 +306,43 @@ model SLARecord {
   @@index([resolutionOperatorId])
 }
 
+// SLA Records per tracking granulare
+model SLARecord {
+  id             String      @id @default(uuid())
+  sessionId      String
+  ticketId       String?
+  type           SLAType
+  limitSeconds   Int         // Soglia SLA in secondi
+  actualSeconds  Int?        // Tempo effettivo (null se non completato)
+  status         SLARecordStatus @default(OK)
+  triggeredAt    DateTime    @default(now())
+  violatedAt     DateTime?
+  metadata       Json?       // Dati extra (operatorId, etc)
+  createdAt      DateTime    @default(now())
+
+  // Relations
+  session        ChatSession @relation(fields: [sessionId], references: [sessionId], onDelete: Cascade)
+
+  @@index([sessionId])
+  @@index([ticketId])
+  @@index([type, status])
+  @@index([triggeredAt])
+}
+
+enum SLAType {
+  RESPONSE_TIME      // Prima risposta operatore
+  INACTIVITY_TIMEOUT // Timeout inattività
+  RESOLUTION_TIME    // Tempo risoluzione totale
+  QUEUE_WAIT         // Tempo attesa in coda
+}
+
+enum SLARecordStatus {
+  OK              // SLA rispettato
+  WARNING         // Vicino a scadenza
+  VIOLATED        // SLA violato
+}
+
+// Legacy SLA model (mantenuto per compatibilità)
 enum SLAStatus {
   ACTIVE
   RESPONSE_MET

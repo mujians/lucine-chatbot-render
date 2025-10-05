@@ -83,7 +83,15 @@ router.post('/', async (req, res) => {
     });
 
     // Check if this is an internal command (should NOT be saved as user message)
-    const internalCommands = ['request_operator', 'continue_chat', 'end_chat', 'apri ticket', 'continua con assistente AI'];
+    const internalCommands = [
+      'request_operator',
+      'continue_chat',
+      'end_chat',
+      'apri ticket',
+      'continua con assistente AI',
+      'resume_with_ai',      // Resume: continua con AI
+      'resume_with_operator'  // Resume: richiedi operatore
+    ];
     const isInternalCommand = internalCommands.includes(sanitizedMessage);
 
     // Save user message (sanitized) ONLY if not an internal command
@@ -134,16 +142,80 @@ router.post('/', async (req, res) => {
 
     // Check if user is responding to conversation closure request
     if (sanitizedMessage === 'continue_chat') {
-      console.log('✅ User wants to continue chat with operator');
+      console.log('✅ User wants to continue chat');
 
-      const continueText = await getAutomatedText('chat_continue');
+      const prisma = container.get('prisma');
 
-      return res.json({
-        reply: continueText,
-        sessionId: session.sessionId,
-        status: 'with_operator',
-        operatorConnected: true
+      // Check if operator still active
+      const activeOperatorChat = await prisma.operatorChat.findFirst({
+        where: {
+          sessionId: session.sessionId,
+          endedAt: null
+        },
+        include: {
+          operator: {
+            select: { name: true, isOnline: true }
+          }
+        }
       });
+
+      if (activeOperatorChat && activeOperatorChat.operator.isOnline) {
+        // CASO A: Operatore ancora online - continua chat
+        console.log(`✅ Operator ${activeOperatorChat.operatorId} still online, continuing chat`);
+
+        const continueText = await getAutomatedText('chat_continue');
+
+        return res.json({
+          reply: continueText,
+          sessionId: session.sessionId,
+          status: 'with_operator',
+          operatorConnected: true,
+          operatorName: activeOperatorChat.operator.name
+        });
+
+      } else {
+        // CASO B: Operatore ha chiuso o è offline - rimetti in coda con priorità alta
+        console.log('⚠️ Operator closed or offline, re-queueing with HIGH priority');
+
+        const { queueService } = await import('../../services/queue-service.js');
+        const queueInfo = await queueService.addToQueue(
+          session.sessionId,
+          'HIGH' // Priorità alta per chat riaperte
+        );
+
+        // Aggiorna session status
+        await prisma.chatSession.update({
+          where: { id: session.id },
+          data: { status: SESSION_STATUS.ACTIVE }
+        });
+
+        const requeueText = await getAutomatedText('chat_requeued', {
+          position: queueInfo.position,
+          wait: queueInfo.estimatedWait
+        });
+
+        return res.json({
+          reply: requeueText || `L'operatore precedente ha concluso. Ti ho rimesso in coda con priorità alta.\n\n📊 Posizione: ${queueInfo.position}°\n⏱️ Attesa stimata: ~${queueInfo.estimatedWait} min`,
+          sessionId: session.sessionId,
+          status: 'queued',
+          queuePosition: queueInfo.position,
+          estimatedWait: queueInfo.estimatedWait,
+          smartActions: [
+            {
+              type: 'success',
+              icon: '⏳',
+              text: 'Attendi in coda',
+              action: 'wait_in_queue'
+            },
+            {
+              type: 'secondary',
+              icon: '📝',
+              text: 'Apri ticket invece',
+              action: 'request_ticket'
+            }
+          ]
+        });
+      }
     }
 
     if (sanitizedMessage === 'end_chat') {
@@ -191,6 +263,31 @@ router.post('/', async (req, res) => {
         status: 'back_to_ai',
         operatorConnected: false
       });
+    }
+
+    // Handle resume chat actions
+    if (sanitizedMessage === 'resume_with_ai') {
+      console.log('🤖 User chose to resume with AI');
+
+      // Set session to ACTIVE (AI mode)
+      await prisma.chatSession.update({
+        where: { id: session.id },
+        data: { status: SESSION_STATUS.ACTIVE }
+      });
+
+      return res.json({
+        reply: "Perfetto! Continua pure a scrivermi, ti assisto io. 🤖",
+        sessionId: session.sessionId,
+        status: 'active'
+      });
+    }
+
+    if (sanitizedMessage === 'resume_with_operator') {
+      console.log('👤 User chose to resume with operator - escalating');
+
+      // Escalate to operator
+      const escalationResult = await handleEscalation(sanitizedMessage, session);
+      return res.json(escalationResult);
     }
 
     // Check if user is in ticket collection workflow
