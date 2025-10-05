@@ -127,15 +127,12 @@ export async function handleAIResponse(message, session, history) {
       logger.debug('AI', 'Auto-adding escalation buttons for unknown response', { sessionId: session.sessionId });
 
       // ✅ Auto-logout inactive operators (centralized logic)
-      await OperatorRepository.autoLogoutInactive();
-
-      // Check if there are operators online (and active in last 5 minutes)
+      // Check if there are operators online
+      // Note: No availabilityStatus or lastSeen check - operators control via toggle
       const onlineOperators = await prisma.operator.count({
         where: {
           isOnline: true,
-          isActive: true,
-          availabilityStatus: 'AVAILABLE',
-          lastSeen: { gte: fiveMinutesAgo }
+          isActive: true
         }
       });
 

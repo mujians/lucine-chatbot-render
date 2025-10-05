@@ -84,8 +84,8 @@ export class QueueSLAMonitor {
     const operators = await this.prisma.operator.findMany({
       where: {
         isOnline: true,
-        isActive: true,
-        availabilityStatus: 'AVAILABLE'
+        isActive: true
+        // No availabilityStatus check - operators control via toggle
       }
     });
 

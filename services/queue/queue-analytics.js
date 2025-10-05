@@ -53,12 +53,12 @@ export class QueueAnalytics {
    * Calcola tempo di attesa stimato
    */
   async calculateEstimatedWait(priority) {
-    // Count available operators (online AND not in active chat AND availabilityStatus = AVAILABLE)
+    // Count available operators (online AND not in active chat)
+    // Note: No availabilityStatus check - operators control via isOnline toggle
     const allOnlineOperators = await this.prisma.operator.findMany({
       where: {
         isOnline: true,
-        isActive: true,
-        availabilityStatus: 'AVAILABLE'
+        isActive: true
       },
       select: { id: true }
     });

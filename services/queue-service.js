@@ -147,9 +147,8 @@ class QueueService {
     const operators = await this.prisma.operator.findMany({
       where: {
         isOnline: true,
-        isActive: true,
-        availabilityStatus: 'AVAILABLE',
-        lastSeen: { gte: new Date(Date.now() - 5 * 60 * 1000) } // Active in last 5 min
+        isActive: true
+        // No availabilityStatus or lastSeen check - operators control via toggle
       }
     });
 
