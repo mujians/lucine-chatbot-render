@@ -19,6 +19,7 @@ import { calculatePriority, getMinutesWaiting } from '../../utils/priority-calcu
  */
 export async function handleEscalation(message, session) {
   const prisma = container.get('prisma');
+  const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000);
 
   try {
     logger.debug('ESCALATION', 'Checking for operators');

@@ -96,8 +96,8 @@ router.post('/', async (req, res) => {
       'resume_with_operator', // Resume: richiedi operatore
       'request_ticket',      // Ticket: apri ticket
       'open_ticket',         // Ticket: apri ticket (alt)
-      'continue_ai',         // Continue with AI
-      'wait_in_queue'        // Wait in queue
+      'continue_ai'          // Continue with AI
+      // 'wait_in_queue' removed - it's disabled (informational only), no handler needed
     ];
     const isInternalCommand = internalCommands.includes(sanitizedMessage);
 
@@ -331,6 +331,53 @@ router.post('/', async (req, res) => {
       // Escalate to operator
       const escalationResult = await handleEscalation(sanitizedMessage, session);
       return res.json(escalationResult);
+    }
+
+    // Handle continue_ai action (user refuses operator and wants to stay with AI)
+    if (sanitizedMessage === 'continue_ai') {
+      console.log('🤖 User chose to continue with AI (refusing operator)');
+
+      const prisma = container.get('prisma');
+
+      // Cancel any pending queue entries
+      await prisma.queueEntry.updateMany({
+        where: {
+          sessionId: session.sessionId,
+          status: { in: ['WAITING', 'ASSIGNED'] }
+        },
+        data: {
+          status: 'CANCELLED',
+          cancelledAt: new Date(),
+          cancelReason: 'user_refused_operator'
+        }
+      });
+
+      // Set session to ACTIVE (AI mode)
+      await prisma.chatSession.update({
+        where: { id: session.id },
+        data: { status: SESSION_STATUS.ACTIVE }
+      });
+
+      // Log analytics
+      await prisma.analytics.create({
+        data: {
+          eventType: 'operator_refused',
+          sessionId: session.sessionId,
+          eventData: {
+            previousStatus: session.status,
+            reason: 'user_chose_ai'
+          }
+        }
+      });
+
+      const continueAIText = await getAutomatedText('continue_with_ai');
+
+      return res.json({
+        reply: continueAIText || "Perfetto! Continua pure a scrivermi, ti assisto io. 🤖",
+        sessionId: session.sessionId,
+        status: 'active',
+        operatorConnected: false
+      });
     }
 
     // Check if user is in ticket collection workflow
