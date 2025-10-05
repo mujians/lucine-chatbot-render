@@ -549,6 +549,34 @@ router.post('/take-chat', authenticateToken, validateSession, async (req, res) =
       select: { name: true }
     });
 
+    // Add system message FIRST (only if new operator chat)
+    if (!existing) {
+      const systemMessage = await getPrisma().message.create({
+        data: {
+          sessionId,
+          sender: 'SYSTEM',
+          message: `👤 ${operator.name} si è unito alla chat`
+        }
+      });
+
+      // Send system message via WebSocket for instant delivery
+      try {
+        const { notifyWidget } = await import('../utils/notifications.js');
+        notifyWidget(sessionId, {
+          event: 'system_message',
+          message: {
+            id: systemMessage.id,
+            sender: 'SYSTEM',
+            message: systemMessage.message,
+            timestamp: systemMessage.timestamp
+          }
+        });
+        console.log('✅ System message sent via WebSocket');
+      } catch (wsError) {
+        console.warn('⚠️ Failed to send system message via WebSocket:', wsError);
+      }
+    }
+
     // Check if greeting was already sent (to avoid duplicates)
     // Look for any OPERATOR message in this session
     const existingOperatorMessages = await getPrisma().message.findFirst({
@@ -561,7 +589,7 @@ router.post('/take-chat', authenticateToken, validateSession, async (req, res) =
 
     const existingGreeting = existingOperatorMessages;
 
-    // Send automatic greeting if not already sent (BEFORE system message for correct order)
+    // Send automatic greeting AFTER system message (for correct order)
     if (!existingGreeting) {
       console.log('📨 Sending operator greeting...');
       const greetingText = await getAutomatedText('operator_greeting');
@@ -598,34 +626,6 @@ router.post('/take-chat', authenticateToken, validateSession, async (req, res) =
       }
     } else {
       console.log('ℹ️ Greeting already sent, skipping');
-    }
-
-    // Add system message AFTER greeting (only if new operator chat)
-    if (!existing) {
-      const systemMessage = await getPrisma().message.create({
-        data: {
-          sessionId,
-          sender: 'SYSTEM',
-          message: `👤 ${operator.name} si è unito alla chat`
-        }
-      });
-
-      // Send system message via WebSocket for instant delivery
-      try {
-        const { notifyWidget } = await import('../utils/notifications.js');
-        notifyWidget(sessionId, {
-          event: 'system_message',
-          message: {
-            id: systemMessage.id,
-            sender: 'SYSTEM',
-            message: systemMessage.message,
-            timestamp: systemMessage.timestamp
-          }
-        });
-        console.log('✅ System message sent via WebSocket');
-      } catch (wsError) {
-        console.warn('⚠️ Failed to send system message via WebSocket:', wsError);
-      }
     }
 
     res.json({

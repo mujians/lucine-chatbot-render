@@ -310,6 +310,19 @@ async function startServer() {
     setupAutoReload();
     console.log('✅ Knowledge base auto-reload enabled');
 
+    // Start queue cleanup cron job (every 10 minutes)
+    setInterval(async () => {
+      try {
+        const cleanedCount = await queueService.cleanupStaleEntries();
+        if (cleanedCount > 0) {
+          console.log(`🧹 Queue cleanup cron: cleaned ${cleanedCount} entries`);
+        }
+      } catch (error) {
+        console.error('❌ Queue cleanup cron error:', error);
+      }
+    }, 10 * 60 * 1000); // 10 minutes
+    console.log('✅ Queue cleanup cron job started (runs every 10 minutes)');
+
     console.log('✅ All services initialized');
 
     // Database ready for use

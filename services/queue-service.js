@@ -33,6 +33,24 @@ class QueueService {
      */
     async addToQueue(sessionId, priority = 'MEDIUM', requiredSkills = []) {
         try {
+            // Check if already in queue (prevent duplicates)
+            const existing = await this.prisma.queueEntry.findFirst({
+                where: {
+                    sessionId,
+                    status: { in: ['WAITING', 'ASSIGNED'] }
+                }
+            });
+
+            if (existing) {
+                console.log(`ℹ️ Session ${sessionId} already in queue (status: ${existing.status})`);
+                return {
+                    position: await this.getQueuePosition(sessionId),
+                    estimatedWait: existing.estimatedWaitTime,
+                    queueId: existing.id,
+                    alreadyInQueue: true
+                };
+            }
+
             const queueEntry = await this.prisma.queueEntry.create({
                 data: {
                     sessionId,
@@ -527,6 +545,56 @@ class QueueService {
             });
         } catch (error) {
             console.error('Failed to record queue analytics:', error);
+        }
+    }
+
+    /**
+     * 🧹 Cleanup old/stale queue entries
+     * Called by cron job every 10 minutes
+     */
+    async cleanupStaleEntries() {
+        try {
+            const now = new Date();
+            const thirtyMinutesAgo = new Date(now - 30 * 60 * 1000);
+
+            // Find old WAITING entries where session is no longer active
+            const staleEntries = await this.prisma.queueEntry.findMany({
+                where: {
+                    status: 'WAITING',
+                    enteredAt: { lt: thirtyMinutesAgo }
+                },
+                include: {
+                    session: true
+                }
+            });
+
+            let cleanedCount = 0;
+
+            for (const entry of staleEntries) {
+                // Cancel if session is ENDED, CANCELLED, or RESOLVED
+                if (['ENDED', 'CANCELLED', 'RESOLVED', 'NOT_RESOLVED'].includes(entry.session.status)) {
+                    await this.prisma.queueEntry.update({
+                        where: { id: entry.id },
+                        data: {
+                            status: 'CANCELLED',
+                            cancelledAt: new Date(),
+                            cancelReason: 'session_ended_cleanup'
+                        }
+                    });
+                    this.queues.delete(entry.sessionId);
+                    cleanedCount++;
+                }
+            }
+
+            if (cleanedCount > 0) {
+                console.log(`🧹 Cleaned up ${cleanedCount} stale queue entries`);
+                await this.updateQueuePositions();
+            }
+
+            return cleanedCount;
+        } catch (error) {
+            console.error('❌ Failed to cleanup stale queue entries:', error);
+            return 0;
         }
     }
 

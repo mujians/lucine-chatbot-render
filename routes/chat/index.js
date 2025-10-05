@@ -82,8 +82,16 @@ router.post('/', async (req, res) => {
       userAgent: req.headers['user-agent']
     });
 
-    // Save user message (sanitized) and update session activity
-    await saveUserMessage(session.sessionId, sanitizedMessage);
+    // Check if this is an internal command (should NOT be saved as user message)
+    const internalCommands = ['request_operator', 'continue_chat', 'end_chat', 'apri ticket', 'continua con assistente AI'];
+    const isInternalCommand = internalCommands.includes(sanitizedMessage);
+
+    // Save user message (sanitized) ONLY if not an internal command
+    if (!isInternalCommand) {
+      await saveUserMessage(session.sessionId, sanitizedMessage);
+    } else {
+      console.log(`🔒 Internal command detected, not saving to DB: ${sanitizedMessage}`);
+    }
 
     // Check if session is in timeout - riattiva se necessario
     if (session.status === SESSION_STATUS.WAITING_CLIENT) {
@@ -160,7 +168,20 @@ router.post('/', async (req, res) => {
         data: { status: SESSION_STATUS.ACTIVE }
       });
 
-      console.log(`✅ Chat ${session.sessionId} returned to AI control`);
+      // 🔄 CLEANUP QUEUE ENTRY - mark as CANCELLED
+      await prisma.queueEntry.updateMany({
+        where: {
+          sessionId: session.sessionId,
+          status: { in: ['WAITING', 'ASSIGNED'] }
+        },
+        data: {
+          status: 'CANCELLED',
+          cancelledAt: new Date(),
+          cancelReason: 'chat_ended'
+        }
+      });
+
+      console.log(`✅ Chat ${session.sessionId} returned to AI control + queue cleaned up`);
 
       const endGoodbyeText = await getAutomatedText('chat_end_goodbye');
 
