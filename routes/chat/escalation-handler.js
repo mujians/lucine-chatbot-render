@@ -9,6 +9,7 @@ import { SESSION_STATUS, ANALYTICS } from '../../config/constants.js';
 import { queueService } from '../../services/queue-service.js';
 import { slaService } from '../../services/sla-service.js';
 import { getAutomatedText } from '../../utils/automated-texts.js';
+import { createEscalationActions, enrichSmartActions } from '../../utils/smart-actions.js';
 
 /**
  * Gestisce richiesta escalation a operatore
@@ -253,23 +254,6 @@ export async function handleEscalation(message, session) {
       if (!hasOnlineOperators) {
         // SCENARIO 1: No operators online at all
         reply = await getAutomatedText('operator_no_online');
-
-        smartActions = [
-          {
-            type: 'primary',
-            icon: '🎫',
-            text: 'Apri Ticket',
-            description: 'Lascia il tuo contatto per assistenza',
-            action: 'request_ticket'
-          },
-          {
-            type: 'secondary',
-            icon: '🤖',
-            text: 'Continua con AI',
-            description: 'Torna all\'assistente automatico',
-            action: 'continue_ai'
-          }
-        ];
       } else {
         // SCENARIO 2: Operators online but all busy
         const waitMessage = queueInfo && queueInfo.estimatedWait
@@ -277,31 +261,17 @@ export async function handleEscalation(message, session) {
           : 'Ti risponderemo al più presto';
 
         reply = await getAutomatedText('operator_all_busy', { waitMessage });
-
-        smartActions = [
-          {
-            type: 'primary',
-            icon: '⏱️',
-            text: 'Attendi in linea',
-            description: queueInfo ? `Sei in coda (posizione ${queueInfo.position}°)` : 'Aspetta un operatore',
-            action: 'wait_in_queue'
-          },
-          {
-            type: 'secondary',
-            icon: '🎫',
-            text: 'Apri Ticket',
-            description: 'Assistenza via email/WhatsApp',
-            action: 'request_ticket'
-          },
-          {
-            type: 'secondary',
-            icon: '🤖',
-            text: 'Continua con AI',
-            description: 'Torna all\'assistente automatico',
-            action: 'continue_ai'
-          }
-        ];
       }
+
+      // Create context-aware smartActions using utility
+      smartActions = enrichSmartActions(
+        createEscalationActions(hasOnlineOperators, queueInfo),
+        {
+          sessionStatus: session.status,
+          hasOnlineOperators,
+          queuePosition: queueInfo?.position
+        }
+      );
 
       // Return queue info instead of immediate ticket
       return {

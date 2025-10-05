@@ -7,6 +7,7 @@ import container from '../../config/container.js';
 import { MESSAGE_SENDER, SESSION_STATUS } from '../../config/constants.js';
 import { queueService } from '../../services/queue-service.js';
 import { filterMessagesForDisplay } from '../../utils/message-types.js';
+import { filterValidSmartActions } from '../../utils/smart-actions.js';
 
 /**
  * Polling endpoint per ricevere messaggi da operatore
@@ -82,6 +83,8 @@ export async function handlePolling(sessionId) {
     // Filter out command messages and duplicates
     const displayableMessages = filterMessagesForDisplay(session.messages);
 
+    const hasOperator = activeOperatorChat !== null;
+
     const operatorMessages = displayableMessages.map(msg => {
       const messageData = {
         id: msg.id,
@@ -92,9 +95,17 @@ export async function handlePolling(sessionId) {
         // No operatorName - widget shows message directly without prefix
       };
 
-      // Include smartActions if present in metadata (for closure requests, etc.)
+      // Include smartActions if present in metadata, but filter by session state
       if (msg.metadata && msg.metadata.smartActions) {
-        messageData.smartActions = msg.metadata.smartActions;
+        const validActions = filterValidSmartActions(
+          msg.metadata.smartActions,
+          session.status,
+          hasOperator
+        );
+
+        if (validActions.length > 0) {
+          messageData.smartActions = validActions;
+        }
       }
 
       return messageData;

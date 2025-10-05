@@ -28,6 +28,8 @@ import {
   isWithOperator,
   isRequestingTicket
 } from './session-handler.js';
+import { createClosureActions, enrichSmartActions } from '../../utils/smart-actions.js';
+import { createCommandMessage, MESSAGE_CONTEXTS } from '../../utils/message-types.js';
 import { handlePolling } from './polling-handler.js';
 import { resumeChatFromToken } from './resume-handler.js';
 import { getAutomatedText } from '../../utils/automated-texts.js';
@@ -195,26 +197,42 @@ router.post('/', async (req, res) => {
           wait: queueInfo.estimatedWait
         });
 
+        // Create appropriate smartActions for re-queue scenario
+        const smartActions = enrichSmartActions([
+          {
+            type: 'primary',
+            icon: '⏳',
+            text: 'Attendi in coda',
+            description: `Posizione ${queueInfo.position}°`,
+            action: 'wait_in_queue'
+          },
+          {
+            type: 'secondary',
+            icon: '📝',
+            text: 'Apri ticket invece',
+            description: 'Assistenza via email/WhatsApp',
+            action: 'request_ticket'
+          },
+          {
+            type: 'secondary',
+            icon: '🤖',
+            text: 'Continua con AI',
+            description: 'Torna all\'assistente',
+            action: 'continue_ai'
+          }
+        ], {
+          sessionStatus: SESSION_STATUS.WAITING_OPERATOR,
+          queuePosition: queueInfo.position,
+          operatorDisconnected: true
+        });
+
         return res.json({
           reply: requeueText || `L'operatore precedente ha concluso. Ti ho rimesso in coda con priorità alta.\n\n📊 Posizione: ${queueInfo.position}°\n⏱️ Attesa stimata: ~${queueInfo.estimatedWait} min`,
           sessionId: session.sessionId,
           status: 'queued',
           queuePosition: queueInfo.position,
           estimatedWait: queueInfo.estimatedWait,
-          smartActions: [
-            {
-              type: 'success',
-              icon: '⏳',
-              text: 'Attendi in coda',
-              action: 'wait_in_queue'
-            },
-            {
-              type: 'secondary',
-              icon: '📝',
-              text: 'Apri ticket invece',
-              action: 'request_ticket'
-            }
-          ]
+          smartActions
         });
       }
     }
