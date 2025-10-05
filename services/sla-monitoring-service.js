@@ -80,7 +80,7 @@ class SLAMonitoringService {
         : (now - chat.startedAt) / 1000;
 
       // Check if already tracked
-      const existingRecord = await this.prisma.sLARecord.findFirst({
+      const existingRecord = await this.prisma.sLAMonitoringRecord.findFirst({
         where: {
           sessionId: chat.sessionId,
           type: 'RESPONSE_TIME'
@@ -119,7 +119,7 @@ class SLAMonitoringService {
 
       // Create SLA record if WARNING or VIOLATED
       if (status !== 'OK') {
-        await this.prisma.sLARecord.create({
+        await this.prisma.sLAMonitoringRecord.create({
           data: {
             sessionId: chat.sessionId,
             type: 'RESPONSE_TIME',
@@ -174,7 +174,7 @@ class SLAMonitoringService {
       const inactivityTime = (now - lastMessage.timestamp) / 1000;
 
       // Check if already tracked
-      const existingRecord = await this.prisma.sLARecord.findFirst({
+      const existingRecord = await this.prisma.sLAMonitoringRecord.findFirst({
         where: {
           sessionId: session.sessionId,
           type: 'INACTIVITY_TIMEOUT',
@@ -215,7 +215,7 @@ class SLAMonitoringService {
       }
 
       if (status !== 'OK') {
-        await this.prisma.sLARecord.create({
+        await this.prisma.sLAMonitoringRecord.create({
           data: {
             sessionId: session.sessionId,
             type: 'INACTIVITY_TIMEOUT',
@@ -259,7 +259,7 @@ class SLAMonitoringService {
       const resolutionTime = (now - ticket.createdAt) / 1000;
 
       // Check if already tracked
-      const existingRecord = await this.prisma.sLARecord.findFirst({
+      const existingRecord = await this.prisma.sLAMonitoringRecord.findFirst({
         where: {
           sessionId: ticket.sessionId,
           ticketId: ticket.id,
@@ -295,7 +295,7 @@ class SLAMonitoringService {
       }
 
       if (status !== 'OK') {
-        await this.prisma.sLARecord.create({
+        await this.prisma.sLAMonitoringRecord.create({
           data: {
             sessionId: ticket.sessionId,
             ticketId: ticket.id,
@@ -353,7 +353,7 @@ class SLAMonitoringService {
    * Get SLA statistics
    */
   async getSLAStats() {
-    const stats = await this.prisma.sLARecord.groupBy({
+    const stats = await this.prisma.sLAMonitoringRecord.groupBy({
       by: ['type', 'status'],
       _count: { id: true }
     });
