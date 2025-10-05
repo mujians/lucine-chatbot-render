@@ -5,6 +5,7 @@
 
 // Import dinamico di this.prisma verrà fatto al momento dell'inizializzazione
 import { performance } from 'perf_hooks';
+import { notifyOperators } from '../utils/notifications.js';
 
 class HealthService {
     constructor() {
@@ -407,24 +408,13 @@ class HealthService {
     async notifyCriticalAlert(alert) {
         try {
             // Trova operatori/manager da notificare
-            const managers = await this.prisma.operator.findMany({
-                where: { isActive: true },
-                select: { id: true, name: true, email: true }
+            // ✅ Notify all active operators via WebSocket (using notifications utility)
+            notifyOperators({
+                event: 'critical_health_alert',
+                alert,
+                title: '🚨 Critical Health Alert',
+                message: `${alert.metric}: ${alert.message}`
             });
-            
-            // WebSocket notification se disponibile
-            if (global.operatorConnections) {
-                for (const manager of managers) {
-                    if (global.operatorConnections.has(manager.id)) {
-                        const ws = global.operatorConnections.get(manager.id);
-                        ws.send(JSON.stringify({
-                            type: 'critical_health_alert',
-                            alert,
-                            timestamp: new Date().toISOString()
-                        }));
-                    }
-                }
-            }
             
         } catch (error) {
             console.error('Failed to notify critical alert:', error);

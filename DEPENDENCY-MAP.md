@@ -8,11 +8,11 @@
 
 | Category | Count | Notes |
 |----------|-------|-------|
-| **Total JS Files** | 37 | Excluding node_modules and tests |
-| **Core Modules** | 8 | config/, middleware/, utils/ |
+| **Total JS Files** | 43 | Excluding node_modules and tests (+3 new files) |
+| **Core Modules** | 11 | config/, middleware/, utils/ (3 new utils) |
 | **Route Handlers** | 13 | routes/ + routes/chat/ |
-| **Services** | 7 | Background services |
-| **Scripts** | 6 | Database setup & utilities |
+| **Services** | 8 | Background services (+1 auth-service) |
+| **Scripts** | 8 | Database setup & utilities (+ 2 migration fixes) |
 | **Circular Dependencies** | 0 | ✅ Clean architecture with DI container |
 | **Unused Exports** | 3 | 🟡 Flagged for review |
 | **Dead Code Files** | 0 | ✅ All files are used |
@@ -41,13 +41,15 @@ config/container.js (Singleton)
 Layer 1: Configuration & Utilities
   ├── config/container.js
   ├── config/constants.js
-  └── utils/* (knowledge.js, security.js, etc.)
+  ├── utils/operator-repository.js ✨ NEW
+  └── utils/* (knowledge.js, security.js, smart-actions.js, message-types.js, etc.)
 
 Layer 2: Middleware
   ├── middleware/security.js
   └── middleware/check-admin.js
 
 Layer 3: Services
+  ├── services/auth-service.js ✨ NEW
   ├── services/health-service.js
   ├── services/queue-service.js
   ├── services/sla-service.js
@@ -185,9 +187,50 @@ Layer 5: Server Entry Point
 | **Purpose** | Fetch automated texts from database with caching |
 | **Status** | ✅ Essential |
 
+#### `utils/smart-actions.js` 🆕
+| Type | Details |
+|------|---------|
+| **Imports** | `../config/constants.js` (SESSION_STATUS, MESSAGE_SENDER, SMART_ACTION_TYPES) |
+| **Exports** | `isActionValidForSessionState`, `filterValidSmartActions`, `createEscalationActions`, `createClosureActions`, `enrichSmartActions` |
+| **Used By** | routes/chat/index.js, routes/chat/escalation-handler.js, routes/chat/polling-handler.js |
+| **Purpose** | Centralized smartActions validation, filtering, and context-aware creation |
+| **Status** | ✅ Essential - Implements Issue #15 fix (action validation) |
+| **Key Functions** | Validates actions based on session state, filters stale actions, creates context-aware buttons |
+
+#### `utils/message-types.js` 🆕
+| Type | Details |
+|------|---------|
+| **Imports** | `../config/constants.js` (MESSAGE_SENDER, SESSION_STATUS) |
+| **Exports** | `MESSAGE_TYPES`, `MESSAGE_CONTEXTS`, `shouldDisplayMessage`, `filterMessagesForDisplay`, `createSystemMessage`, `createCommandMessage` |
+| **Used By** | routes/chat/index.js, routes/chat/polling-handler.js, routes/operators.js |
+| **Purpose** | Centralized message type management and filtering logic |
+| **Status** | ✅ Essential - Prevents duplicate/command messages from displaying |
+| **Key Functions** | Filters internal commands, creates typed system messages, prevents message duplication |
+
+#### `utils/operator-repository.js` ✨ NEW
+| Type | Details |
+|------|---------|
+| **Imports** | `../config/container.js` |
+| **Exports** | `OperatorRepository` (class), `OPERATOR_FIELDS` (const) |
+| **Used By** | routes/operators.js, routes/users.js, services/auth-service.js |
+| **Purpose** | Centralized operator data access layer with standardized field selections |
+| **Status** | ✅ Essential - Eliminates duplicate operator queries |
+| **Key Methods** | `getActiveOperators()`, `getAllOperators()`, `getById()`, `getByUsername()`, `getAvailableOperators()`, `updateStatus()`, `autoLogoutInactive()` |
+| **Field Sets** | BASIC (4 fields), FULL (13 fields), AUTH (12 fields), AVAILABILITY (6 fields), NOTIFICATION (3 fields) |
+
 ---
 
 ### 🚀 SERVICE FILES
+
+#### `services/auth-service.js` ✨ NEW
+| Type | Details |
+|------|---------|
+| **Imports** | `../config/container.js`, `../utils/security.js`, `./operator-event-logging.js`, `./queue-service.js`, `../utils/operator-repository.js` 🆕 |
+| **Exports** | `authService` (singleton instance), `AuthService` class |
+| **Used By** | routes/operators.js (login, logout) |
+| **Purpose** | Operator authentication & login logic |
+| **Methods** | `login()`, `logout()`, `findOperator()`, `createAdminOperator()`, `tryAutoAssign()`, `formatOperatorResponse()` |
+| **Status** | ✅ Essential |
 
 #### `services/health-service.js`
 | Type | Details |
@@ -266,11 +309,12 @@ Layer 5: Server Entry Point
 #### `routes/chat/index.js` (Main Chat Router)
 | Type | Details |
 |------|---------|
-| **Imports** | `express`, `../../config/container.js`, `../../services/timeout-service.js`, `../../config/constants.js`, `../../utils/security.js`, `../../middleware/security.js`, `../../utils/error-handler.js`, `./ticket-handler.js`, `../../services/operator-event-logging.js`, `./ai-handler.js`, `./escalation-handler.js`, `./session-handler.js`, `./polling-handler.js`, `./resume-handler.js` |
+| **Imports** | `express`, `../../config/container.js`, `../../services/timeout-service.js`, `../../config/constants.js`, `../../utils/security.js`, `../../middleware/security.js`, `../../utils/error-handler.js`, `./ticket-handler.js`, `../../services/operator-event-logging.js`, `./ai-handler.js`, `./escalation-handler.js`, `./session-handler.js`, `./polling-handler.js`, `./resume-handler.js`, `../../utils/smart-actions.js` 🆕, `../../utils/message-types.js` 🆕 |
 | **Exports** | `router` (default) |
 | **Used By** | server.js |
-| **Endpoints** | `POST /` (main chat), `GET /poll/:sessionId`, `GET /resume/:token` |
+| **Endpoints** | `POST /` (main chat), `GET /poll/:sessionId`, `GET /resume/:token`, `GET /sessions/:sessionId` |
 | **Status** | ✅ Essential - main chat logic |
+| **Recent Changes** | Expanded internal commands list (lines 89-101), uses smart-actions & message-types utilities |
 
 #### `routes/chat/ai-handler.js`
 | Type | Details |
@@ -284,11 +328,12 @@ Layer 5: Server Entry Point
 #### `routes/chat/escalation-handler.js`
 | Type | Details |
 |------|---------|
-| **Imports** | `../../config/container.js`, `../../utils/notifications.js`, `../../config/constants.js`, `../../services/queue-service.js`, `../../services/sla-service.js`, `../../utils/automated-texts.js` |
+| **Imports** | `../../config/container.js`, `../../utils/notifications.js`, `../../config/constants.js`, `../../services/queue-service.js`, `../../services/sla-service.js`, `../../utils/automated-texts.js`, `../../utils/smart-actions.js` 🆕 |
 | **Exports** | `handleEscalation` |
 | **Used By** | routes/chat/index.js |
 | **Purpose** | Operator escalation logic |
 | **Status** | ✅ Essential |
+| **Recent Changes** | Uses `createEscalationActions` and `enrichSmartActions` from smart-actions utility (lines 266-273) |
 
 #### `routes/chat/ticket-handler.js`
 | Type | Details |
@@ -311,11 +356,12 @@ Layer 5: Server Entry Point
 #### `routes/chat/polling-handler.js`
 | Type | Details |
 |------|---------|
-| **Imports** | `../../config/container.js`, `../../config/constants.js`, `../../services/queue-service.js` |
+| **Imports** | `../../config/container.js`, `../../config/constants.js`, `../../services/queue-service.js`, `../../utils/message-types.js` 🆕, `../../utils/smart-actions.js` 🆕 |
 | **Exports** | `handlePolling` |
 | **Used By** | routes/chat/index.js |
 | **Purpose** | Fallback polling for messages |
 | **Status** | ✅ Essential |
+| **Recent Changes** | Uses `filterMessagesForDisplay` and `filterValidSmartActions` utilities |
 
 #### `routes/chat/resume-handler.js`
 | Type | Details |
@@ -329,11 +375,12 @@ Layer 5: Server Entry Point
 #### `routes/operators.js`
 | Type | Details |
 |------|---------|
-| **Imports** | `express`, `../config/container.js`, `../middleware/security.js`, `../utils/automated-texts.js`, `../services/operator-event-logging.js` |
+| **Imports** | `express`, `../config/container.js`, `../middleware/security.js`, `../utils/automated-texts.js`, `../services/operator-event-logging.js`, `../utils/message-types.js` 🆕 |
 | **Exports** | `router` (default) |
 | **Used By** | server.js |
 | **Endpoints** | `POST /login`, `POST /send-message`, `GET /pending-chats`, `POST /take-chat`, `POST /end-chat`, `POST /set-availability` |
 | **Status** | ✅ Essential |
+| **Recent Changes** | Uses `createSystemMessage` for operator join messages (lines 577-583) |
 
 #### `routes/users.js`
 | Type | Details |
@@ -448,6 +495,26 @@ Layer 5: Server Entry Point
 | **Purpose** | Create test data |
 | **Status** | 🟡 Development only |
 
+#### `scripts/fix-failed-migration.js` 🆕
+| Type | Details |
+|------|---------|
+| **Imports** | `@prisma/client` |
+| **Exports** | None (standalone script) |
+| **Used By** | Manual CLI execution (deployment fix) |
+| **Purpose** | Fix failed Prisma migration 20251005_add_sla_records |
+| **Status** | ✅ Essential for deployment |
+| **Notes** | Cleans up partial migration artifacts, marks as rolled back |
+
+#### `scripts/force-migration-reset.js` 🆕
+| Type | Details |
+|------|---------|
+| **Imports** | `@prisma/client` |
+| **Exports** | None (standalone script) |
+| **Used By** | Manual CLI execution (emergency use) |
+| **Purpose** | Nuclear option - deletes ALL failed migrations from _prisma_migrations |
+| **Status** | ✅ Emergency utility |
+| **Notes** | Use with caution - removes all failed/rolled-back migration records |
+
 ---
 
 ### 🚀 SERVER FILE
@@ -558,6 +625,7 @@ Scripts folder has mix of startup scripts and utilities
 scripts/
 ├── startup/     # ensure-admin, ensure-tables
 ├── maintenance/ # seed, reset-password
+├── migration/   # fix-failed-migration, force-migration-reset 🆕
 └── dev/         # setup-test-data, check-operators
 ```
 
@@ -577,6 +645,8 @@ scripts/
 | **Utils** | notifications.js | container.js | 3 services, escalation-handler |
 | **Utils** | security.js | crypto, constants.js | chat/index.js |
 | **Utils** | automated-texts.js | container.js | 3 routes |
+| **Utils** | smart-actions.js 🆕 | constants.js | 3 routes (chat/index, escalation, polling) |
+| **Utils** | message-types.js 🆕 | constants.js | 3 routes (chat/index, polling, operators) |
 | **Utils** | error-handler.js | - | ai-handler, chat/index |
 | **Utils** | api-response.js | - | server, analytics, tickets |
 | **Utils** | state-machine.js | constants.js | ⚠️ None found |
@@ -601,6 +671,14 @@ scripts/
 | **Routes** | health.js | 2 modules | server |
 | **Routes** | chat-management.js | 2 modules | server |
 | **Routes** | automated-texts.js | 2 modules | server |
+| **Script** | ensure-tables.js | @prisma/client | server (startup) |
+| **Script** | ensure-admin.js | @prisma/client, bcrypt | server (startup) |
+| **Script** | check-operators.js | @prisma/client | CLI manual |
+| **Script** | reset-admin-password.js | @prisma/client, bcrypt | CLI manual |
+| **Script** | seed-automated-texts.js | @prisma/client | CLI/package.json |
+| **Script** | setup-test-data.js | @prisma/client, dotenv | CLI dev |
+| **Script** | fix-failed-migration.js 🆕 | @prisma/client | CLI deployment |
+| **Script** | force-migration-reset.js 🆕 | @prisma/client | CLI emergency |
 
 ---
 
@@ -706,6 +784,7 @@ All services export singleton instances with `init()` method called by server.js
 ---
 
 **Generated by:** Claude Code
-**Last Updated:** 2025-10-05
-**Files Analyzed:** 37 JavaScript modules
+**Last Updated:** 2025-10-05 18:20
+**Files Analyzed:** 41 JavaScript modules
 **Analysis Method:** Static code analysis + import tracking
+**Last Revision:** Added 2 new utility modules (smart-actions.js, message-types.js) and updated 5 route files

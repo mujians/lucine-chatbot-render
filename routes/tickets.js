@@ -2,11 +2,12 @@ import express from 'express';
 import container from '../config/container.js';
 import { StatusCodes, ErrorCodes } from '../utils/api-response.js';
 import { authenticateToken } from '../middleware/security.js';
+import { notifyOperators } from '../utils/notifications.js';
 
 const router = express.Router();
 
-// Helper to get prisma (lazy load)
-const getPrisma = () => container.get('prisma');
+// Helper to get database client (lazy load)
+const getDatabase = () => container.get('prisma');
 // const prisma = container.get('prisma');
 
 // Create ticket
@@ -40,7 +41,7 @@ router.post('/', async (req, res) => {
       priority: 'MEDIUM'
     });
 
-    const ticket = await getPrisma().ticket.create({
+    const ticket = await getDatabase().ticket.create({
       data: {
         sessionId,
         subject: subject || 'Richiesta supporto',
@@ -54,7 +55,7 @@ router.post('/', async (req, res) => {
     });
 
     // Log analytics
-    await getPrisma().analytics.create({
+    await getDatabase().analytics.create({
       data: {
         eventType: 'ticket_created',
         sessionId,
@@ -110,7 +111,7 @@ router.post('/:ticketNumber/reopen-chat', async (req, res) => {
     const { operatorId } = req.body;
 
     // Trova ticket
-    const ticket = await getPrisma().ticket.findUnique({
+    const ticket = await getDatabase().ticket.findUnique({
       where: { ticketNumber },
       include: { session: true }
     });
@@ -124,7 +125,7 @@ router.post('/:ticketNumber/reopen-chat', async (req, res) => {
     }
 
     // Verifica che operatore esista
-    const operator = await getPrisma().operator.findUnique({
+    const operator = await getDatabase().operator.findUnique({
       where: { id: operatorId, isActive: true }
     });
 
@@ -134,7 +135,7 @@ router.post('/:ticketNumber/reopen-chat', async (req, res) => {
 
     // Riattiva sessione se terminata
     if (ticket.session.status === 'ENDED') {
-      await getPrisma().chatSession.update({
+      await getDatabase().chatSession.update({
         where: { sessionId: ticket.sessionId },
         data: { 
           status: 'WITH_OPERATOR',
@@ -144,7 +145,7 @@ router.post('/:ticketNumber/reopen-chat', async (req, res) => {
     }
 
     // Crea nuovo OperatorChat se non esiste
-    const existingChat = await getPrisma().operatorChat.findFirst({
+    const existingChat = await getDatabase().operatorChat.findFirst({
       where: {
         sessionId: ticket.sessionId,
         endedAt: null
@@ -153,7 +154,7 @@ router.post('/:ticketNumber/reopen-chat', async (req, res) => {
 
     let operatorChat;
     if (!existingChat) {
-      operatorChat = await getPrisma().operatorChat.create({
+      operatorChat = await getDatabase().operatorChat.create({
         data: {
           sessionId: ticket.sessionId,
           operatorId
@@ -164,7 +165,7 @@ router.post('/:ticketNumber/reopen-chat', async (req, res) => {
     }
 
     // Aggiorna ticket status
-    await getPrisma().ticket.update({
+    await getDatabase().ticket.update({
       where: { id: ticket.id },
       data: { 
         status: 'IN_PROGRESS',
@@ -173,7 +174,7 @@ router.post('/:ticketNumber/reopen-chat', async (req, res) => {
     });
 
     // Messaggio di sistema per riapertura
-    await getPrisma().message.create({
+    await getDatabase().message.create({
       data: {
         sessionId: ticket.sessionId,
         sender: 'SYSTEM',
@@ -181,16 +182,14 @@ router.post('/:ticketNumber/reopen-chat', async (req, res) => {
       }
     });
 
-    // Notifica operatore via WebSocket
-    if (global.operatorConnections && global.operatorConnections.has(operatorId)) {
-      const ws = global.operatorConnections.get(operatorId);
-      ws.send(JSON.stringify({
-        type: 'chat_reopened',
-        sessionId: ticket.sessionId,
-        ticketNumber: ticket.ticketNumber,
-        timestamp: new Date().toISOString()
-      }));
-    }
+    // ✅ Notifica operatore via WebSocket (using notifications utility)
+    notifyOperators({
+      event: 'chat_reopened',
+      sessionId: ticket.sessionId,
+      ticketNumber: ticket.ticketNumber,
+      title: 'Chat Riaperta',
+      message: `Chat riaperta da ticket #${ticketNumber}`
+    }, operatorId);
 
     res.json({
       success: true,
@@ -209,7 +208,7 @@ router.post('/:ticketNumber/reopen-chat', async (req, res) => {
 // Get ticket status
 router.get('/:ticketNumber', async (req, res) => {
   try {
-    const ticket = await getPrisma().ticket.findUnique({
+    const ticket = await getDatabase().ticket.findUnique({
       where: { ticketNumber: req.params.ticketNumber },
       include: {
         notes: {
@@ -243,7 +242,7 @@ router.get('/:ticketNumber', async (req, res) => {
 // List all tickets (admin) - Requires authentication
 router.get('/', authenticateToken, async (req, res) => {
   try {
-    const tickets = await getPrisma().ticket.findMany({
+    const tickets = await getDatabase().ticket.findMany({
       orderBy: { createdAt: 'desc' },
       include: {
         assignedTo: {
@@ -276,7 +275,7 @@ router.put('/:ticketId', authenticateToken, async (req, res) => {
   try {
     const { status, priority, operatorId, note } = req.body;
     
-    const ticket = await getPrisma().ticket.update({
+    const ticket = await getDatabase().ticket.update({
       where: { id: req.params.ticketId },
       data: {
         status,
@@ -287,7 +286,7 @@ router.put('/:ticketId', authenticateToken, async (req, res) => {
     });
 
     if (note) {
-      await getPrisma().ticketNote.create({
+      await getDatabase().ticketNote.create({
         data: {
           ticketId: ticket.id,
           note,
@@ -331,7 +330,7 @@ router.post('/from-chat', async (req, res) => {
     }
 
     // Recupera la storia della conversazione per context
-    const session = await getPrisma().chatSession.findUnique({
+    const session = await getDatabase().chatSession.findUnique({
       where: { sessionId },
       include: {
         messages: {
@@ -345,7 +344,7 @@ router.post('/from-chat', async (req, res) => {
       ?.map(msg => `${msg.sender}: ${msg.message}`)
       ?.join('\n') || 'Nessun messaggio precedente';
 
-    const ticket = await getPrisma().ticket.create({
+    const ticket = await getDatabase().ticket.create({
       data: {
         sessionId,
         subject: `Supporto da Chat - Sessione ${sessionId.substring(0, 8)}`,
@@ -358,7 +357,7 @@ router.post('/from-chat', async (req, res) => {
     });
 
     // Log analytics
-    await getPrisma().analytics.create({
+    await getDatabase().analytics.create({
       data: {
         eventType: 'ticket_from_chat',
         sessionId,

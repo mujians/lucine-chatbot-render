@@ -10,6 +10,9 @@ import { queueService } from '../../services/queue-service.js';
 import { slaService } from '../../services/sla-service.js';
 import { getAutomatedText } from '../../utils/automated-texts.js';
 import { createEscalationActions, enrichSmartActions } from '../../utils/smart-actions.js';
+import logger from '../../utils/logger.js';
+import { OperatorRepository } from '../../utils/operator-repository.js';
+import { calculatePriority, getMinutesWaiting } from '../../utils/priority-calculator.js';
 
 /**
  * Gestisce richiesta escalation a operatore
@@ -18,7 +21,7 @@ export async function handleEscalation(message, session) {
   const prisma = container.get('prisma');
 
   try {
-    console.log('🔍 ESCALATION REQUEST - Checking for operators...');
+    logger.debug('ESCALATION', 'Checking for operators');
 
     // Debug: Show ALL operators first
     const allOperators = await prisma.operator.findMany({
@@ -30,20 +33,10 @@ export async function handleEscalation(message, session) {
         lastSeen: true
       }
     });
-    console.log('📊 ALL operators in database:', allOperators);
+    logger.debug('ESCALATION', 'All operators in database', { count: allOperators.length });
 
-    // Auto-logout operators inactive for more than 5 minutes
-    const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000);
-    await prisma.operator.updateMany({
-      where: {
-        isOnline: true,
-        lastSeen: { lt: fiveMinutesAgo }
-      },
-      data: {
-        isOnline: false,
-        availabilityStatus: 'OFFLINE'
-      }
-    });
+    // ✅ Auto-logout inactive operators (centralized logic)
+    await OperatorRepository.autoLogoutInactive();
 
     // Check for online operators with AVAILABLE status
     const onlineOperators = await prisma.operator.findMany({
@@ -62,20 +55,35 @@ export async function handleEscalation(message, session) {
       }
     });
 
-    console.log('🎯 Online operators found:', onlineOperators.length);
+    logger.info('ESCALATION', 'Online operators found', { count: onlineOperators.length });
 
-    // Find operators not currently in active chats
+    // ✅ FIX N+1 QUERY: Get all active chat counts in a single query
     let availableOperator = null;
     if (onlineOperators.length > 0) {
-      for (const operator of onlineOperators) {
-        const activeChats = await prisma.operatorChat.count({
-          where: {
-            operatorId: operator.id,
-            endedAt: null // Still active
-          }
-        });
+      // Extract operator IDs
+      const operatorIds = onlineOperators.map(op => op.id);
 
-        console.log(`👤 Operator ${operator.name}: ${activeChats} active chats`);
+      // Single query to get active chat counts for all operators
+      const activeChatCounts = await prisma.operatorChat.groupBy({
+        by: ['operatorId'],
+        where: {
+          operatorId: { in: operatorIds },
+          endedAt: null
+        },
+        _count: {
+          id: true
+        }
+      });
+
+      // Create lookup map for O(1) access
+      const chatCountMap = new Map(
+        activeChatCounts.map(result => [result.operatorId, result._count.id])
+      );
+
+      // Find first operator with 0 active chats
+      for (const operator of onlineOperators) {
+        const activeChats = chatCountMap.get(operator.id) || 0;
+        logger.debug('ESCALATION', 'Operator chat count', { operatorName: operator.name, activeChats });
 
         if (activeChats === 0) {
           availableOperator = operator;
@@ -87,7 +95,10 @@ export async function handleEscalation(message, session) {
     const hasOnlineOperators = onlineOperators.length > 0;
     const hasAvailableOperator = availableOperator !== null;
 
-    console.log(`📊 Summary: ${onlineOperators.length} online, ${hasAvailableOperator ? 'available' : 'all busy'}`);
+    logger.info('ESCALATION', 'Operators summary', {
+      onlineCount: onlineOperators.length,
+      hasAvailable: hasAvailableOperator
+    });
 
     if (hasAvailableOperator) {
       // Update session status
@@ -121,9 +132,9 @@ export async function handleEscalation(message, session) {
           slaPriority,
           'OPERATOR_ESCALATION'
         );
-        console.log(`✅ SLA record created for operator chat (priority: ${slaPriority})`);
+        logger.info('SLA', 'SLA record created for operator chat', { priority: slaPriority, sessionId: session.sessionId });
       } catch (error) {
-        console.error('⚠️ Failed to create SLA record:', error);
+        logger.error('SLA', 'Failed to create SLA record', error);
         // Non blocking - continue with escalation
       }
 
@@ -178,20 +189,13 @@ export async function handleEscalation(message, session) {
         }
       };
     } else {
-      console.log('❌ NO OPERATORS AVAILABLE - Adding to queue');
+      logger.info('ESCALATION', 'No operators available - adding to queue', { sessionId: session.sessionId });
 
-      // 📊 Calculate priority based on session wait time
-      const sessionAge = Date.now() - new Date(session.createdAt).getTime();
-      const minutesWaiting = Math.floor(sessionAge / 60000);
+      // ✅ Calculate priority based on session wait time (centralized logic)
+      const priority = calculatePriority(session.createdAt);
+      const minutesWaiting = getMinutesWaiting(session.createdAt);
 
-      let priority = 'LOW';
-      if (minutesWaiting > 15) {
-        priority = 'HIGH';
-      } else if (minutesWaiting > 5) {
-        priority = 'MEDIUM';
-      }
-
-      console.log(`📊 Session age: ${minutesWaiting} min → Priority: ${priority}`);
+      logger.debug('QUEUE', 'Calculated priority', { sessionId: session.sessionId, minutesWaiting, priority });
 
       // 📋 Add to queue with dynamic priority
       let queueInfo = null;
@@ -201,9 +205,9 @@ export async function handleEscalation(message, session) {
           priority,
           [] // requiredSkills
         );
-        console.log('✅ Session added to queue:', queueInfo);
+        logger.queue.added(session.sessionId, priority, queueInfo);
       } catch (error) {
-        console.error('⚠️ Failed to add to queue:', error);
+        logger.error('QUEUE', 'Failed to add to queue', error);
         // Continue with fallback to ticket
       }
 
@@ -221,9 +225,9 @@ export async function handleEscalation(message, session) {
           priority, // Use calculated priority
           'QUEUE_WAITING'
         );
-        console.log(`✅ SLA record created for queue entry (priority: ${priority})`);
+        logger.info('SLA', 'SLA record created for queue entry', { priority, sessionId: session.sessionId });
       } catch (error) {
-        console.error('⚠️ Failed to create SLA for queue:', error);
+        logger.error('SLA', 'Failed to create SLA for queue', error);
       }
 
       // Notify ALL operators that there's a new request waiting
@@ -289,7 +293,7 @@ export async function handleEscalation(message, session) {
       };
     }
   } catch (error) {
-    console.error('❌ Escalation error:', error);
+    logger.error('ESCALATION', 'Escalation error', error);
     throw error;
   }
 }

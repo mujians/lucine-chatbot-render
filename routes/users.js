@@ -8,34 +8,19 @@ import bcrypt from 'bcryptjs';
 import container from '../config/container.js';
 import { authenticateToken } from '../middleware/security.js';
 import checkAdmin from '../middleware/check-admin.js';
+import { OperatorRepository, OPERATOR_FIELDS } from '../utils/operator-repository.js';
 
 const router = express.Router();
 
-// Helper to get prisma
-const getPrisma = () => container.get('prisma');
+// Helper to get database client
+const getDatabase = () => container.get('prisma');
 
 /**
- * GET /api/users - Lista tutti gli operatori (ADMIN only)
+ * ✅ GET /api/users - Lista tutti gli operatori (ADMIN only) - Using OperatorRepository
  */
 router.get('/', authenticateToken, checkAdmin, async (req, res) => {
   try {
-    const operators = await getPrisma().operator.findMany({
-      select: {
-        id: true,
-        username: true,
-        email: true,
-        name: true,
-        displayName: true,
-        avatar: true,
-        specialization: true,
-        role: true,
-        isActive: true,
-        isOnline: true,
-        lastSeen: true,
-        createdAt: true
-      },
-      orderBy: { createdAt: 'desc' }
-    });
+    const operators = await OperatorRepository.getAllOperators();
 
     res.json(operators);
   } catch (error) {
@@ -45,26 +30,12 @@ router.get('/', authenticateToken, checkAdmin, async (req, res) => {
 });
 
 /**
- * GET /api/users/me - Get current operator info
+ * ✅ GET /api/users/me - Get current operator info - Using OperatorRepository
  * IMPORTANT: This must come BEFORE /:id route
  */
 router.get('/me', authenticateToken, async (req, res) => {
   try {
-    const operator = await getPrisma().operator.findUnique({
-      where: { id: req.operatorId },
-      select: {
-        id: true,
-        username: true,
-        email: true,
-        name: true,
-        displayName: true,
-        avatar: true,
-        specialization: true,
-        role: true,
-        isActive: true,
-        isOnline: true
-      }
-    });
+    const operator = await OperatorRepository.getById(req.operatorId);
 
     if (!operator) {
       return res.status(404).json({ error: 'Operator not found' });
@@ -85,23 +56,7 @@ router.get('/:id', authenticateToken, checkAdmin, async (req, res) => {
     const { id } = req.params;
     console.log(`🔍 Fetching user by ID: ${id}`);
 
-    const operator = await getPrisma().operator.findUnique({
-      where: { id },
-      select: {
-        id: true,
-        username: true,
-        email: true,
-        name: true,
-        displayName: true,
-        avatar: true,
-        specialization: true,
-        role: true,
-        isActive: true,
-        isOnline: true,
-        lastSeen: true,
-        createdAt: true
-      }
-    });
+    const operator = await OperatorRepository.getById(id);
 
     if (!operator) {
       console.log(`❌ Operator not found with ID: ${id}`);
@@ -131,7 +86,7 @@ router.post('/', authenticateToken, checkAdmin, async (req, res) => {
     }
 
     // Check if username or email already exists
-    const existing = await getPrisma().operator.findFirst({
+    const existing = await getDatabase().operator.findFirst({
       where: {
         OR: [
           { username },
@@ -152,7 +107,7 @@ router.post('/', authenticateToken, checkAdmin, async (req, res) => {
     const passwordHash = await bcrypt.hash(password, 10);
 
     // Create operator
-    const operator = await getPrisma().operator.create({
+    const operator = await getDatabase().operator.create({
       data: {
         username,
         email,
@@ -211,7 +166,7 @@ router.put('/:id', authenticateToken, checkAdmin, async (req, res) => {
       updateData.passwordHash = await bcrypt.hash(password, 10);
     }
 
-    const operator = await getPrisma().operator.update({
+    const operator = await getDatabase().operator.update({
       where: { id },
       data: updateData,
       select: {
@@ -250,7 +205,7 @@ router.delete('/:id', authenticateToken, checkAdmin, async (req, res) => {
     const { id } = req.params;
 
     // Check if trying to delete admin
-    const operator = await getPrisma().operator.findUnique({
+    const operator = await getDatabase().operator.findUnique({
       where: { id },
       select: { role: true, username: true }
     });
@@ -262,7 +217,7 @@ router.delete('/:id', authenticateToken, checkAdmin, async (req, res) => {
     }
 
     // Deactivate instead of delete
-    await getPrisma().operator.update({
+    await getDatabase().operator.update({
       where: { id },
       data: {
         isActive: false,

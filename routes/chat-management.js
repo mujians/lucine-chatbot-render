@@ -4,8 +4,8 @@ import { authenticateToken, validateSession } from '../middleware/security.js';
 
 const router = express.Router();
 
-// Helper to get prisma (lazy load)
-const getPrisma = () => container.get('prisma');
+// Helper to get database client (lazy load)
+const getDatabase = () => container.get('prisma');
 // const prisma = container.get('prisma');
 
 /**
@@ -25,7 +25,7 @@ router.post('/update-status', authenticateToken, validateSession, async (req, re
     }
 
     // Verifica che l'operatore sia assegnato a questa chat
-    const operatorChat = await getPrisma().operatorChat.findFirst({
+    const operatorChat = await getDatabase().operatorChat.findFirst({
       where: {
         sessionId,
         operatorId,
@@ -51,7 +51,7 @@ router.post('/update-status', authenticateToken, validateSession, async (req, re
     }
 
     // Aggiorna sessione
-    const updatedSession = await getPrisma().chatSession.update({
+    const updatedSession = await getDatabase().chatSession.update({
       where: { sessionId },
       data: { 
         status,
@@ -61,7 +61,7 @@ router.post('/update-status', authenticateToken, validateSession, async (req, re
 
     // Se chiusura definitiva, chiudi operatorChat
     if (['RESOLVED', 'NOT_RESOLVED', 'CANCELLED'].includes(status)) {
-      await getPrisma().operatorChat.update({
+      await getDatabase().operatorChat.update({
         where: { id: operatorChat.id },
         data: { 
           endedAt: new Date(),
@@ -71,7 +71,7 @@ router.post('/update-status', authenticateToken, validateSession, async (req, re
     }
 
     // Log analytics
-    await getPrisma().analytics.create({
+    await getDatabase().analytics.create({
       data: {
         eventType: 'chat_status_changed',
         sessionId,
@@ -117,7 +117,7 @@ router.post('/add-note', authenticateToken, validateSession, async (req, res) =>
     }
 
     // Verifica che l'operatore abbia accesso a questa chat
-    const operatorChat = await getPrisma().operatorChat.findFirst({
+    const operatorChat = await getDatabase().operatorChat.findFirst({
       where: {
         sessionId,
         operatorId
@@ -134,7 +134,7 @@ router.post('/add-note', authenticateToken, validateSession, async (req, res) =>
     }
 
     // Crea nota interna
-    const note = await getPrisma().internalNote.create({
+    const note = await getDatabase().internalNote.create({
       data: {
         content: content.trim(),
         operatorId,
@@ -148,7 +148,7 @@ router.post('/add-note', authenticateToken, validateSession, async (req, res) =>
     });
 
     // Log analytics
-    await getPrisma().analytics.create({
+    await getDatabase().analytics.create({
       data: {
         eventType: 'internal_note_added',
         sessionId,
@@ -188,7 +188,7 @@ router.get('/history/:sessionId', authenticateToken, validateSession, async (req
     console.log('📚 Chat history request:', { sessionId, operatorId });
     
     // Verifica accesso
-    const operatorChat = await getPrisma().operatorChat.findFirst({
+    const operatorChat = await getDatabase().operatorChat.findFirst({
       where: {
         sessionId,
         operatorId
@@ -325,7 +325,7 @@ router.get('/active-chats', authenticateToken, validateSession, async (req, res)
         };
     }
 
-    const activeSessions = await getPrisma().chatSession.findMany({
+    const activeSessions = await getDatabase().chatSession.findMany({
       where: whereClause,
       include: {
         operatorChats: {
@@ -352,7 +352,7 @@ router.get('/active-chats', authenticateToken, validateSession, async (req, res)
     });
 
     // Statistiche rapide
-    const stats = await getPrisma().chatSession.groupBy({
+    const stats = await getDatabase().chatSession.groupBy({
       by: ['status'],
       where: {
         status: {
@@ -407,7 +407,7 @@ router.post('/create-ticket', authenticateToken, validateSession, async (req, re
     }
 
     // Verifica accesso alla chat
-    const operatorChat = await getPrisma().operatorChat.findFirst({
+    const operatorChat = await getDatabase().operatorChat.findFirst({
       where: {
         sessionId,
         operatorId
@@ -459,7 +459,7 @@ INFORMAZIONI TECNICHE:
 `.trim();
 
     // Crea ticket collegato alla chat
-    const ticket = await getPrisma().ticket.create({
+    const ticket = await getDatabase().ticket.create({
       data: {
         sessionId,
         subject,
@@ -479,7 +479,7 @@ INFORMAZIONI TECNICHE:
     });
 
     // Aggiungi nota interna automatica
-    await getPrisma().internalNote.create({
+    await getDatabase().internalNote.create({
       data: {
         content: `🎫 Ticket #${ticket.ticketNumber} creato automaticamente da questa chat.`,
         operatorId,
@@ -488,7 +488,7 @@ INFORMAZIONI TECNICHE:
     });
 
     // Aggiorna stato chat se necessario
-    await getPrisma().chatSession.update({
+    await getDatabase().chatSession.update({
       where: { sessionId },
       data: { 
         status: 'RESOLVED', // Considera la chat risolta se è stato creato ticket
@@ -497,7 +497,7 @@ INFORMAZIONI TECNICHE:
     });
 
     // Log analytics
-    await getPrisma().analytics.create({
+    await getDatabase().analytics.create({
       data: {
         eventType: 'ticket_created_from_chat',
         sessionId,

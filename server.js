@@ -15,6 +15,9 @@ import container from './config/container.js';
 // Constants
 import { ALLOWED_ORIGINS } from './config/constants.js';
 
+// Logger
+import logger from './utils/logger.js';
+
 // Routes - chat.js ora è modulare in routes/chat/
 import chatRouter from './routes/chat/index.js';
 import operatorRouter from './routes/operators.js';
@@ -83,22 +86,18 @@ const operatorConnections = new Map();
 // Store active widget connections by sessionId
 const widgetConnections = new Map();
 
-// Register in DI container invece di export
+// ✅ Register in DI container (single source of truth)
 container.register('operatorConnections', operatorConnections);
 container.register('widgetConnections', widgetConnections);
 
-// Backward compatibility per services che usano global
-global.operatorConnections = operatorConnections;
-global.widgetConnections = widgetConnections;
-
 // WebSocket connection handling
 wss.on('connection', (ws, req) => {
-  console.log('🔌 New WebSocket connection');
+  logger.websocket.connected('new_connection');
   
   ws.on('message', (message) => {
     try {
       const data = JSON.parse(message);
-      console.log('📨 WebSocket message:', data);
+      logger.debug('WEBSOCKET', 'Message received', { type: data.type });
 
       if (data.type === 'operator_auth') {
         // Associate connection with operator
@@ -106,7 +105,7 @@ wss.on('connection', (ws, req) => {
         ws.clientType = 'operator';
         operatorConnections.set(data.operatorId, ws);
 
-        console.log(`👤 Operator ${data.operatorId} connected via WebSocket`);
+        logger.websocket.connected(`operator_${data.operatorId}`);
 
         // Send confirmation
         ws.send(JSON.stringify({
@@ -120,7 +119,7 @@ wss.on('connection', (ws, req) => {
         ws.clientType = 'widget';
         widgetConnections.set(data.sessionId, ws);
 
-        console.log(`🤖 Widget ${data.sessionId} connected via WebSocket`);
+        logger.websocket.connected(`widget_${data.sessionId}`);
 
         // Send confirmation
         ws.send(JSON.stringify({
@@ -130,23 +129,23 @@ wss.on('connection', (ws, req) => {
         }));
       }
     } catch (error) {
-      console.error('❌ WebSocket message error:', error);
+      logger.error('WEBSOCKET', 'Message handling error', error);
     }
   });
   
   ws.on('close', () => {
     if (ws.operatorId) {
       operatorConnections.delete(ws.operatorId);
-      console.log(`👋 Operator ${ws.operatorId} disconnected`);
+      logger.websocket.disconnected(`operator_${ws.operatorId}`);
     }
     if (ws.sessionId) {
       widgetConnections.delete(ws.sessionId);
-      console.log(`👋 Widget ${ws.sessionId} disconnected`);
+      logger.websocket.disconnected(`widget_${ws.sessionId}`);
     }
   });
   
   ws.on('error', (error) => {
-    console.error('❌ WebSocket error:', error);
+    logger.error('WEBSOCKET', 'WebSocket error', error);
   });
 });
 
@@ -244,10 +243,10 @@ app.use('/dashboard', express.static('public/dashboard'));
 // Dashboard fallback routes for debugging
 app.get('/dashboard/js/dashboard.js', (req, res) => {
   const filePath = path.join(process.cwd(), 'public/dashboard/js/dashboard.js');
-  console.log(`📁 Serving dashboard.js from: ${filePath}`);
+  logger.debug('SERVER', 'Serving dashboard.js', { filePath });
   res.sendFile(filePath, (err) => {
     if (err) {
-      console.error('❌ Error serving dashboard.js:', err);
+      logger.error('SERVER', 'Error serving dashboard.js', err);
       res.status(500).json({ error: 'Failed to serve dashboard.js', details: err.message });
     }
   });
@@ -255,10 +254,10 @@ app.get('/dashboard/js/dashboard.js', (req, res) => {
 
 app.get('/dashboard/css/dashboard.css', (req, res) => {
   const filePath = path.join(process.cwd(), 'public/dashboard/css/dashboard.css');
-  console.log(`📁 Serving dashboard.css from: ${filePath}`);
+  logger.debug('SERVER', 'Serving dashboard.css', { filePath });
   res.sendFile(filePath, (err) => {
     if (err) {
-      console.error('❌ Error serving dashboard.css:', err);
+      logger.error('SERVER', 'Error serving dashboard.css', err);
       res.status(500).json({ error: 'Failed to serve dashboard.css', details: err.message });
     }
   });
@@ -279,60 +278,60 @@ async function startServer() {
   try {
     // Test database connection
     await prisma.$connect();
-    console.log('✅ Database connected');
+    logger.db.connected();
     
     // Inject prisma into security middleware (avoid circular imports)
     setPrismaClient(prisma);
     
     // Ensure all required tables exist
     await ensureTables();
-    console.log('✅ Database tables verified');
+    logger.info('DB', 'Database tables verified');
 
     // Ensure admin user exists with correct password
     // TEMPORARILY DISABLED - Will re-enable after migration is applied
     // await ensureAdminExists(prisma);
-    console.log('⏭️ Admin check skipped (migration pending)');
+    logger.debug('SERVER', 'Admin check skipped (migration pending)');
     
     // Initialize services after database is ready
     await healthService.init(prisma);
-    console.log('✅ Health monitoring initialized');
+    logger.health.started();
     
     await queueService.init(prisma);
-    console.log('✅ Queue service initialized');
+    logger.info('QUEUE', 'Queue service initialized');
     
     // Legacy SLA service disabled - using slaMonitoringService instead
     // await slaService.init(prisma);
     // console.log('✅ SLA service initialized');
 
     await slaMonitoringService.init(prisma);
-    console.log('✅ SLA Monitoring service initialized');
+    logger.info('SLA', 'SLA Monitoring service initialized');
 
     await operatorEventLogger.init(prisma);
-    console.log('✅ Operator Event Logger initialized');
+    logger.info('OPERATORS', 'Operator Event Logger initialized');
 
     // Start timeout service
     timeoutService.start();
-    console.log('✅ Timeout service started');
+    logger.info('SERVER', 'Timeout service started');
 
     // Setup knowledge base auto-reload
     const { setupAutoReload } = await import('./utils/knowledge.js');
     setupAutoReload();
-    console.log('✅ Knowledge base auto-reload enabled');
+    logger.info('AI', 'Knowledge base auto-reload enabled');
 
     // Start queue cleanup cron job (every 10 minutes)
     setInterval(async () => {
       try {
         const cleanedCount = await queueService.cleanupStaleEntries();
         if (cleanedCount > 0) {
-          console.log(`🧹 Queue cleanup cron: cleaned ${cleanedCount} entries`);
+          logger.info('QUEUE', 'Queue cleanup cron completed', { cleanedCount });
         }
       } catch (error) {
-        console.error('❌ Queue cleanup cron error:', error);
+        logger.error('QUEUE', 'Queue cleanup cron error', error);
       }
     }, 10 * 60 * 1000); // 10 minutes
-    console.log('✅ Queue cleanup cron job started (runs every 10 minutes)');
+    logger.info('QUEUE', 'Queue cleanup cron job started (runs every 10 minutes)');
 
-    console.log('✅ All services initialized');
+    logger.info('SERVER', 'All services initialized successfully');
 
     // Database ready for use
 
@@ -345,20 +344,22 @@ async function startServer() {
         ? baseUrl.replace('https://', 'wss://')
         : `ws://localhost:${PORT}`;
 
-      console.log(`🚀 Server running on port ${PORT}`);
-      console.log(`🌍 Environment: ${process.env.NODE_ENV}`);
-      console.log(`📊 Dashboard: ${baseUrl}/dashboard`);
-      console.log(`🔌 WebSocket Server: ${wsUrl}`);
+      logger.info('SERVER', 'Server started', {
+        port: PORT,
+        environment: process.env.NODE_ENV,
+        dashboard: `${baseUrl}/dashboard`,
+        websocket: wsUrl
+      });
     });
   } catch (error) {
-    console.error('❌ Failed to start server:', error);
+    logger.error('SERVER', 'Failed to start server', error);
     process.exit(1);
   }
 }
 
 // Graceful shutdown
 process.on('SIGTERM', async () => {
-  console.log('SIGTERM received, shutting down gracefully');
+  logger.info('SERVER', 'SIGTERM received, shutting down gracefully');
 
   // Cleanup services
   await healthService.cleanup();
@@ -371,7 +372,7 @@ process.on('SIGTERM', async () => {
 });
 
 process.on('SIGINT', async () => {
-  console.log('SIGINT received, shutting down gracefully');
+  logger.info('SERVER', 'SIGINT received, shutting down gracefully');
 
   // Cleanup services
   await healthService.cleanup();

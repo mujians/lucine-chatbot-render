@@ -4,8 +4,8 @@ import { StatusCodes, ErrorCodes } from '../utils/api-response.js';
 
 const router = express.Router();
 
-// Helper to get prisma (lazy load)
-const getPrisma = () => container.get('prisma');
+// Helper to get database client (lazy load)
+const getDatabase = () => container.get('prisma');
 // const prisma = container.get('prisma');
 
 // Simple test endpoint
@@ -22,22 +22,22 @@ router.get('/dashboard', async (req, res) => {
     console.log('📊 Fetching simplified dashboard analytics...');
 
     // Basic counts only
-    const totalChats = await getPrisma().chatSession.count();
-    const activeChats = await getPrisma().chatSession.count({ where: { status: 'ACTIVE' } });
-    const endedChats = await getPrisma().chatSession.count({ where: { status: 'ENDED' } });
-    const operatorChats = await getPrisma().chatSession.count({ where: { status: 'WITH_OPERATOR' } });
+    const totalChats = await getDatabase().chatSession.count();
+    const activeChats = await getDatabase().chatSession.count({ where: { status: 'ACTIVE' } });
+    const endedChats = await getDatabase().chatSession.count({ where: { status: 'ENDED' } });
+    const operatorChats = await getDatabase().chatSession.count({ where: { status: 'WITH_OPERATOR' } });
     
-    const totalMessages = await getPrisma().message.count();
-    const openTickets = await getPrisma().ticket.count({ where: { status: 'OPEN' } });
+    const totalMessages = await getDatabase().message.count();
+    const openTickets = await getDatabase().ticket.count({ where: { status: 'OPEN' } });
 
     // Operator statistics
-    const totalOperators = await getPrisma().operator.count({ where: { isActive: true } });
-    const onlineOperators = await getPrisma().operator.count({
+    const totalOperators = await getDatabase().operator.count({ where: { isActive: true } });
+    const onlineOperators = await getDatabase().operator.count({
       where: { isActive: true, isOnline: true }
     });
 
     // Chats per operator (active and completed)
-    const operatorStats = await getPrisma().operatorChat.groupBy({
+    const operatorStats = await getDatabase().operatorChat.groupBy({
       by: ['operatorId'],
       _count: {
         id: true
@@ -52,7 +52,7 @@ router.get('/dashboard', async (req, res) => {
     // Get operator details with chat counts
     const operatorDetails = await Promise.all(
       operatorStats.slice(0, 5).map(async (stat) => {
-        const operator = await getPrisma().operator.findUnique({
+        const operator = await getDatabase().operator.findUnique({
           where: { id: stat.operatorId },
           select: {
             id: true,
@@ -62,7 +62,7 @@ router.get('/dashboard', async (req, res) => {
           }
         });
 
-        const activeChatsCount = await getPrisma().operatorChat.count({
+        const activeChatsCount = await getDatabase().operatorChat.count({
           where: {
             operatorId: stat.operatorId,
             endedAt: null
@@ -78,7 +78,7 @@ router.get('/dashboard', async (req, res) => {
     );
 
     // Recent activity - basic version
-    const recentActivity = await getPrisma().message.findMany({
+    const recentActivity = await getDatabase().message.findMany({
       take: 5,
       orderBy: { timestamp: 'desc' },
       include: {

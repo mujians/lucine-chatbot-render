@@ -13,178 +13,50 @@ import {
   createOperatorMessage,
   MESSAGE_CONTEXTS
 } from '../utils/message-types.js';
+import { authService } from '../services/auth-service.js';
+import { OperatorRepository } from '../utils/operator-repository.js';
+import { calculatePriority } from '../utils/priority-calculator.js';
+import logger from '../utils/logger.js';
 
 const router = express.Router();
 
-// Helper to get prisma (lazy load)
-const getPrisma = () => container.get('prisma');
+// Helper to get database client (lazy load)
+const getDatabase = () => container.get('prisma');
 
 
 
 
-// Operator login (semplificato per demo)
+// ✅ Operator login (refactored to use AuthService)
 router.post('/login', loginLimiter, async (req, res) => {
   try {
     const { username, password } = req.body;
-    
-    // Find operator first
-    const operator = await getPrisma().operator.findUnique({
-      where: { username },
-      select: {
-        id: true,
-        username: true,
-        email: true,
-        name: true,
-        displayName: true,
-        avatar: true,
-        role: true,
-        passwordHash: true,
-        isActive: true,
-        isOnline: true,
-        lastSeen: true,
-        createdAt: true
-      }
+
+    // Delegate authentication to AuthService
+    const result = await authService.login(username, password, {
+      ip: req.ip || req.connection.remoteAddress,
+      userAgent: req.get('user-agent')
     });
 
-    // If operator doesn't exist and it's admin, create it
-    if (!operator && username === 'admin') {
-      const hashedPassword = await TokenManager.hashPassword(process.env.ADMIN_PASSWORD || 'admin123');
-      
-      const newOperator = await getPrisma().operator.create({
-        data: {
-          username: 'admin',
-          email: 'supporto@lucinedinatale.it',
-          name: 'Lucy - Assistente Specializzato',
-          displayName: 'Lucy',
-          avatar: '👑',
-          role: 'ADMIN',
-          passwordHash: hashedPassword,
-          isActive: true,
-          isOnline: true
-        },
-        select: {
-          id: true,
-          username: true,
-          email: true,
-          name: true,
-          displayName: true,
-          avatar: true,
-          role: true,
-          passwordHash: true,
-          isActive: true,
-          isOnline: true,
-          lastSeen: true,
-          createdAt: true
-        }
-      });
-
-      // Generate JWT token for new operator
-      const token = TokenManager.generateToken({
-        operatorId: newOperator.id,
-        username: newOperator.username,
-        name: newOperator.name
-      });
-
-      res.json({
-        success: true,
-        token,
-        operator: {
-          id: newOperator.id,
-          username: newOperator.username,
-          name: newOperator.name,
-          displayName: newOperator.displayName,
-          avatar: newOperator.avatar,
-          role: newOperator.role,
-          email: newOperator.email,
-          isOnline: true,
-          isActive: true
-        },
-        message: 'Admin account created and logged in'
-      });
-      return;
-    }
-
-    // Verify operator exists and is active
-    if (!operator || !operator.isActive) {
-      return res.status(401).json({ 
+    // Handle authentication result
+    if (!result.success) {
+      return res.status(result.statusCode || 401).json({
         success: false,
-        message: 'Operatore non trovato o disattivato' 
+        message: result.message
       });
     }
 
-    // Verify password with bcrypt
-    const isValidPassword = await TokenManager.verifyPassword(password, operator.passwordHash);
-    
-    if (isValidPassword) {
-      // Update online status
-      await getPrisma().operator.update({
-        where: { id: operator.id },
-        data: {
-          isOnline: true,
-          lastSeen: new Date()
-        }
-      });
-
-      // Log operator login
-      await operatorEventLogger.logLogin(
-        operator.id,
-        req.ip || req.connection.remoteAddress,
-        req.get('user-agent')
-      );
-
-      // Generate JWT token
-      const token = TokenManager.generateToken({
-        operatorId: operator.id,
-        username: operator.username,
-        name: operator.name
-      });
-
-      // 📋 Try to auto-assign chat from queue on login
-      let assignedChat = null;
-      if (operator.isActive) {
-        try {
-          const { queueService } = await import('../services/queue-service.js');
-          const result = await queueService.assignNextInQueue(operator.id, []);
-          if (result.assigned) {
-            console.log('✅ Auto-assigned chat from queue on login:', result.sessionId);
-            assignedChat = {
-              sessionId: result.sessionId,
-              waitTime: result.waitTime
-            };
-          }
-        } catch (error) {
-          console.error('⚠️ Failed to auto-assign from queue on login:', error);
-        }
-      }
-
-      res.json({
-        success: true,
-        token,
-        operator: {
-          id: operator.id,
-          username: operator.username,
-          name: operator.name,
-          displayName: operator.displayName || operator.name,
-          avatar: operator.avatar || '👤',
-          role: operator.role || 'OPERATOR',
-          email: operator.email,
-          isOnline: true,
-          isActive: true
-        },
-        message: 'Login successful',
-        autoAssigned: assignedChat // Chat auto-assigned from queue
-      });
-
-    } else {
-      res.status(401).json({ 
-        success: false,
-        message: 'Credenziali non valide' 
-      });
-    }
+    // Success response
+    res.json({
+      success: true,
+      token: result.token,
+      operator: result.operator,
+      message: result.message,
+      autoAssigned: result.autoAssigned
+    });
 
   } catch (error) {
-    console.error('❌ Login error details:', error);
-    res.status(500).json({ 
+    logger.auth.error('login', error);
+    res.status(500).json({
       success: false,
       message: 'Errore del server durante il login',
       error: process.env.NODE_ENV !== 'production' ? error.message : undefined
@@ -192,23 +64,13 @@ router.post('/login', loginLimiter, async (req, res) => {
   }
 });
 
-// 👥 Get list of operators
+// ✅ Get list of operators (using OperatorRepository)
 router.get('/list', async (req, res) => {
   try {
-    const operators = await getPrisma().operator.findMany({
-      where: { isActive: true },
-      select: {
-        id: true,
-        name: true,
-        email: true,
-        isOnline: true
-      },
-      orderBy: { name: 'asc' }
-    });
-
+    const operators = await OperatorRepository.getActiveOperators();
     res.json(operators);
   } catch (error) {
-    console.error('❌ Failed to fetch operators list:', error);
+    logger.error('OPERATORS', 'Failed to fetch operators list', error);
     res.status(500).json({ error: 'Failed to fetch operators' });
   }
 });
@@ -220,10 +82,10 @@ router.get('/dashboard-summary', authenticateToken, async (req, res) => {
     const [pendingChatsData, ticketsData, chatHistoryCount] = await Promise.all([
       // Pending chats count
       (async () => {
-        const waiting = await getPrisma().chatSession.count({
+        const waiting = await getDatabase().chatSession.count({
           where: { status: 'WAITING_OPERATOR' }
         });
-        const active = await getPrisma().chatSession.count({
+        const active = await getDatabase().chatSession.count({
           where: {
             status: 'WITH_OPERATOR',
             operatorChats: { some: { endedAt: null } }
@@ -233,7 +95,7 @@ router.get('/dashboard-summary', authenticateToken, async (req, res) => {
       })(),
 
       // Tickets count (active tickets: OPEN, IN_PROGRESS, WAITING_USER)
-      getPrisma().ticket.count({
+      getDatabase().ticket.count({
         where: {
           status: {
             in: ['OPEN', 'IN_PROGRESS', 'WAITING_USER']
@@ -242,7 +104,7 @@ router.get('/dashboard-summary', authenticateToken, async (req, res) => {
       }),
 
       // Total sessions
-      getPrisma().chatSession.count()
+      getDatabase().chatSession.count()
     ]);
 
     res.json({
@@ -256,7 +118,7 @@ router.get('/dashboard-summary', authenticateToken, async (req, res) => {
       timestamp: new Date().toISOString()
     });
   } catch (error) {
-    console.error('❌ Dashboard summary error:', error);
+    logger.error('OPERATORS', 'Dashboard summary error', error);
     res.status(500).json({ error: 'Failed to fetch dashboard summary' });
   }
 });
@@ -265,7 +127,7 @@ router.get('/dashboard-summary', authenticateToken, async (req, res) => {
 router.get('/pending-chats', authenticateToken, async (req, res) => {
   try {
     // 1. Fetch sessions WAITING_OPERATOR (in queue)
-    const waitingChats = await getPrisma().chatSession.findMany({
+    const waitingChats = await getDatabase().chatSession.findMany({
       where: {
         status: 'WAITING_OPERATOR'
       },
@@ -283,7 +145,7 @@ router.get('/pending-chats', authenticateToken, async (req, res) => {
     });
 
     // 2. Fetch sessions WITH_OPERATOR (assigned and active)
-    const activeChats = await getPrisma().chatSession.findMany({
+    const activeChats = await getDatabase().chatSession.findMany({
       where: {
         status: 'WITH_OPERATOR',
         operatorChats: {
@@ -367,7 +229,7 @@ router.get('/pending-chats', authenticateToken, async (req, res) => {
     });
 
   } catch (error) {
-    console.error('❌ Failed to fetch chats:', error);
+    logger.error('OPERATORS', 'Failed to fetch chats', error);
     res.status(500).json({ error: 'Failed to fetch pending chats' });
   }
 });
@@ -383,7 +245,7 @@ router.get('/chat-history', authenticateToken, async (req, res) => {
       where.status = status;
     }
 
-    const sessions = await getPrisma().chatSession.findMany({
+    const sessions = await getDatabase().chatSession.findMany({
       where,
       include: {
         messages: {
@@ -405,7 +267,7 @@ router.get('/chat-history', authenticateToken, async (req, res) => {
     });
 
     // Count total for pagination
-    const total = await getPrisma().chatSession.count({ where });
+    const total = await getDatabase().chatSession.count({ where });
 
     res.json({
       sessions: sessions.map(session => ({
@@ -426,7 +288,7 @@ router.get('/chat-history', authenticateToken, async (req, res) => {
     });
 
   } catch (error) {
-    console.error('❌ Failed to fetch chat history:', error);
+    logger.error('OPERATORS', 'Failed to fetch chat history', error);
     res.status(500).json({ error: 'Failed to fetch chat history' });
   }
 });
@@ -437,17 +299,17 @@ router.post('/take-chat', authenticateToken, validateSession, async (req, res) =
     const { sessionId, operatorId } = req.body;
 
     // Verifica che la sessione esista
-    const sessionExists = await getPrisma().chatSession.findUnique({
+    const sessionExists = await getDatabase().chatSession.findUnique({
       where: { sessionId }
     });
 
     if (!sessionExists) {
-      console.error('❌ Session not found:', sessionId);
+      logger.warn('OPERATORS', 'Session not found', { sessionId });
       return res.status(404).json({ error: 'Session not found' });
     }
 
     // Check if chat already taken by ANOTHER operator
-    const existing = await getPrisma().operatorChat.findFirst({
+    const existing = await getDatabase().operatorChat.findFirst({
       where: {
         sessionId,
         endedAt: null
@@ -465,7 +327,7 @@ router.post('/take-chat', authenticateToken, validateSession, async (req, res) =
       // Check if it's the same operator trying to take it
       if (existing.operatorId === operatorId) {
         // Same operator - IDEMPOTENT: Already taken, just return success
-        console.log('✅ Chat already taken by this operator - returning success (idempotent)');
+        logger.info('OPERATORS', 'Chat already taken by this operator (idempotent)', { sessionId, operatorId });
         return res.json({
           success: true,
           chatId: existing.id,
@@ -481,7 +343,7 @@ router.post('/take-chat', authenticateToken, validateSession, async (req, res) =
     }
 
     // Create new operator chat (only if not existing)
-    operatorChat = await getPrisma().operatorChat.create({
+    operatorChat = await getDatabase().operatorChat.create({
       data: {
         sessionId,
         operatorId
@@ -489,13 +351,13 @@ router.post('/take-chat', authenticateToken, validateSession, async (req, res) =
     });
 
     // Update session status
-    await getPrisma().chatSession.update({
+    await getDatabase().chatSession.update({
       where: { sessionId },
       data: { status: 'WITH_OPERATOR' }
     });
 
     // Log operator taking chat
-    const queueEntry = await getPrisma().queueEntry.findFirst({
+    const queueEntry = await getDatabase().queueEntry.findFirst({
       where: { sessionId, status: 'WAITING' }
     });
     const queueWaitTime = queueEntry
@@ -507,7 +369,7 @@ router.post('/take-chat', authenticateToken, validateSession, async (req, res) =
     // 📋 Remove from queue if present (mark as ASSIGNED)
     try {
       const { queueService } = await import('../services/queue-service.js');
-      const queueEntry = await getPrisma().queueEntry.findFirst({
+      const queueEntry = await getDatabase().queueEntry.findFirst({
         where: {
           sessionId,
           status: 'WAITING'
@@ -515,7 +377,7 @@ router.post('/take-chat', authenticateToken, validateSession, async (req, res) =
       });
 
       if (queueEntry) {
-        await getPrisma().queueEntry.update({
+        await getDatabase().queueEntry.update({
           where: { id: queueEntry.id },
           data: {
             status: 'ASSIGNED',
@@ -523,34 +385,27 @@ router.post('/take-chat', authenticateToken, validateSession, async (req, res) =
             assignedAt: new Date()
           }
         });
-        console.log(`✅ Queue entry marked as ASSIGNED for session ${sessionId}`);
+        logger.queue.assigned(sessionId, operatorId, { queueId: queueEntry.id });
 
         // Update queue positions for remaining entries
         await queueService.updateQueuePositions();
       }
     } catch (error) {
-      console.error('⚠️ Failed to update queue entry:', error);
+      logger.warn('QUEUE', 'Failed to update queue entry', { sessionId, error: error.message });
       // Non-blocking
     }
 
     // 📊 Create SLA record if not already exists (for manually taken chats)
     if (!existing) {
       try {
-        // Calculate dynamic priority based on session age
-        const session = await getPrisma().chatSession.findUnique({
+        // Calculate dynamic priority based on session age (centralized logic)
+        const session = await getDatabase().chatSession.findUnique({
           where: { sessionId },
           select: { createdAt: true }
         });
 
-        const sessionAge = Date.now() - new Date(session.createdAt).getTime();
-        const minutesWaiting = Math.floor(sessionAge / 60000);
-
-        let slaPriority = 'LOW';
-        if (minutesWaiting > 15) {
-          slaPriority = 'HIGH';
-        } else if (minutesWaiting > 5) {
-          slaPriority = 'MEDIUM';
-        }
+        // ✅ Use centralized priority calculator
+        const slaPriority = calculatePriority(session.createdAt);
 
         const { slaService } = await import('../services/sla-service.js');
         await slaService.createSLA(
@@ -559,15 +414,15 @@ router.post('/take-chat', authenticateToken, validateSession, async (req, res) =
           slaPriority,
           'OPERATOR_ASSIGNED'
         );
-        console.log(`✅ SLA record created when operator took chat (priority: ${slaPriority})`);
+        logger.sla.created(sessionId, slaPriority, 'OPERATOR_ASSIGNED');
       } catch (error) {
-        console.error('⚠️ Failed to create SLA:', error);
+        logger.warn('SLA', 'Failed to create SLA', { sessionId, error: error.message });
         // Non-blocking
       }
     }
 
     // Get operator info
-    const operator = await getPrisma().operator.findUnique({
+    const operator = await getDatabase().operator.findUnique({
       where: { id: operatorId },
       select: { name: true }
     });
@@ -575,7 +430,7 @@ router.post('/take-chat', authenticateToken, validateSession, async (req, res) =
     // Add system message FIRST (only if new operator chat)
     if (!existing) {
       const systemMessage = await createSystemMessage(
-        getPrisma(),
+        getDatabase(),
         sessionId,
         `👤 ${operator.name} si è unito alla chat`,
         MESSAGE_CONTEXTS.OPERATOR_JOINED,
@@ -595,15 +450,15 @@ router.post('/take-chat', authenticateToken, validateSession, async (req, res) =
             metadata: systemMessage.metadata
           }
         });
-        console.log('✅ System message sent via WebSocket');
+        logger.websocket.sent(sessionId, 'system_message');
       } catch (wsError) {
-        console.warn('⚠️ Failed to send system message via WebSocket:', wsError);
+        logger.warn('WEBSOCKET', 'Failed to send system message', { sessionId, error: wsError.message });
       }
     }
 
     // Check if automatic greeting was already sent (to avoid duplicates)
     // Look specifically for automatic OPERATOR message with isAutomatic flag
-    const existingGreeting = await getPrisma().message.findFirst({
+    const existingGreeting = await getDatabase().message.findFirst({
       where: {
         sessionId,
         sender: 'OPERATOR',
@@ -617,11 +472,11 @@ router.post('/take-chat', authenticateToken, validateSession, async (req, res) =
 
     // Send automatic greeting AFTER system message (for correct order)
     if (!existingGreeting) {
-      console.log('📨 Sending operator greeting...');
+      logger.debug('OPERATORS', 'Sending operator greeting', { sessionId, operatorName: operator.name });
       const greetingText = await getAutomatedText('operator_greeting');
 
       const greetingMessage = await createOperatorMessage(
-        getPrisma(),
+        getDatabase(),
         sessionId,
         greetingText,
         operatorId,
@@ -644,12 +499,12 @@ router.post('/take-chat', authenticateToken, validateSession, async (req, res) =
             metadata: greetingMessage.metadata
           }
         });
-        console.log('✅ Greeting sent via WebSocket');
+        logger.websocket.sent(sessionId, 'operator_greeting');
       } catch (wsError) {
-        console.warn('⚠️ Failed to send greeting via WebSocket, will arrive via polling:', wsError);
+        logger.debug('WEBSOCKET', 'Greeting will arrive via polling', { sessionId });
       }
     } else {
-      console.log('ℹ️ Greeting already sent, skipping');
+      logger.debug('OPERATORS', 'Greeting already sent, skipping', { sessionId });
     }
 
     res.json({
@@ -659,7 +514,7 @@ router.post('/take-chat', authenticateToken, validateSession, async (req, res) =
     });
 
   } catch (error) {
-    console.error('❌ Take-chat error:', {
+    logger.error('OPERATORS', 'Take-chat error', {
       message: error.message,
       code: error.code,
       meta: error.meta,
@@ -695,7 +550,7 @@ router.get('/chat/:sessionId', authenticateToken, async (req, res) => {
     const { sessionId } = req.params;
     
     // Get session with messages
-    const session = await getPrisma().chatSession.findUnique({
+    const session = await getDatabase().chatSession.findUnique({
       where: { sessionId },
       include: {
         messages: {
@@ -729,53 +584,35 @@ router.get('/chat/:sessionId', authenticateToken, async (req, res) => {
     });
 
   } catch (error) {
-    console.error('❌ Get chat error:', error);
+    logger.error('OPERATORS', 'Get chat error', error);
     res.status(500).json({ error: 'Failed to get chat' });
   }
 });
 
 
-// Operator logout
+// ✅ Operator logout (refactored to use AuthService)
 router.post('/logout', authenticateToken, async (req, res) => {
   try {
     const { operatorId } = req.body;
 
-    console.log('🚪 Logout request for operator:', operatorId);
+    logger.auth.logout(operatorId);
 
     // Validation
     if (!operatorId) {
       return res.status(400).json({ error: 'OperatorId is required' });
     }
 
-    // Check if operator exists
-    const existingOperator = await getPrisma().operator.findUnique({
-      where: { id: operatorId },
-      select: { id: true, isActive: true }
-    });
+    // Delegate to AuthService
+    await authService.logout(operatorId);
 
-    if (!existingOperator) {
-      return res.status(404).json({ error: 'Operator not found' });
-    }
-
-    // Update to offline
-    await getPrisma().operator.update({
-      where: { id: operatorId },
-      data: {
-        isOnline: false,
-        lastSeen: new Date()
-      }
-    });
-
-    console.log('✅ Operator logged out:', existingOperator.name);
-
-    res.json({ 
+    res.json({
       success: true,
       message: 'Logged out successfully'
     });
 
   } catch (error) {
-    console.error('❌ Logout error:', error);
-    res.status(500).json({ 
+    logger.error('AUTH', 'Logout error', error);
+    res.status(500).json({
       error: 'Logout failed',
       details: process.env.NODE_ENV === 'development' ? error.message : undefined
     });
@@ -787,7 +624,7 @@ router.put('/status', authenticateToken, async (req, res) => {
   try {
     const { operatorId, isOnline } = req.body;
 
-    console.log('🔄 Status update request:', { operatorId, isOnline, requestBy: req.operator?.id });
+    logger.debug('OPERATORS', 'Status update request', { operatorId, isOnline, requestBy: req.operator?.id });
 
     // Validation
     if (!operatorId) {
@@ -800,7 +637,7 @@ router.put('/status', authenticateToken, async (req, res) => {
 
     // Security check: ensure authenticated operator matches
     if (req.operator && req.operator.id !== operatorId) {
-      console.warn(`🚨 Operator ${req.operator.id} tried to update status of ${operatorId}`);
+      logger.warn('OPERATORS', 'Unauthorized status update attempt', { requestBy: req.operator.id, targetOperator: operatorId });
       return res.status(403).json({
         error: 'You can only update your own status',
         details: { authenticated: req.operator.id, requested: operatorId }
@@ -808,7 +645,7 @@ router.put('/status', authenticateToken, async (req, res) => {
     }
 
     // Check if operator exists
-    const existingOperator = await getPrisma().operator.findUnique({
+    const existingOperator = await getDatabase().operator.findUnique({
       where: { id: operatorId },
       select: { id: true, isActive: true }
     });
@@ -818,7 +655,7 @@ router.put('/status', authenticateToken, async (req, res) => {
     }
 
     // Update status
-    const updatedOperator = await getPrisma().operator.update({
+    const updatedOperator = await getDatabase().operator.update({
       where: { id: operatorId },
       data: {
         isOnline,
@@ -834,7 +671,7 @@ router.put('/status', authenticateToken, async (req, res) => {
       }
     });
 
-    console.log('✅ Status updated successfully:', updatedOperator.name, isOnline ? 'ONLINE' : 'OFFLINE');
+    logger.info('OPERATORS', 'Status updated successfully', { operator: updatedOperator.name, isOnline });
 
     // 📋 If operator went online, try to assign next chat from queue
     let assignedChat = null;
@@ -843,7 +680,7 @@ router.put('/status', authenticateToken, async (req, res) => {
         const { queueService } = await import('../services/queue-service.js');
         const result = await queueService.assignNextInQueue(operatorId, []);
         if (result.assigned) {
-          console.log('✅ Auto-assigned chat from queue:', result.sessionId);
+          logger.queue.assigned(result.sessionId, operatorId, { auto: true });
           assignedChat = {
             sessionId: result.sessionId,
             waitTime: result.waitTime
@@ -858,10 +695,10 @@ router.put('/status', authenticateToken, async (req, res) => {
             message: `Chat dalla coda assegnata: ${result.sessionId}`
           }, operatorId);
         } else {
-          console.log('ℹ️ No chats in queue to assign');
+          logger.debug('QUEUE', 'No chats in queue to assign', { operatorId });
         }
       } catch (error) {
-        console.error('⚠️ Failed to auto-assign from queue:', error);
+        logger.warn('QUEUE', 'Failed to auto-assign from queue', { operatorId, error: error.message });
         // Non-blocking error
       }
     }
@@ -878,7 +715,7 @@ router.put('/status', authenticateToken, async (req, res) => {
     });
 
   } catch (error) {
-    console.error('❌ Status update error:', error);
+    logger.error('OPERATORS', 'Status update error', error);
     res.status(500).json({ 
       error: 'Failed to update status',
       details: process.env.NODE_ENV === 'development' ? error.message : undefined
@@ -892,7 +729,7 @@ router.post('/send-message', authenticateToken, validateSession, async (req, res
   try {
     const { sessionId, operatorId, message } = req.body;
     
-    console.log('📤 Operator send message request:', { sessionId, operatorId, messageLength: message?.length });
+    logger.chat.operatorMessage(sessionId, operatorId, message?.length || 0);
     
     if (!sessionId || !operatorId || !message) {
       return res.status(400).json({ error: 'SessionId, operatorId and message required' });
@@ -905,7 +742,7 @@ router.post('/send-message', authenticateToken, validateSession, async (req, res
     }
 
     // Verify operator is assigned to this session
-    const operatorChat = await getPrisma().operatorChat.findFirst({
+    const operatorChat = await getDatabase().operatorChat.findFirst({
       where: {
         sessionId,
         operatorId,
@@ -927,7 +764,7 @@ router.post('/send-message', authenticateToken, validateSession, async (req, res
     }
 
     // Check if this is the first operator message (for SLA tracking)
-    const previousOperatorMessages = await getPrisma().message.count({
+    const previousOperatorMessages = await getDatabase().message.count({
       where: {
         sessionId,
         sender: 'OPERATOR'
@@ -937,7 +774,7 @@ router.post('/send-message', authenticateToken, validateSession, async (req, res
     const isFirstResponse = previousOperatorMessages === 0;
 
     // Save operator message
-    const savedMessage = await getPrisma().message.create({
+    const savedMessage = await getDatabase().message.create({
       data: {
         sessionId,
         sender: 'OPERATOR',
@@ -955,20 +792,20 @@ router.post('/send-message', authenticateToken, validateSession, async (req, res
       try {
         const { slaService } = await import('../services/sla-service.js');
         await slaService.markFirstResponse(sessionId, 'SESSION', operatorId);
-        console.log('✅ First response SLA marked for session', sessionId);
+        logger.sla.firstResponse(sessionId);
       } catch (error) {
-        console.error('⚠️ Failed to mark first response SLA:', error);
+        logger.warn('SLA', 'Failed to mark first response', { sessionId, error: error.message });
         // Non-blocking error
       }
     }
 
     // Update session last activity
-    await getPrisma().chatSession.update({
+    await getDatabase().chatSession.update({
       where: { sessionId },
       data: { lastActivity: new Date() }
     });
 
-    console.log(`✅ Operator message saved to DB for session ${sessionId}: "${sanitizedMessage}"${isFirstResponse ? ' (FIRST RESPONSE)' : ''}`);
+    logger.debug('OPERATORS', 'Message saved to DB', { sessionId, messageLength: sanitizedMessage.length, isFirstResponse });
 
     // 📱 Send message to widget via WebSocket (real-time delivery)
     try {
@@ -987,18 +824,18 @@ router.post('/send-message', authenticateToken, validateSession, async (req, res
       });
 
       if (sent) {
-        console.log(`📱 Message sent to widget via WebSocket`);
+        logger.websocket.sent(sessionId, 'operator_message');
       } else {
-        console.log(`⚠️ Widget not connected, user will receive via polling`);
+        logger.debug('WEBSOCKET', 'Widget not connected, will receive via polling', { sessionId });
       }
     } catch (error) {
-      console.error('⚠️ Failed to notify widget:', error);
+      logger.warn('WEBSOCKET', 'Failed to notify widget', { sessionId, error: error.message });
       // Non-blocking - user will get message via polling fallback
     }
 
     // 📊 Record analytics for operator message
     try {
-      await getPrisma().analytics.create({
+      await getDatabase().analytics.create({
         data: {
           eventType: 'operator_message_sent',
           sessionId,
@@ -1012,7 +849,7 @@ router.post('/send-message', authenticateToken, validateSession, async (req, res
         }
       });
     } catch (error) {
-      console.error('⚠️ Failed to log analytics:', error);
+      logger.warn('ANALYTICS', 'Failed to log message analytics', { sessionId, error: error.message });
     }
 
     res.json({
@@ -1030,7 +867,7 @@ router.post('/send-message', authenticateToken, validateSession, async (req, res
     });
 
   } catch (error) {
-    console.error('Send operator message error:', error);
+    logger.error('OPERATORS', 'Send operator message error', error);
     res.status(500).json({ error: 'Failed to send message' });
   }
 });
@@ -1047,10 +884,10 @@ router.post('/close-conversation', authenticateToken, async (req, res) => {
       return res.status(400).json({ error: 'SessionId and operatorId required' });
     }
 
-    console.log(`🔚 Operator ${operatorId} closing conversation with session ${sessionId}`);
+    logger.chat.close(sessionId, operatorId);
 
     // Verify session exists and is with operator
-    const session = await getPrisma().chatSession.findUnique({
+    const session = await getDatabase().chatSession.findUnique({
       where: { sessionId },
       include: {
         operatorChats: {
@@ -1069,7 +906,7 @@ router.post('/close-conversation', authenticateToken, async (req, res) => {
 
     // Allow closure even if operatorChat was ended (user clicked continue after first closure)
     // Just check if there's an operator chat record (ended or not)
-    const hasOperatorChat = await getPrisma().operatorChat.findFirst({
+    const hasOperatorChat = await getDatabase().operatorChat.findFirst({
       where: {
         sessionId,
         operatorId
@@ -1086,22 +923,22 @@ router.post('/close-conversation', authenticateToken, async (req, res) => {
     const smartActions = [
       {
         type: 'success',
-        icon: '✅',
-        text: 'Sì, ho ancora bisogno',
-        description: 'Continua la conversazione',
+        icon: '💬',
+        text: 'Continua la chat',
+        description: 'Ho ancora bisogno di aiuto',
         action: 'continue_chat'
       },
       {
         type: 'secondary',
-        icon: '❌',
-        text: 'No, grazie',
-        description: 'Termina la conversazione',
+        icon: '✅',
+        text: 'Chiudi pure',
+        description: 'Tutto risolto, grazie!',
         action: 'end_chat'
       }
     ];
 
     // Save message to database with smartActions in metadata for polling fallback
-    const closureMessage = await getPrisma().message.create({
+    const closureMessage = await getDatabase().message.create({
       data: {
         sessionId,
         sender: 'SYSTEM',
@@ -1127,9 +964,9 @@ router.post('/close-conversation', authenticateToken, async (req, res) => {
     });
 
     if (!sent) {
-      console.log('⚠️ Widget not connected via WebSocket - user will receive via polling');
+      logger.debug('WEBSOCKET', 'Widget not connected, closure request will arrive via polling', { sessionId });
     } else {
-      console.log('✅ Closure request sent via WebSocket');
+      logger.websocket.sent(sessionId, 'closure_request');
     }
 
     res.json({
@@ -1138,7 +975,7 @@ router.post('/close-conversation', authenticateToken, async (req, res) => {
     });
 
   } catch (error) {
-    console.error('❌ Close conversation error:', error);
+    logger.error('OPERATORS', 'Close conversation error', error);
     res.status(500).json({ error: 'Failed to initiate conversation closure' });
   }
 });
@@ -1150,7 +987,7 @@ router.get('/messages/:sessionId', authenticateToken, validateSession, async (re
     const since = req.query.since ? new Date(req.query.since) : new Date(Date.now() - 24 * 60 * 60 * 1000); // Last 24h default
     
     // Verify operator has access to this session
-    const operatorChat = await getPrisma().operatorChat.findFirst({
+    const operatorChat = await getDatabase().operatorChat.findFirst({
       where: {
         sessionId,
         operatorId: req.operator.id,
@@ -1163,7 +1000,7 @@ router.get('/messages/:sessionId', authenticateToken, validateSession, async (re
     }
     
     // Get messages since timestamp
-    const messages = await getPrisma().message.findMany({
+    const messages = await getDatabase().message.findMany({
       where: {
         sessionId,
         timestamp: { gte: since }
@@ -1179,7 +1016,7 @@ router.get('/messages/:sessionId', authenticateToken, validateSession, async (re
     });
     
   } catch (error) {
-    console.error('❌ Get messages error:', error);
+    logger.error('OPERATORS', 'Get messages error', error);
     res.error('Failed to fetch messages', 'MESSAGES_FETCH_ERROR');
   }
 });

@@ -8,6 +8,8 @@ import container from '../../config/container.js';
 import { loadKnowledgeBase } from '../../utils/knowledge.js';
 import { withRetry, ExternalServiceError } from '../../utils/error-handler.js';
 import { CHAT, PATTERNS, ANALYTICS, MESSAGE_SENDER } from '../../config/constants.js';
+import logger from '../../utils/logger.js';
+import { OperatorRepository } from '../../utils/operator-repository.js';
 
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
@@ -105,9 +107,9 @@ export async function handleAIResponse(message, session, history) {
 
     try {
       parsedResponse = JSON.parse(aiResponse);
-      console.log('🤖 AI Response parsed:', parsedResponse);
+      logger.ai.response(session.sessionId, parsedResponse.message?.length || 0, parsedResponse.escalation);
     } catch (error) {
-      console.error('⚠️ Failed to parse AI response:', aiResponse);
+      logger.warn('AI', 'Failed to parse AI response', { aiResponse: aiResponse?.substring(0, 100) });
       parsedResponse = {
         reply: aiResponse,
         actions: [],
@@ -122,20 +124,10 @@ export async function handleAIResponse(message, session, history) {
 
     // Se AI non sa rispondere, aggiungi automaticamente pulsanti YES/NO
     if (isUnknownResponse && !parsedResponse.smartActions) {
-      console.log('🔧 MECCANICO: Aggiunta automatica pulsanti per risposta sconosciuta');
+      logger.debug('AI', 'Auto-adding escalation buttons for unknown response', { sessionId: session.sessionId });
 
-      // Auto-logout operators inactive for more than 5 minutes
-      const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000);
-      await prisma.operator.updateMany({
-        where: {
-          isOnline: true,
-          lastSeen: { lt: fiveMinutesAgo }
-        },
-        data: {
-          isOnline: false,
-          availabilityStatus: 'OFFLINE'
-        }
-      });
+      // ✅ Auto-logout inactive operators (centralized logic)
+      await OperatorRepository.autoLogoutInactive();
 
       // Check if there are operators online (and active in last 5 minutes)
       const onlineOperators = await prisma.operator.count({
@@ -147,7 +139,7 @@ export async function handleAIResponse(message, session, history) {
         }
       });
 
-      console.log(`👥 Online operators (active in last 5 min): ${onlineOperators}`);
+      logger.debug('AI', 'Online operators count', { onlineOperators });
 
       if (onlineOperators > 0) {
         // Operators available - show "parla con operatore" button
@@ -189,12 +181,12 @@ export async function handleAIResponse(message, session, history) {
         // 🔒 IMPORTANT: Force escalation to "none" when no operators available
         // This prevents the chat router from triggering escalation flow
         parsedResponse.escalation = "none";
-        console.log('🔒 Forced escalation=none (no operators available)');
+        logger.info('AI', 'Forced escalation=none (no operators available)', { sessionId: session.sessionId });
       }
     }
 
     // Save bot response
-    console.log('💾 Saving bot response for session:', session.sessionId);
+    logger.debug('CHAT', 'Saving bot response', { sessionId: session.sessionId });
     await prisma.message.create({
       data: {
         sessionId: session.sessionId,
@@ -225,7 +217,7 @@ export async function handleAIResponse(message, session, history) {
     return parsedResponse;
 
   } catch (error) {
-    console.error('❌ AI Response error:', error);
+    logger.ai.error(session.sessionId, error);
     throw error;
   }
 }

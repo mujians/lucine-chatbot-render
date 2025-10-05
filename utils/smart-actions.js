@@ -92,11 +92,12 @@ export function createEscalationActions(hasOnlineOperators, queueInfo = null) {
 
     return [
       {
-        type: 'primary',
+        type: 'info',  // ✅ Changed from 'primary' to 'info'
         icon: '⏱️',
-        text: 'Attendi in linea',
-        description: waitMessage,
-        action: 'wait_in_queue'
+        text: waitMessage,  // ✅ Show queue position as title
+        description: 'Rimani su questa pagina',  // ✅ Clear instruction
+        disabled: true,  // ✅ Make it non-clickable (informational only)
+        action: 'wait_in_queue'  // Keep for compatibility but disabled
       },
       {
         type: 'secondary',
