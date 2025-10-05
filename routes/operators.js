@@ -13,7 +13,6 @@ import {
   createOperatorMessage,
   MESSAGE_CONTEXTS
 } from '../utils/message-types.js';
-import { authService } from '../services/auth-service.js';
 import { OperatorRepository } from '../utils/operator-repository.js';
 import { calculatePriority } from '../utils/priority-calculator.js';
 import logger from '../utils/logger.js';
