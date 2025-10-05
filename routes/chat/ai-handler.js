@@ -185,6 +185,11 @@ export async function handleAIResponse(message, session, history) {
             action: "continue_ai"
           }
         ];
+
+        // 🔒 IMPORTANT: Force escalation to "none" when no operators available
+        // This prevents the chat router from triggering escalation flow
+        parsedResponse.escalation = "none";
+        console.log('🔒 Forced escalation=none (no operators available)');
       }
     }
 
