@@ -124,15 +124,30 @@ export async function handleAIResponse(message, session, history) {
     if (isUnknownResponse && !parsedResponse.smartActions) {
       console.log('🔧 MECCANICO: Aggiunta automatica pulsanti per risposta sconosciuta');
 
-      // Check if there are operators online
-      const onlineOperators = await prisma.operator.count({
+      // Auto-logout operators inactive for more than 5 minutes
+      const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000);
+      await prisma.operator.updateMany({
         where: {
           isOnline: true,
-          isActive: true
+          lastSeen: { lt: fiveMinutesAgo }
+        },
+        data: {
+          isOnline: false,
+          availabilityStatus: 'OFFLINE'
         }
       });
 
-      console.log(`👥 Online operators: ${onlineOperators}`);
+      // Check if there are operators online (and active in last 5 minutes)
+      const onlineOperators = await prisma.operator.count({
+        where: {
+          isOnline: true,
+          isActive: true,
+          availabilityStatus: 'AVAILABLE',
+          lastSeen: { gte: fiveMinutesAgo }
+        }
+      });
+
+      console.log(`👥 Online operators (active in last 5 min): ${onlineOperators}`);
 
       if (onlineOperators > 0) {
         // Operators available - show "parla con operatore" button
