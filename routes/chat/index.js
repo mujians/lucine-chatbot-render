@@ -93,7 +93,11 @@ router.post('/', async (req, res) => {
       'apri ticket',
       'continua con assistente AI',
       'resume_with_ai',      // Resume: continua con AI
-      'resume_with_operator'  // Resume: richiedi operatore
+      'resume_with_operator', // Resume: richiedi operatore
+      'request_ticket',      // Ticket: apri ticket
+      'open_ticket',         // Ticket: apri ticket (alt)
+      'continue_ai',         // Continue with AI
+      'wait_in_queue'        // Wait in queue
     ];
     const isInternalCommand = internalCommands.includes(sanitizedMessage);
 
