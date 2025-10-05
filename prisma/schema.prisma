@@ -113,8 +113,8 @@ model Operator {
   passwordHash        String
   isActive            Boolean   @default(true)
   isOnline            Boolean   @default(false)
-  availabilityStatus  AvailabilityStatus @default(AVAILABLE)
-  lastSeen            DateTime?
+  // availabilityStatus removed - operators control status via isOnline toggle only
+  lastSeen            DateTime?  // For statistics only, NOT for availability logic
   createdAt           DateTime  @default(now())
 
   // Relations
@@ -352,13 +352,14 @@ enum SLAStatus {
   ESCALATED
 }
 
-// Operator availability status
-enum AvailabilityStatus {
-  AVAILABLE  // Accepts new chats
-  BUSY       // Only handles assigned chats
-  AWAY       // No new assignments
-  OFFLINE    // Disconnected
-}
+// Operator availability status - DEPRECATED
+// Now using simple isOnline boolean toggle instead
+// enum AvailabilityStatus {
+//   AVAILABLE  // Accepts new chats
+//   BUSY       // Only handles assigned chats
+//   AWAY       // No new assignments
+//   OFFLINE    // Disconnected
+// }
 
 // Testi automatici configurabili
 model AutomatedText {

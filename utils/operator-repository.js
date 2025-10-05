@@ -29,7 +29,6 @@ export const OPERATOR_FIELDS = {
     role: true,
     isActive: true,
     isOnline: true,
-    availabilityStatus: true,
     lastSeen: true,
     createdAt: true
   },
@@ -56,7 +55,6 @@ export const OPERATOR_FIELDS = {
     name: true,
     isOnline: true,
     isActive: true,
-    availabilityStatus: true,
     lastSeen: true
   },
 
@@ -97,17 +95,15 @@ export class OperatorRepository {
 
   /**
    * Get online & available operators
+   * NOTE: No lastSeen check - operators control their own availability via toggle
    */
   static async getAvailableOperators() {
     const prisma = container.get('prisma');
-    const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000);
 
     return await prisma.operator.findMany({
       where: {
         isOnline: true,
-        isActive: true,
-        availabilityStatus: 'AVAILABLE',
-        lastSeen: { gte: fiveMinutesAgo }
+        isActive: true
       },
       select: OPERATOR_FIELDS.AVAILABILITY
     });
@@ -175,31 +171,23 @@ export class OperatorRepository {
       where: { id },
       data: {
         isOnline: status.isOnline !== undefined ? status.isOnline : undefined,
-        availabilityStatus: status.availabilityStatus || undefined,
         lastSeen: new Date()
       }
     });
   }
 
   /**
-   * Auto-logout inactive operators (> 5 minutes)
+   * @deprecated Auto-logout REMOVED - operators control their own status via toggle
+   * lastSeen is now only for statistics, NOT for availability logic
+   *
+   * Keeping this function for backward compatibility but it does nothing
    */
   static async autoLogoutInactive() {
-    const prisma = container.get('prisma');
-    const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000);
-
-    const result = await prisma.operator.updateMany({
-      where: {
-        isOnline: true,
-        lastSeen: { lt: fiveMinutesAgo }
-      },
-      data: {
-        isOnline: false,
-        availabilityStatus: 'OFFLINE'
-      }
-    });
-
-    return result.count;
+    // NO-OP: Operators manage their own online/offline status
+    // If they want to be available, they toggle on
+    // If they want to be unavailable, they toggle off
+    // No automatic logout based on inactivity
+    return 0;
   }
 }
 

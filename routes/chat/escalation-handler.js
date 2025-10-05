@@ -19,7 +19,6 @@ import { calculatePriority, getMinutesWaiting } from '../../utils/priority-calcu
  */
 export async function handleEscalation(message, session) {
   const prisma = container.get('prisma');
-  const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000);
 
   try {
     logger.debug('ESCALATION', 'Checking for operators');
@@ -30,29 +29,22 @@ export async function handleEscalation(message, session) {
         id: true,
         name: true,
         isOnline: true,
-        isActive: true,
-        lastSeen: true
+        isActive: true
       }
     });
     logger.debug('ESCALATION', 'All operators in database', { count: allOperators.length });
 
-    // ✅ Auto-logout inactive operators (centralized logic)
-    await OperatorRepository.autoLogoutInactive();
-
-    // Check for online operators with AVAILABLE status
+    // Check for online operators
     const onlineOperators = await prisma.operator.findMany({
       where: {
         isOnline: true,
-        isActive: true,
-        availabilityStatus: 'AVAILABLE',
-        lastSeen: { gte: fiveMinutesAgo } // Must be active in last 5 minutes
+        isActive: true
       },
       select: {
         id: true,
         name: true,
         isOnline: true,
-        isActive: true,
-        availabilityStatus: true
+        isActive: true
       }
     });
 
