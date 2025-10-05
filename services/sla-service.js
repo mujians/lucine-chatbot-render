@@ -50,7 +50,7 @@ class SLAService {
             const responseDeadline = new Date(now.getTime() + this.slaThresholds.RESPONSE_TIME[priority]);
             const resolutionDeadline = new Date(now.getTime() + this.slaThresholds.RESOLUTION_TIME[priority]);
 
-            const sla = await this.prisma.sLARecord.create({
+            const sla = await this.prisma.sLAMonitoringRecord.create({
                 data: {
                     entityId,
                     entityType, // 'SESSION' | 'TICKET'
@@ -83,7 +83,7 @@ class SLAService {
      */
     async markFirstResponse(entityId, entityType, operatorId) {
         try {
-            const sla = await this.prisma.sLARecord.findFirst({
+            const sla = await this.prisma.sLAMonitoringRecord.findFirst({
                 where: {
                     entityId,
                     entityType,
@@ -97,7 +97,7 @@ class SLAService {
             const responseTime = now - sla.createdAt;
             const wasOnTime = now <= sla.responseDeadline;
 
-            await this.prisma.sLARecord.update({
+            await this.prisma.sLAMonitoringRecord.update({
                 where: { id: sla.id },
                 data: {
                     firstResponseAt: now,
@@ -134,7 +134,7 @@ class SLAService {
      */
     async markResolved(entityId, entityType, operatorId, resolutionType = 'RESOLVED') {
         try {
-            const sla = await this.prisma.sLARecord.findFirst({
+            const sla = await this.prisma.sLAMonitoringRecord.findFirst({
                 where: {
                     entityId,
                     entityType,
@@ -148,7 +148,7 @@ class SLAService {
             const totalTime = now - sla.createdAt;
             const wasOnTime = now <= sla.resolutionDeadline;
 
-            await this.prisma.sLARecord.update({
+            await this.prisma.sLAMonitoringRecord.update({
                 where: { id: sla.id },
                 data: {
                     resolvedAt: now,
@@ -199,7 +199,7 @@ class SLAService {
             const now = new Date();
 
             // Check response deadline violations (not yet responded and past deadline)
-            const responseViolations = await this.prisma.sLARecord.findMany({
+            const responseViolations = await this.prisma.sLAMonitoringRecord.findMany({
                 where: {
                     status: 'ACTIVE',
                     responseDeadline: { lte: now },
@@ -211,7 +211,7 @@ class SLAService {
             for (const sla of responseViolations) {
                 await this.handleResponseSLAViolation(sla);
                 // Mark as violated
-                await this.prisma.sLARecord.update({
+                await this.prisma.sLAMonitoringRecord.update({
                     where: { id: sla.id },
                     data: {
                         violatedAt: now,
@@ -221,7 +221,7 @@ class SLAService {
             }
 
             // Check resolution deadline violations (not yet resolved and past deadline)
-            const resolutionViolations = await this.prisma.sLARecord.findMany({
+            const resolutionViolations = await this.prisma.sLAMonitoringRecord.findMany({
                 where: {
                     status: 'ACTIVE',
                     resolutionDeadline: { lte: now },
@@ -233,7 +233,7 @@ class SLAService {
             for (const sla of resolutionViolations) {
                 await this.handleResolutionSLAViolation(sla);
                 // Mark as violated
-                await this.prisma.sLARecord.update({
+                await this.prisma.sLAMonitoringRecord.update({
                     where: { id: sla.id },
                     data: {
                         violatedAt: now,
@@ -439,7 +439,7 @@ class SLAService {
         const startDate = new Date();
         startDate.setDate(startDate.getDate() - days);
 
-        const slaRecords = await this.prisma.sLARecord.findMany({
+        const slaRecords = await this.prisma.sLAMonitoringRecord.findMany({
             where: {
                 createdAt: { gte: startDate },
                 status: 'COMPLETED'
@@ -507,7 +507,7 @@ class SLAService {
     }
 
     async loadExistingSLAs() {
-        const activeSLAs = await this.prisma.sLARecord.count({
+        const activeSLAs = await this.prisma.sLAMonitoringRecord.count({
             where: { status: 'ACTIVE' }
         });
         console.log(`📋 Found ${activeSLAs} active SLA records`);
@@ -522,7 +522,7 @@ class SLAService {
 
     async checkSpecificSLA(slaId) {
         // Check specifico per SLA singolo
-        const sla = await this.prisma.sLARecord.findUnique({
+        const sla = await this.prisma.sLAMonitoringRecord.findUnique({
             where: { id: slaId, status: 'ACTIVE' }
         });
 
