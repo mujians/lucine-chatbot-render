@@ -39,11 +39,14 @@ async function fixFailedMigration() {
     // Just drop SLARecordStatus if it exists
     await prisma.$executeRawUnsafe(`DROP TYPE IF EXISTS "SLARecordStatus" CASCADE`);
 
-    // Delete the failed migration record so Prisma can retry
-    console.log('🔄 Removing failed migration record...');
+    // Mark the failed migration as rolled back (don't delete it)
+    console.log('🔄 Marking failed migration as rolled back...');
     await prisma.$executeRawUnsafe(`
-      DELETE FROM "_prisma_migrations"
+      UPDATE "_prisma_migrations"
+      SET "rolled_back_at" = NOW(),
+          "finished_at" = NULL
       WHERE "migration_name" = '20251005_add_sla_records'
+      AND "finished_at" IS NULL
     `);
 
     console.log('✅ Failed migration cleaned up. Prisma can now retry.');
