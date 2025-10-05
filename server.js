@@ -300,8 +300,9 @@ async function startServer() {
     await queueService.init(prisma);
     console.log('✅ Queue service initialized');
     
-    await slaService.init(prisma);
-    console.log('✅ SLA service initialized');
+    // Legacy SLA service disabled - using slaMonitoringService instead
+    // await slaService.init(prisma);
+    // console.log('✅ SLA service initialized');
 
     await slaMonitoringService.init(prisma);
     console.log('✅ SLA Monitoring service initialized');
