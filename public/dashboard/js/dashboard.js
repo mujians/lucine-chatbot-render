@@ -2381,6 +2381,15 @@ class DashboardApp {
             case 'new_message':
                 this.handleNewMessage(notification);
                 break;
+            case 'new_ticket_created':
+            case 'ticket_created':
+                this.handleNewTicket(notification);
+                break;
+            case 'ticket_updated':
+            case 'ticket_resolved':
+            case 'ticket_closed':
+                this.handleTicketUpdate(notification);
+                break;
             default:
                 console.log('⚠️ Unknown notification event:', eventType);
                 // Show generic notification
@@ -2544,7 +2553,31 @@ class DashboardApp {
      */
     handleChatAssigned(notification) {
         this.showToast(`📋 Chat assegnata: ${notification.sessionId}`, 'success');
+        this.updateAllBadges();  // ✅ Update badges immediately
         this.loadChatsData();
+    }
+
+    /**
+     * 🎫 Gestione nuovo ticket creato
+     */
+    handleNewTicket(notification) {
+        this.showToast(`🎫 Nuovo ticket: #${notification.ticketNumber}`, 'info');
+        this.updateAllBadges();  // Update badges immediately
+        // If on tickets view, reload data
+        if (this.currentSection === 'tickets') {
+            this.loadTicketsData();
+        }
+    }
+
+    /**
+     * 📝 Gestione aggiornamento ticket
+     */
+    handleTicketUpdate(notification) {
+        this.updateAllBadges();  // Update badges immediately
+        // If on tickets view, reload data
+        if (this.currentSection === 'tickets') {
+            this.loadTicketsData();
+        }
     }
 
     /**
