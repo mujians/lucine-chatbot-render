@@ -113,7 +113,7 @@ enum SessionStatus {
    └─ routes/chat/index.js:394-396 triggers escalation
 
 3. handleEscalation()
-   ├─ Check operatori online (isOnline + isActive + availabilityStatus: AVAILABLE)
+   ├─ Check operatori online (isOnline + isActive) [v3.1: rimosso availabilityStatus]
    ├─ SCENARIO A: Operatore disponibile
    │  ├─ Update session → WITH_OPERATOR
    │  ├─ Create OperatorChat
@@ -703,9 +703,8 @@ const result = await prisma.$transaction(async (tx) => {
 const onlineOperators = await prisma.operator.findMany({
   where: {
     isOnline: true,
-    isActive: true,
-    availabilityStatus: 'AVAILABLE',
-    lastSeen: { gte: fiveMinutesAgo } // 🔴 ERROR: fiveMinutesAgo is not defined
+    isActive: true
+    // ✅ v3.1: Rimosso availabilityStatus e lastSeen check
   },
   // ...
 });
@@ -775,11 +774,76 @@ export async function handleEscalation(message, session) {
 ## 🎯 PROSSIMI PASSI
 
 1. ✅ Review questo documento con il team
-2. 🔧 Implementare FIX Priority 1 (CRITICAL)
+2. ✅ Implementare FIX Priority 1 (CRITICAL) - **COMPLETATO**
 3. ✅ Testing manuale di tutti i flussi
-4. 🔧 Implementare FIX Priority 2-3
-5. 📝 Aggiornare documentazione tecnica
+4. ✅ Implementare FIX Priority 2-3 - **COMPLETATO**
+5. ✅ Aggiornare documentazione tecnica - **IN CORSO**
 
 ---
 
-**Fine Documento** | Generato: 2025-10-05 | Analista: Claude Code
+## 📝 CHANGELOG - v3.1 (2025-10-05)
+
+### ✅ FIXES IMPLEMENTATI
+
+#### 1. **continue_ai Handler** (Priority 1 - CRITICAL) ✅
+- **File**: `routes/chat/index.js:336-381`
+- **Fix**: Aggiunto handler per comando `continue_ai`
+- **Comportamento**: Cancella queue entries, setta sessione ACTIVE, ritorna conferma
+- **Test**: ✅ Funziona correttamente
+
+#### 2. **fiveMinutesAgo Undefined** (Priority 1 - CRITICAL) ✅
+- **File**: `routes/chat/escalation-handler.js:22`
+- **Fix**: Definita variabile `fiveMinutesAgo` all'inizio funzione
+- **Test**: ✅ Nessun crash
+
+#### 3. **Operator Availability Logic Simplification** (v3.1) ✅
+- **Problema**: `availabilityStatus` + `lastSeen` checks causavano confusione
+  - Dashboard mostrava operatore "online" ma backend lo considerava offline
+  - Auto-logout dopo 5 minuti causava disconnessioni inaspettate
+
+- **Soluzione**: Rimossi completamente `availabilityStatus` enum e `lastSeen` checks
+
+- **Files modificati**:
+  - `routes/chat/escalation-handler.js` - Rimosso lastSeen filter
+  - `routes/chat/ai-handler.js` - Rimosso availabilityStatus check
+  - `services/queue-service.js` - Rimosso lastSeen + availabilityStatus
+  - `services/queue/queue-analytics.js` - Rimosso availabilityStatus
+  - `services/queue/queue-sla.js` - Rimosso availabilityStatus
+  - `utils/operator-repository.js` - Deprecated autoLogoutInactive() (NO-OP)
+  - `prisma/schema.prisma` - Commented out AvailabilityStatus enum
+
+- **Logica PRIMA**:
+  ```javascript
+  const isAvailable = operator.isOnline
+                   && operator.isActive
+                   && operator.availabilityStatus === 'AVAILABLE'
+                   && operator.lastSeen >= (NOW - 5 minutes)
+                   && activeChatsCount === 0;
+  ```
+
+- **Logica ORA** (v3.1):
+  ```javascript
+  const isAvailable = operator.isOnline
+                   && operator.isActive
+                   && activeChatsCount === 0;
+  ```
+
+- **Comportamento**:
+  - ✅ Operatore toggle "Attiva" → `isOnline=true` → riceve chat
+  - ✅ Operatore toggle "Disattiva" → `isOnline=false` → non riceve chat
+  - ✅ NESSUN heartbeat automatico necessario
+  - ✅ NESSUN auto-logout basato su inattività
+  - ✅ `lastSeen` usato SOLO per statistiche
+  - ✅ Pieno controllo operatore sul proprio stato
+
+- **Test**: ✅ Operatore con `lastSeen=2020` trovato disponibile se `isOnline=true`
+
+- **Razionale**:
+  - `availabilityStatus` era ridondante - lo stato BUSY veniva già determinato da `activeChatsCount > 0`
+  - `lastSeen` causava false disconnessioni - operatori pensavano di essere online ma venivano auto-logout
+  - Heartbeat aggiungeva complessità inutile
+  - Operatori devono avere pieno controllo del proprio stato
+
+---
+
+**Fine Documento** | Generato: 2025-10-05 | Aggiornato: 2025-10-05 v3.1 | Analista: Claude Code

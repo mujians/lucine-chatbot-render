@@ -525,8 +525,8 @@ SMS      // Contatto via SMS
 | `email` | String | Email (UNIQUE) | Per notifiche |
 | `role` | OperatorRole | Ruolo/permessi | Enum (default: OPERATOR) |
 | `isActive` | Boolean | Account attivo | False = disabilitato |
-| `isOnline` | Boolean | Stato online | Aggiornato da heartbeat |
-| `lastSeen` | DateTime | Ultimo accesso | Aggiornato ogni 30s |
+| `isOnline` | Boolean | Stato online | Toggle manuale operatore |
+| `lastSeen` | DateTime | Ultima attività | Solo statistiche, non usato per disponibilità |
 | `createdAt` | DateTime | Data creazione account | |
 | `operatorChats` | OperatorChat[] | Relazione 1:N chat assegnate | |
 | `assignedTickets` | Ticket[] | Relazione 1:N ticket assegnati | |
@@ -545,10 +545,13 @@ const isAvailable = operator.isOnline
                  && (activeChatsCount === 0);
 ```
 
-**Heartbeat**:
-- Dashboard invia GET /api/operators/heartbeat ogni 30s
-- Aggiorna `isOnline=true` e `lastSeen=NOW()`
-- Se lastSeen > 5 minuti fa → considerato offline
+**Controllo stato** (v3.1 - Simplified):
+- Operatori controllano il proprio stato via toggle "Attiva/Disattiva" nella dashboard
+- `isOnline=true` → disponibile per nuove chat
+- `isOnline=false` → non disponibile
+- **NESSUN heartbeat automatico** - l'operatore ha pieno controllo
+- **NESSUN auto-logout** basato su inattività
+- `lastSeen` usato SOLO per statistiche, NON per logica di disponibilità
 
 ---
 
