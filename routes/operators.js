@@ -201,7 +201,7 @@ router.get('/list', async (req, res) => {
 });
 
 // 📊 Dashboard Summary - Single endpoint for all dashboard data
-router.get('/dashboard-summary', async (req, res) => {
+router.get('/dashboard-summary', authenticateToken, async (req, res) => {
   try {
     // Fetch everything in parallel
     const [pendingChatsData, ticketsData, chatHistoryCount] = await Promise.all([
@@ -249,7 +249,7 @@ router.get('/dashboard-summary', async (req, res) => {
 });
 
 // Get pending chats (sessions that need operator attention) AND active operator chats
-router.get('/pending-chats', async (req, res) => {
+router.get('/pending-chats', authenticateToken, async (req, res) => {
   try {
     // 1. Fetch sessions WAITING_OPERATOR (in queue)
     const waitingChats = await getPrisma().chatSession.findMany({
@@ -360,7 +360,7 @@ router.get('/pending-chats', async (req, res) => {
 });
 
 // Get chat history with filters
-router.get('/chat-history', async (req, res) => {
+router.get('/chat-history', authenticateToken, async (req, res) => {
   try {
     const { status, limit = 50, offset = 0 } = req.query;
 
