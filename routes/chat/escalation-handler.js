@@ -31,12 +31,26 @@ export async function handleEscalation(message, session) {
     });
     console.log('📊 ALL operators in database:', allOperators);
 
+    // Auto-logout operators inactive for more than 5 minutes
+    const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000);
+    await prisma.operator.updateMany({
+      where: {
+        isOnline: true,
+        lastSeen: { lt: fiveMinutesAgo }
+      },
+      data: {
+        isOnline: false,
+        availabilityStatus: 'OFFLINE'
+      }
+    });
+
     // Check for online operators with AVAILABLE status
     const onlineOperators = await prisma.operator.findMany({
       where: {
         isOnline: true,
         isActive: true,
-        availabilityStatus: 'AVAILABLE'
+        availabilityStatus: 'AVAILABLE',
+        lastSeen: { gte: fiveMinutesAgo } // Must be active in last 5 minutes
       },
       select: {
         id: true,
