@@ -451,24 +451,29 @@ router.post('/take-chat', authenticateToken, validateSession, async (req, res) =
     if (existing) {
       // Check if it's the same operator trying to take it
       if (existing.operatorId === operatorId) {
-        // Same operator, just activate the existing chat
-        operatorChat = existing;
-        console.log('✅ Operator taking their own assigned chat');
+        // Same operator - IDEMPOTENT: Already taken, just return success
+        console.log('✅ Chat already taken by this operator - returning success (idempotent)');
+        return res.json({
+          success: true,
+          chatId: existing.id,
+          operator: existing.operator.name,
+          alreadyTaken: true
+        });
       } else {
         // Different operator, reject
-        return res.status(400).json({ 
-          error: `Chat already taken by ${existing.operator.name}` 
+        return res.status(400).json({
+          error: `Chat already taken by ${existing.operator.name}`
         });
       }
-    } else {
-      // Create new operator chat
-      operatorChat = await getPrisma().operatorChat.create({
-        data: {
-          sessionId,
-          operatorId
-        }
-      });
     }
+
+    // Create new operator chat (only if not existing)
+    operatorChat = await getPrisma().operatorChat.create({
+      data: {
+        sessionId,
+        operatorId
+      }
+    });
 
     // Update session status
     await getPrisma().chatSession.update({
