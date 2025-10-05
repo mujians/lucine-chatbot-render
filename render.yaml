@@ -5,7 +5,7 @@ services:
     runtime: node
     region: frankfurt # EU region for Italian users
     plan: free # or 'starter' for $7/month
-    buildCommand: npm install && npx prisma generate && npx prisma migrate deploy
+    buildCommand: npm install && npx prisma generate && node scripts/fix-failed-migration.js && npx prisma migrate deploy
     startCommand: npm start
     envVars:
       - key: NODE_ENV
