@@ -6,6 +6,7 @@
 import container from '../../config/container.js';
 import { MESSAGE_SENDER, SESSION_STATUS } from '../../config/constants.js';
 import { queueService } from '../../services/queue-service.js';
+import { filterMessagesForDisplay } from '../../utils/message-types.js';
 
 /**
  * Polling endpoint per ricevere messaggi da operatore
@@ -78,13 +79,16 @@ export async function handlePolling(sessionId) {
     }
 
     // Get new messages since last poll (messages not yet received by user)
-    // For simplicity, we return last 10 operator messages
-    const operatorMessages = session.messages.map(msg => {
+    // Filter out command messages and duplicates
+    const displayableMessages = filterMessagesForDisplay(session.messages);
+
+    const operatorMessages = displayableMessages.map(msg => {
       const messageData = {
         id: msg.id,
         sender: msg.sender,
         message: msg.message,
-        timestamp: msg.timestamp
+        timestamp: msg.timestamp,
+        metadata: msg.metadata // Include full metadata for client-side filtering
         // No operatorName - widget shows message directly without prefix
       };
 

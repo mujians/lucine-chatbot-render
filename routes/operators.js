@@ -8,6 +8,11 @@ import {
 } from '../middleware/security.js';
 import { getAutomatedText } from '../utils/automated-texts.js';
 import { operatorEventLogger } from '../services/operator-event-logging.js';
+import {
+  createSystemMessage,
+  createOperatorMessage,
+  MESSAGE_CONTEXTS
+} from '../utils/message-types.js';
 
 const router = express.Router();
 
@@ -569,13 +574,13 @@ router.post('/take-chat', authenticateToken, validateSession, async (req, res) =
 
     // Add system message FIRST (only if new operator chat)
     if (!existing) {
-      const systemMessage = await getPrisma().message.create({
-        data: {
-          sessionId,
-          sender: 'SYSTEM',
-          message: `👤 ${operator.name} si è unito alla chat`
-        }
-      });
+      const systemMessage = await createSystemMessage(
+        getPrisma(),
+        sessionId,
+        `👤 ${operator.name} si è unito alla chat`,
+        MESSAGE_CONTEXTS.OPERATOR_JOINED,
+        { operatorId, operatorName: operator.name }
+      );
 
       // Send system message via WebSocket for instant delivery
       try {
@@ -586,7 +591,8 @@ router.post('/take-chat', authenticateToken, validateSession, async (req, res) =
             id: systemMessage.id,
             sender: 'SYSTEM',
             message: systemMessage.message,
-            timestamp: systemMessage.timestamp
+            timestamp: systemMessage.timestamp,
+            metadata: systemMessage.metadata
           }
         });
         console.log('✅ System message sent via WebSocket');
@@ -614,17 +620,14 @@ router.post('/take-chat', authenticateToken, validateSession, async (req, res) =
       console.log('📨 Sending operator greeting...');
       const greetingText = await getAutomatedText('operator_greeting');
 
-      const greetingMessage = await getPrisma().message.create({
-        data: {
-          sessionId,
-          sender: 'OPERATOR',
-          message: greetingText,
-          metadata: {
-            operatorId,
-            isAutomatic: true
-          }
-        }
-      });
+      const greetingMessage = await createOperatorMessage(
+        getPrisma(),
+        sessionId,
+        greetingText,
+        operatorId,
+        true, // isAutomatic
+        MESSAGE_CONTEXTS.OPERATOR_GREETING
+      );
 
       // Send greeting to widget via WebSocket
       try {
@@ -637,7 +640,8 @@ router.post('/take-chat', authenticateToken, validateSession, async (req, res) =
             message: greetingMessage.message,
             timestamp: greetingMessage.timestamp,
             operatorId,
-            isAutomatic: true
+            isAutomatic: true,
+            metadata: greetingMessage.metadata
           }
         });
         console.log('✅ Greeting sent via WebSocket');
