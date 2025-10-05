@@ -595,17 +595,19 @@ router.post('/take-chat', authenticateToken, validateSession, async (req, res) =
       }
     }
 
-    // Check if greeting was already sent (to avoid duplicates)
-    // Look for any OPERATOR message in this session
-    const existingOperatorMessages = await getPrisma().message.findFirst({
+    // Check if automatic greeting was already sent (to avoid duplicates)
+    // Look specifically for automatic OPERATOR message with isAutomatic flag
+    const existingGreeting = await getPrisma().message.findFirst({
       where: {
         sessionId,
-        sender: 'OPERATOR'
+        sender: 'OPERATOR',
+        metadata: {
+          path: ['isAutomatic'],
+          equals: true
+        }
       },
       orderBy: { timestamp: 'asc' }
     });
-
-    const existingGreeting = existingOperatorMessages;
 
     // Send automatic greeting AFTER system message (for correct order)
     if (!existingGreeting) {
