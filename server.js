@@ -175,16 +175,7 @@ app.use(detectSuspiciousActivity);
 
 // CORS configuration - usa constants.js
 app.use(cors({
-  origin: (origin, callback) => {
-    // Permetti richieste senza origin (Postman, mobile apps, etc.)
-    if (!origin) return callback(null, true);
-
-    if (ALLOWED_ORIGINS.includes(origin)) {
-      callback(null, true);
-    } else {
-      callback(null, false);
-    }
-  },
+  origin: ALLOWED_ORIGINS,
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization', 'X-Session-ID']
